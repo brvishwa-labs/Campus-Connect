@@ -1,0 +1,4 @@
+first_name,last_name,department_id,employee_id,college_email,phone,designation,password
+Jane,Doe,1,EMP001,jane.doe@svcet.edu,1234567890,Professor,Welcome123
+John,Smith,1,EMP002,john.smith@svcet.edu,0987654321,Assistant Professor,
+Alice,Johnson,2,EMP003,alice.j@svcet.edu,5555555555,Associate Professor,Pass123

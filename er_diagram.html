@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus Connect ERP - ER Diagram</title>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ 
+            startOnLoad: true, 
+            theme: 'default',
+            securityLevel: 'loose',
+            er: {
+                useMaxWidth: false
+            }
+        });
+    </script>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            padding: 20px; 
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 100%;
+            overflow-x: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { text-align: center; color: #333; }
+    </style>
+</head>
+<body>
+    <h1>Campus Connect ERP - ER Diagram</h1>
+    <p style="text-align: center;">You can zoom in/out using your browser controls (Ctrl + Mouse Wheel).</p>
+    <div class="container">
+        <pre class="mermaid">
+erDiagram
+    %% ===== CORE ENTITIES =====
+
+    DEPARTMENT {
+        int id PK
+        string name
+        string code
+        boolean is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    USER {
+        int id PK
+        string email
+        string password_hash
+        string role "admin | hod | faculty | student | dean | principal | vp | om"
+        boolean is_active
+        timestamp last_login
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    FACULTY {
+        int id PK
+        int user_id FK
+        int department_id FK "home department"
+        string faculty_code
+        string name
+        string gender
+        date date_of_birth
+        string college_email
+        string personal_email
+        string phone
+        string alternate_phone
+        string address
+        string blood_group
+        string nationality
+        string community
+        string emergency_contact_name
+        string emergency_contact_phone
+        string designation
+        string qualification
+        string experience
+        date date_of_joining
+        string profile_image
+        boolean is_active
+        timestamp created_at
+    }
+
+    STUDENT {
+        int id PK
+        int user_id FK
+        int department_id FK
+        int class_id FK
+        string register_no
+        string name
+        string gender
+        date date_of_birth
+        string batch "e.g. 2023-2027"
+        int year
+        int semester
+        string section
+        string college_email
+        string personal_email
+        string phone
+        string father_name
+        string father_mobile
+        string father_occupation
+        string mother_name
+        string mother_mobile
+        string mother_occupation
+        float parent_annual_income
+        string address
+        string blood_group
+        string nationality
+        string community
+        string school_10th_name
+        string board_10th
+        float percentage_10th
+        string school_12th_name
+        string board_12th
+        float percentage_12th
+        string profile_image
+        boolean is_active
+        timestamp created_at
+    }
+
+    %% ===== ACADEMIC STRUCTURE =====
+
+    COURSE {
+        int id PK
+        int department_id FK
+        string course_code
+        string course_name
+        int semester
+        int credits
+        string regulation
+        string academic_year
+        boolean is_active
+        timestamp created_at
+    }
+
+    CLASS {
+        int id PK
+        int department_id FK
+        int year
+        int semester
+        string section
+        string class_name "e.g. II CSE A"
+        boolean is_active
+        timestamp created_at
+    }
+
+    %% ===== ASSIGNMENT & ALLOCATION =====
+
+    HOD_ASSIGNMENT {
+        int id PK
+        int faculty_id FK
+        int department_id FK
+        boolean is_active
+        timestamp assigned_at
+    }
+
+    COURSE_ASSIGNMENT {
+        int id PK
+        int course_id FK
+        int faculty_id FK
+        int class_id FK
+        string academic_year
+        boolean is_active
+        timestamp created_at
+    }
+
+    CLASS_ADVISOR {
+        int id PK
+        int faculty_id FK
+        int class_id FK
+        boolean is_active
+        timestamp assigned_at
+    }
+
+    MENTOR_ASSIGNMENT {
+        int id PK
+        int faculty_id FK
+        int student_id FK
+        boolean is_active
+        timestamp assigned_at
+    }
+
+    %% ===== TIMETABLE =====
+
+    TIMETABLE {
+        int id PK
+        int class_id FK
+        string day "Mon-Sat"
+        int period_number
+        int course_assignment_id FK
+        string room_no
+        timestamp created_at
+    }
+
+    %% ===== ATTENDANCE =====
+
+    ATTENDANCE_SESSION {
+        int id PK
+        int course_assignment_id FK
+        date session_date
+        int period_number
+        timestamp created_at
+    }
+
+    ATTENDANCE_RECORD {
+        int id PK
+        int session_id FK
+        int student_id FK
+        string status "present | absent | od | late"
+        timestamp marked_at
+    }
+
+    %% ===== MARKS & RESULTS =====
+
+    ASSESSMENT {
+        int id PK
+        int course_assignment_id FK
+        string type "CIA1 | CIA2 | CIA3 | Model | Retest"
+        int max_marks
+        date date
+        boolean is_published
+        timestamp created_at
+    }
+
+    MARKS {
+        int id PK
+        int assessment_id FK
+        int student_id FK
+        float marks_obtained
+        string remarks
+        timestamp created_at
+    }
+
+    %% ===== LMS =====
+
+    RESOURCE {
+        int id PK
+        int course_assignment_id FK
+        string title
+        string type "pdf | ppt | notes | lab_manual | link"
+        string file_path
+        string external_url
+        timestamp uploaded_at
+    }
+
+    ASSIGNMENT {
+        int id PK
+        int course_assignment_id FK
+        string title
+        string description
+        date due_date
+        int max_marks
+        boolean allow_resubmit
+        timestamp created_at
+    }
+
+    ASSIGNMENT_SUBMISSION {
+        int id PK
+        int assignment_id FK
+        int student_id FK
+        string file_path
+        string status "pending | submitted | late | graded"
+        float marks
+        string feedback
+        timestamp submitted_at
+        timestamp graded_at
+    }
+
+    SYLLABUS {
+        int id PK
+        int course_assignment_id FK
+        int unit_number
+        string unit_title
+        string topics
+        boolean is_completed
+        timestamp completed_at
+    }
+
+    COURSE_ANNOUNCEMENT {
+        int id PK
+        int course_assignment_id FK
+        string title
+        string content
+        boolean is_pinned
+        timestamp created_at
+    }
+
+    %% ===== LEAVE MANAGEMENT =====
+
+    STUDENT_LEAVE {
+        int id PK
+        int student_id FK
+        string leave_type "casual | medical | od | permission"
+        string reason
+        date from_date
+        date to_date
+        string attachment_path
+        string status "pending | ca_approved | mentor_approved | hod_approved | rejected"
+        int class_advisor_id FK
+        int mentor_id FK
+        int hod_id FK
+        string ca_remarks
+        string mentor_remarks
+        string hod_remarks
+        timestamp ca_action_at
+        timestamp mentor_action_at
+        timestamp hod_action_at
+        timestamp applied_at
+    }
+
+    FACULTY_LEAVE {
+        int id PK
+        int faculty_id FK
+        string leave_type "casual | od | permission"
+        string reason
+        date from_date
+        date to_date
+        string duty_arrangement
+        string status "pending | approved | rejected"
+        int approved_by FK "HOD faculty_id"
+        string remarks
+        timestamp applied_at
+        timestamp action_at
+    }
+
+    %% ===== DISCIPLINE =====
+
+    DISCIPLINE_INCIDENT {
+        int id PK
+        int student_id FK
+        string incident_type "mobile | dress_code | misbehavior | disturbance | other"
+        string description
+        string action_taken
+        string remarks
+        int reported_by FK "faculty/hod/authority user_id"
+        boolean is_locked
+        boolean is_archived
+        timestamp incident_date
+        timestamp created_at
+    }
+
+    LATE_ENTRY {
+        int id PK
+        int student_id FK
+        date entry_date
+        time arrival_time
+        boolean is_informed
+        boolean letter_submitted
+        string remarks
+        int recorded_by FK "user_id"
+        boolean is_locked
+        timestamp created_at
+    }
+
+    %% ===== ANNOUNCEMENTS & NOTIFICATIONS =====
+
+    ANNOUNCEMENT {
+        int id PK
+        int created_by FK "user_id"
+        string title
+        string content
+        string scope "institution | department | semester | section"
+        int target_department_id FK
+        int target_year
+        string target_section
+        string priority "normal | high | urgent"
+        boolean is_published
+        timestamp published_at
+        timestamp created_at
+    }
+
+    NOTIFICATION {
+        int id PK
+        int user_id FK "recipient"
+        string title
+        string content
+        string type "announcement | leave | system | alert"
+        int reference_id "polymorphic FK"
+        boolean is_read
+        timestamp created_at
+    }
+
+    %% ===== REQUESTS & GRIEVANCES =====
+
+    STUDENT_REQUEST {
+        int id PK
+        int student_id FK
+        string request_type "bonafide | recommendation | academic | complaint | grievance"
+        string subject
+        string description
+        string status "pending | in_review | resolved | rejected"
+        string resolution
+        int handled_by FK "hod faculty_id"
+        timestamp submitted_at
+        timestamp resolved_at
+    }
+
+    %% ===== AUDIT =====
+
+    AUDIT_LOG {
+        int id PK
+        int user_id FK
+        string role
+        string action
+        string entity_type
+        int entity_id
+        string details
+        string status "success | failure"
+        string ip_address
+        timestamp created_at
+    }
+
+    %% ===== MESSAGES =====
+
+    MESSAGE {
+        int id PK
+        int sender_id FK "user_id"
+        int receiver_id FK "user_id"
+        string content
+        boolean is_read
+        timestamp sent_at
+    }
+
+    %% ===== DOUBT SOLVER =====
+
+    DOUBT {
+        int id PK
+        int student_id FK
+        int course_assignment_id FK
+        string question
+        string answer
+        int answered_by FK "faculty user_id"
+        boolean is_resolved
+        timestamp asked_at
+        timestamp answered_at
+    }
+
+    %% ===== CALENDAR =====
+
+    CALENDAR_EVENT {
+        int id PK
+        string title
+        string description
+        string event_type "academic | exam | meeting | deadline"
+        date event_date
+        time start_time
+        time end_time
+        int created_by FK "user_id"
+        string scope "institution | department | class | personal"
+        int target_department_id FK
+        timestamp created_at
+    }
+
+    %% ========================================
+    %% RELATIONSHIPS
+    %% ========================================
+
+    %% Core
+    USER ||--o| FACULTY : "has profile"
+    USER ||--o| STUDENT : "has profile"
+    DEPARTMENT ||--o{ FACULTY : "home dept"
+    DEPARTMENT ||--o{ STUDENT : "belongs to"
+    DEPARTMENT ||--o{ COURSE : "offers"
+    DEPARTMENT ||--o{ CLASS : "contains"
+
+    %% Assignments
+    DEPARTMENT ||--o| HOD_ASSIGNMENT : "has HOD"
+    FACULTY ||--o| HOD_ASSIGNMENT : "assigned as HOD"
+    COURSE ||--o{ COURSE_ASSIGNMENT : "assigned to"
+    FACULTY ||--o{ COURSE_ASSIGNMENT : "teaches"
+    CLASS ||--o{ COURSE_ASSIGNMENT : "for class"
+    FACULTY ||--o| CLASS_ADVISOR : "advises"
+    CLASS ||--o| CLASS_ADVISOR : "has advisor"
+    FACULTY ||--o{ MENTOR_ASSIGNMENT : "mentors"
+    STUDENT ||--o| MENTOR_ASSIGNMENT : "has mentor"
+    CLASS ||--o{ STUDENT : "enrolled in"
+
+    %% Timetable
+    CLASS ||--o{ TIMETABLE : "has schedule"
+    COURSE_ASSIGNMENT ||--o{ TIMETABLE : "scheduled in"
+
+    %% Attendance
+    COURSE_ASSIGNMENT ||--o{ ATTENDANCE_SESSION : "sessions"
+    ATTENDANCE_SESSION ||--o{ ATTENDANCE_RECORD : "records"
+    STUDENT ||--o{ ATTENDANCE_RECORD : "attendance"
+
+    %% Marks
+    COURSE_ASSIGNMENT ||--o{ ASSESSMENT : "assessments"
+    ASSESSMENT ||--o{ MARKS : "marks"
+    STUDENT ||--o{ MARKS : "scored"
+
+    %% LMS
+    COURSE_ASSIGNMENT ||--o{ RESOURCE : "has resources"
+    COURSE_ASSIGNMENT ||--o{ ASSIGNMENT : "has assignments"
+    ASSIGNMENT ||--o{ ASSIGNMENT_SUBMISSION : "submissions"
+    STUDENT ||--o{ ASSIGNMENT_SUBMISSION : "submits"
+    COURSE_ASSIGNMENT ||--o{ SYLLABUS : "has units"
+    COURSE_ASSIGNMENT ||--o{ COURSE_ANNOUNCEMENT : "announcements"
+
+    %% Leave
+    STUDENT ||--o{ STUDENT_LEAVE : "applies"
+    FACULTY ||--o{ FACULTY_LEAVE : "applies"
+
+    %% Discipline
+    STUDENT ||--o{ DISCIPLINE_INCIDENT : "involved in"
+    STUDENT ||--o{ LATE_ENTRY : "recorded"
+
+    %% Communication
+    USER ||--o{ NOTIFICATION : "receives"
+    USER ||--o{ ANNOUNCEMENT : "creates"
+    USER ||--o{ MESSAGE : "sends"
+    USER ||--o{ MESSAGE : "receives"
+
+    %% Requests
+    STUDENT ||--o{ STUDENT_REQUEST : "raises"
+
+    %% Audit
+    USER ||--o{ AUDIT_LOG : "actions"
+
+    %% Doubts
+    STUDENT ||--o{ DOUBT : "asks"
+    COURSE_ASSIGNMENT ||--o{ DOUBT : "related to"
+
+    %% Calendar
+    USER ||--o{ CALENDAR_EVENT : "creates"
+        </pre>
+    </div>
+</body>
+</html>
