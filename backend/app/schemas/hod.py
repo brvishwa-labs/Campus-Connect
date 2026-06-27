@@ -34,6 +34,16 @@ class CourseAssignmentCreate(BaseModel):
     academic_year: str      # "2024-2025"
     semester: int
 
+class SimpleCourse(BaseModel):
+    id: int
+    code: str
+    name: str
+
+class SimpleFaculty(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+
 class CourseAssignmentResponse(BaseModel):
     id: int
     faculty_id: int
@@ -43,6 +53,8 @@ class CourseAssignmentResponse(BaseModel):
     semester: int
     is_active: bool
     created_at: datetime
+    course: Optional[SimpleCourse] = None
+    faculty: Optional[SimpleFaculty] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -89,6 +101,10 @@ class TimetableSlotResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class TimetableBulkCreate(BaseModel):
+    section_id: int
+    slots: list[TimetableSlotCreate]
 
 # --- Announcement Schemas ---
 class AnnouncementCreate(BaseModel):

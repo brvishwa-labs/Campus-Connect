@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 
 from app.core.database import get_db
@@ -14,9 +14,10 @@ from app.schemas.hod import (
     CourseAssignmentCreate, CourseAssignmentResponse,
     MentorAssignmentCreate, MentorAssignmentResponse,
     HodDashboardResponse,
-    TimetableSlotCreate, TimetableSlotResponse,
+    TimetableSlotCreate, TimetableSlotResponse, TimetableBulkCreate,
     AnnouncementCreate, AnnouncementResponse
 )
+from typing import List, Optional
 from app.core.security import get_current_active_user
 
 router = APIRouter()
@@ -122,7 +123,7 @@ def hod_students(
     current_user: User = Depends(get_current_active_user)
 ):
     department, _ = get_hod_department(current_user, db)
-    students = db.query(Student).filter(Student.department_id == department.id).all()
+    students = db.query(Student).options(joinedload(Student.section)).filter(Student.department_id == department.id).all()
     return [
         {
             "id": s.id,
@@ -131,6 +132,11 @@ def hod_students(
             "register_number": s.register_number,
             "batch": s.batch,
             "current_semester": s.current_semester,
+            "section": {
+                "id": s.section.id,
+                "name": s.section.name,
+                "year": s.section.year
+            } if s.section else None
         }
         for s in students
     ]
@@ -227,16 +233,18 @@ def delete_section(
 
 @router.get("/assignments", response_model=List[CourseAssignmentResponse])
 def get_assignments(
+    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     department, _ = get_hod_department(current_user, db)
-    return (
-        db.query(CourseAssignment)
-        .join(Course)
-        .filter(Course.department_id == department.id)
-        .all()
-    )
+    query = db.query(CourseAssignment).options(
+        joinedload(CourseAssignment.course),
+        joinedload(CourseAssignment.faculty)
+    ).join(Course).filter(Course.department_id == department.id)
+    if section_id:
+        query = query.filter(CourseAssignment.section_id == section_id)
+    return query.all()
 
 
 @router.post("/assignments", response_model=CourseAssignmentResponse, status_code=status.HTTP_201_CREATED)
@@ -347,18 +355,41 @@ def create_mentor(
     if not student:
         raise HTTPException(status_code=400, detail="Student not found in your department")
 
-    # Check if student already has a mentor
+    # Update existing or create new mentor assignment
     existing = db.query(MentorAssignment).filter(
         MentorAssignment.student_id == mentor_in.student_id
     ).first()
     if existing:
-        raise HTTPException(status_code=400, detail="This student already has a mentor assigned")
+        existing.mentor_id = mentor_in.mentor_id
+        existing.academic_year = mentor_in.academic_year
+        db.commit()
+        db.refresh(existing)
+        return existing
+    else:
+        new_mentor = MentorAssignment(**mentor_in.model_dump())
+        db.add(new_mentor)
+        db.commit()
+        db.refresh(new_mentor)
+        return new_mentor
 
-    new_mentor = MentorAssignment(**mentor_in.model_dump())
-    db.add(new_mentor)
-    db.commit()
-    db.refresh(new_mentor)
-    return new_mentor
+@router.delete("/mentors/student/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
+def unassign_mentor(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    department, _ = get_hod_department(current_user, db)
+    
+    assignment = (
+        db.query(MentorAssignment)
+        .join(Student, MentorAssignment.student_id == Student.id)
+        .filter(MentorAssignment.student_id == student_id, Student.department_id == department.id)
+        .first()
+    )
+    if assignment:
+        db.delete(assignment)
+        db.commit()
+    return None
 
 
 @router.delete("/mentors/{mentor_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -444,6 +475,54 @@ def create_timetable_slot(
     new_slot.start_time = new_slot.start_time.strftime("%H:%M")
     new_slot.end_time = new_slot.end_time.strftime("%H:%M")
     return new_slot
+
+@router.post("/timetable/bulk", status_code=status.HTTP_201_CREATED)
+def bulk_create_timetable(
+    payload: TimetableBulkCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    department, _ = get_hod_department(current_user, db)
+    
+    # 1. Verify section belongs to HOD
+    section = db.query(Section).filter(Section.id == payload.section_id, Section.department_id == department.id).first()
+    if not section:
+        raise HTTPException(status_code=404, detail="Section not found in your department")
+        
+    # 2. Get all assignments for this section
+    assignments = db.query(CourseAssignment).filter(CourseAssignment.section_id == payload.section_id).all()
+    assignment_ids = [a.id for a in assignments]
+    
+    # 3. Delete existing slots for this section
+    if assignment_ids:
+        db.query(TimetableSlot).filter(TimetableSlot.course_assignment_id.in_(assignment_ids)).delete(synchronize_session=False)
+        
+    # 4. Insert new slots
+    from datetime import datetime
+    new_slots = []
+    for slot_in in payload.slots:
+        if slot_in.course_assignment_id not in assignment_ids:
+            raise HTTPException(status_code=400, detail=f"Assignment {slot_in.course_assignment_id} does not belong to section {payload.section_id}")
+            
+        try:
+            start_t = datetime.strptime(slot_in.start_time, "%H:%M").time()
+            end_t = datetime.strptime(slot_in.end_time, "%H:%M").time()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid time format. Use HH:MM")
+            
+        new_slots.append(TimetableSlot(
+            course_assignment_id=slot_in.course_assignment_id,
+            day=slot_in.day,
+            start_time=start_t,
+            end_time=end_t,
+            room=slot_in.room
+        ))
+        
+    if new_slots:
+        db.add_all(new_slots)
+        
+    db.commit()
+    return {"message": "Timetable updated successfully", "slots_added": len(new_slots)}
 
 @router.delete("/timetable/{slot_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_timetable_slot(
