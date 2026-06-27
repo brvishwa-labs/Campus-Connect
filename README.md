@@ -13,6 +13,13 @@ A modern Education Resource Planning (ERP) system built for colleges and univers
 
 Follow these steps to run the Campus Connect ERP on your local machine.
 
+### Prerequisites (Crucial for AI Agents & Developers)
+To ensure complete compatibility and avoid confusion during setup or agent execution, ensure the following software versions are used:
+- **Node.js**: v18.0.0 or higher (Tested with v22.x)
+- **Python**: v3.10 or higher (Tested with v3.11.x)
+- **PostgreSQL**: v14.0 or higher
+- **Package Managers**: `npm` (for frontend) and `pip` (for backend)
+
 ### 1. Clone the Repository
 ```bash
 git clone <repository-url>
@@ -39,9 +46,9 @@ pip install -r requirements.txt
 ```
 
 #### Database Setup (PostgreSQL)
-1. Install PostgreSQL on your machine if you haven't already.
-2. Create a new database named `campus_connect` using pgAdmin or the psql CLI.
-3. In the `backend` folder, create a file named `.env` and add your database URL and secret key like this:
+1. Install PostgreSQL (v14+) on your machine.
+2. Create a new database named `campus_connect` using pgAdmin or the `psql` CLI.
+3. In the `backend` folder, create a file named `.env` and strictly use this format (replace username/password with your local postgres credentials):
 
 ```env
 DATABASE_URL=postgresql://<username>:<password>@localhost:5432/campus_connect
@@ -50,7 +57,7 @@ ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 ```
 
-4. Initialize the Database tables:
+4. Initialize the Database tables (this will run SQLAlchemy `create_all` and seed default admins):
 ```bash
 python init_db.py
 ```
@@ -59,6 +66,8 @@ python init_db.py
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
+> **Note for AI Agents**: Always ensure the virtual environment is activated before running any `pip` or `python` commands in the backend directory.
+
 The backend API will be running at [http://localhost:8000](http://localhost:8000).
 Interactive API Docs (Swagger UI) are available at [http://localhost:8000/docs](http://localhost:8000/docs).
 
