@@ -29,9 +29,15 @@ import { Discipline as AdminDiscipline } from './features/admin/Discipline';
 import { Discipline as HodDiscipline } from './features/hod/Discipline';
 import { Discipline as AuthorityDiscipline } from './features/authority/Discipline';
 import { Discipline as FacultyDiscipline } from './features/faculty/Discipline';
+import { Courses as FacultyCourses } from './features/faculty/Courses';
+import { LMSManager } from './features/faculty/LMSManager';
 import { Discipline as StudentDiscipline } from './features/student/Discipline';
 import { LateTrackerDashboard } from './features/latetracker/Dashboard';
 import { LateManagement } from './features/hod/LateManagement';
+import { LeaveRequests } from './features/faculty/LeaveRequests';
+import { LeaveApply } from './features/faculty/LeaveApply';
+import { LeaveDetails } from './features/faculty/LeaveDetails';
+import { SubstituteApprovals } from './features/faculty/SubstituteApprovals';
 
 // A simple protective wrapper that forces login and checks roles
 const ProtectedRoute = ({ children, allowedRole }) => {
@@ -177,9 +183,41 @@ function AppRoutes() {
             <FacultyDashboard />
           </ProtectedRoute>
         } />
+        <Route path="/faculty/courses" element={
+          <ProtectedRoute allowedRole="faculty">
+            <FacultyCourses />
+          </ProtectedRoute>
+        } />
+        <Route path="/faculty/courses/:assignmentId/lms" element={
+          <ProtectedRoute allowedRole="faculty">
+            <LMSManager />
+          </ProtectedRoute>
+        } />
+
         <Route path="/faculty/discipline" element={
           <ProtectedRoute allowedRole="faculty">
             <FacultyDiscipline />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/faculty/leave" element={
+          <ProtectedRoute allowedRole="faculty">
+            <LeaveRequests />
+          </ProtectedRoute>
+        } />
+        <Route path="/faculty/leave/apply" element={
+          <ProtectedRoute allowedRole="faculty">
+            <LeaveApply />
+          </ProtectedRoute>
+        } />
+        <Route path="/faculty/leave/substitutes" element={
+          <ProtectedRoute allowedRole="faculty">
+            <SubstituteApprovals />
+          </ProtectedRoute>
+        } />
+        <Route path="/faculty/leave/:id" element={
+          <ProtectedRoute allowedRole="faculty">
+            <LeaveDetails />
           </ProtectedRoute>
         } />
         
