@@ -2,18 +2,25 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 import csv
 import io
 from sqlalchemy.orm import Session, joinedload
-from typing import List
+from typing import List, Optional
 from datetime import date as date_type
 
 from app.core.database import get_db
 from app.models.faculty import Faculty
 from app.models.user import User
 from app.models.department import Department
-from app.models.academic import CourseAssignment, Section
+from app.models.academic import CourseAssignment, Section, MentorAssignment
 from app.models.attendance import Attendance, AttendanceStatus
 from app.models.student import Student
+from app.models.grade import Grade
+from app.models.mentorship import AdvisingLog
 from app.models.lms import LMSResource, ResourceType, Announcement, TimetableSlot
-from app.schemas.faculty import FacultyCreate, FacultyUpdate, FacultyResponse, CourseAssignmentFacultyResponse, LMSResourceCreate, LMSResourceResponse, AnnouncementCreate, AnnouncementResponse
+from app.schemas.faculty import (
+    FacultyCreate, FacultyUpdate, FacultyResponse,
+    CourseAssignmentFacultyResponse,
+    LMSResourceCreate, LMSResourceResponse,
+    AnnouncementCreate, AnnouncementResponse,
+)
 from app.core.security import get_current_active_user, get_password_hash
 
 router = APIRouter()
@@ -42,6 +49,88 @@ def get_my_courses(
     ).all()
     
     return assignments
+
+
+# ── Mentorship Endpoints (from development) ───────────────────────────────────
+
+def _get_faculty_profile(current_user: User, db: Session) -> Faculty:
+    if current_user.role not in ["faculty", "hod"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only faculty can access this")
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not faculty:
+        raise HTTPException(status_code=404, detail="Faculty profile not found")
+    return faculty
+
+
+@router.get("/me/mentees")
+def get_my_mentees(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    faculty = _get_faculty_profile(current_user, db)
+    assignments = db.query(MentorAssignment).options(
+        joinedload(MentorAssignment.student).joinedload(Student.department),
+        joinedload(MentorAssignment.student).joinedload(Student.section),
+    ).filter(MentorAssignment.mentor_id == faculty.id).all()
+    result = []
+    for ma in assignments:
+        s = ma.student
+        result.append({
+            "id": s.id, "first_name": s.first_name, "last_name": s.last_name,
+            "register_number": s.register_number, "college_email": s.college_email,
+            "current_semester": s.current_semester, "current_year": s.current_year,
+            "department": s.department.name if s.department else None,
+            "section": s.section.name if s.section else None, "batch": s.batch,
+        })
+    return result
+
+
+@router.get("/me/mentees/{student_id}")
+def get_mentee_detail(student_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    faculty = _get_faculty_profile(current_user, db)
+    assignment = db.query(MentorAssignment).filter(
+        MentorAssignment.mentor_id == faculty.id, MentorAssignment.student_id == student_id
+    ).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Student not found in your mentee list")
+    student = db.query(Student).options(
+        joinedload(Student.department), joinedload(Student.section)
+    ).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    total = db.query(Attendance).filter(Attendance.student_id == student_id).count()
+    present = db.query(Attendance).filter(Attendance.student_id == student_id, Attendance.status == AttendanceStatus.PRESENT).count()
+    att_pct = round((present / total * 100), 1) if total > 0 else None
+    grades = db.query(Grade).filter(Grade.student_id == student_id).all()
+    backlogs = sum(1 for g in grades if g.max_marks and g.marks_obtained is not None and (float(g.marks_obtained) / float(g.max_marks)) < 0.40)
+    logs = db.query(AdvisingLog).filter(AdvisingLog.mentor_id == faculty.id, AdvisingLog.student_id == student_id).order_by(AdvisingLog.created_at.desc()).all()
+    return {
+        "id": student.id, "first_name": student.first_name, "last_name": student.last_name,
+        "register_number": student.register_number, "college_email": student.college_email,
+        "current_semester": student.current_semester, "current_year": student.current_year,
+        "department": student.department.name if student.department else None,
+        "section": student.section.name if student.section else None, "batch": student.batch,
+        "attendance_percentage": att_pct, "backlog_count": backlogs,
+        "advising_logs": [{"id": l.id, "note": l.note, "created_at": l.created_at} for l in logs],
+    }
+
+
+@router.post("/me/mentees/{student_id}/logs")
+def add_advising_log(student_id: int, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    faculty = _get_faculty_profile(current_user, db)
+    assignment = db.query(MentorAssignment).filter(
+        MentorAssignment.mentor_id == faculty.id, MentorAssignment.student_id == student_id
+    ).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Student not found in your mentee list")
+    note_text = payload.get("note", "").strip()
+    if not note_text:
+        raise HTTPException(status_code=400, detail="Note cannot be empty")
+    log = AdvisingLog(mentor_id=faculty.id, student_id=student_id, note=note_text)
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+    return {"id": log.id, "note": log.note, "created_at": log.created_at}
+
+
+# ── Attendance Endpoints ───────────────────────────────────────────────────────
 
 @router.get("/courses/{assignment_id}/attendance-slots")
 def get_attendance_slots(
