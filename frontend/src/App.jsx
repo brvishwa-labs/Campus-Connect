@@ -37,7 +37,8 @@ import { LMSAnnouncements as CourseAnnouncements } from './features/faculty/lms/
 import { LMSSyllabus } from './features/faculty/lms/LMSSyllabus';
 import { LMSAttendance } from './features/faculty/lms/LMSAttendance';
 import { LMSAttendanceHistory } from './features/faculty/lms/LMSAttendanceHistory';
-import { Discipline as StudentDiscipline } from './features/student/Discipline';
+import StudentCourses from './features/student/StudentCourses';
+import StudentCourseDetail from './features/student/StudentCourseDetail';
 import { LateTrackerDashboard } from './features/latetracker/Dashboard';
 import { LateManagement } from './features/hod/LateManagement';
 import { LeaveRequests } from './features/faculty/LeaveRequests';
@@ -58,6 +59,7 @@ import { GatePass } from './features/student/GatePass';
 import { MenteeGatePasses } from './features/faculty/MenteeGatePasses';
 import { GatePassApprovals as HodGatePassApprovals } from './features/hod/GatePassApprovals';
 import { OMGatePassApprovals } from './features/authority/OMGatePassApprovals';
+import { Profile } from './features/profile/Profile';
 // A simple protective wrapper that forces login and checks roles
 const ProtectedRoute = ({ children, allowedRole }) => {
   const { user } = useAuth();
@@ -329,9 +331,14 @@ function AppRoutes() {
             <StudentDashboard />
           </ProtectedRoute>
         } />
-        <Route path="/student/discipline" element={
+        <Route path="/student/courses" element={
           <ProtectedRoute allowedRole="student">
-            <StudentDiscipline />
+            <StudentCourses />
+          </ProtectedRoute>
+        } />
+        <Route path="/student/courses/:courseId" element={
+          <ProtectedRoute allowedRole="student">
+            <StudentCourseDetail />
           </ProtectedRoute>
         } />
         <Route path="/student/announcements" element={
@@ -388,6 +395,11 @@ function AppRoutes() {
         } />
         
         {/* Catch-all for sub-routes during Phase 2 (shows empty page) */}
+        <Route path="/:role/profile" element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        } />
         <Route path="/:role/*" element={
           <ProtectedRoute>
             <div className="p-8 text-center text-gray-500">
