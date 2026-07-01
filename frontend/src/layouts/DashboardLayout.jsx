@@ -333,7 +333,7 @@ export default function DashboardLayout() {
               </button>
               
               {isNotificationsOpen && (
-                <div className="fixed sm:absolute right-2 sm:right-0 mt-3 w-[calc(100vw-1rem)] sm:w-96 max-w-md bg-white rounded-[20px] shadow-[0_4px_20px_rgb(0,0,0,0.08)] border border-gray-100 z-50 overflow-hidden transform origin-top-right transition-all">
+                <div className="fixed inset-x-2 sm:absolute sm:inset-x-auto sm:right-0 mt-3 sm:w-96 max-w-md bg-white rounded-[20px] shadow-[0_4px_20px_rgb(0,0,0,0.08)] border border-gray-100 z-50 overflow-hidden transform sm:origin-top-right transition-all">
                   <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center gap-2">
                     <h3 className="text-xs sm:text-sm font-bold text-gray-900 truncate">Notifications</h3>
                     <span className="text-[9px] sm:text-[10px] bg-primary-50 text-primary-600 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full font-bold uppercase tracking-wider whitespace-nowrap">
