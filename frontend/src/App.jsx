@@ -37,7 +37,8 @@ import { LMSAnnouncements as CourseAnnouncements } from './features/faculty/lms/
 import { LMSSyllabus } from './features/faculty/lms/LMSSyllabus';
 import { LMSAttendance } from './features/faculty/lms/LMSAttendance';
 import { LMSAttendanceHistory } from './features/faculty/lms/LMSAttendanceHistory';
-import { Discipline as StudentDiscipline } from './features/student/Discipline';
+import StudentCourses from './features/student/StudentCourses';
+import StudentCourseDetail from './features/student/StudentCourseDetail';
 import { LateTrackerDashboard } from './features/latetracker/Dashboard';
 import { LateManagement } from './features/hod/LateManagement';
 import { LeaveRequests } from './features/faculty/LeaveRequests';
@@ -317,9 +318,14 @@ function AppRoutes() {
             <StudentDashboard />
           </ProtectedRoute>
         } />
-        <Route path="/student/discipline" element={
+        <Route path="/student/courses" element={
           <ProtectedRoute allowedRole="student">
-            <StudentDiscipline />
+            <StudentCourses />
+          </ProtectedRoute>
+        } />
+        <Route path="/student/courses/:courseId" element={
+          <ProtectedRoute allowedRole="student">
+            <StudentCourseDetail />
           </ProtectedRoute>
         } />
         <Route path="/student/announcements" element={
