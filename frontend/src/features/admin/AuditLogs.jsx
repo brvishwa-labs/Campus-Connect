@@ -202,18 +202,21 @@ export const AuditLogs = () => {
       if (moduleFilter) params.append('module',        moduleFilter);
       if (roleFilter)   params.append('role',          roleFilter);
 
-      const res = await axios.get(`/api/audit-logs?${params}`);
+      const res = await axios.get(`/api/audit-logs?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setLogs(res.data.logs);        // REST fetch is authoritative — replaces list
       setTotal(res.data.total);
       setTotalPages(res.data.total_pages);
       setError(null);
     } catch (err) {
+      console.error('[AuditLogs] Fetch error:', err);
       setError(err.response?.data?.detail || 'Failed to load audit logs');
     } finally {
       setLoading(false);
       setFiltering(false);
     }
-  }, [page, searchTerm, statusFilter, moduleFilter, roleFilter]);
+  }, [page, searchTerm, statusFilter, moduleFilter, roleFilter, token]);
 
   useEffect(() => {
     fetchLogs({ initial: logs.length === 0 });
