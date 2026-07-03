@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { Clock, Calendar, AlertCircle, CheckCircle2, History, Bell, Send } from "lucide-react";
 
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = "/api";
 
 export default function LateEntryNotification() {
   const [usage, setUsage] = useState({ used: 0, remaining: 5, monthly_limit: 5, can_submit: true });
