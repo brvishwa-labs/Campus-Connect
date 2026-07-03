@@ -62,6 +62,8 @@ class Student(Base):
     state = Column(String(100), nullable=True)
     pincode = Column(String(10), nullable=True)
 
+    religion = Column(String(100), nullable=True)
+
     # --- 10th Standard Details ---
     tenth_school = Column(String(255), nullable=True)
     tenth_board = Column(String(100), nullable=True)       # State Board / CBSE / ICSE
@@ -86,8 +88,8 @@ class Student(Base):
     user = relationship("User", back_populates="student_profile")
     department = relationship("Department", back_populates="students")
     section = relationship("Section", back_populates="students")
-    mentor_assignment = relationship("MentorAssignment", back_populates="student", uselist=False)
-    enrollments = relationship("Enrollment", back_populates="student")
-    attendance_records = relationship("Attendance", back_populates="student")
-    leave_requests = relationship("StudentLeaveRequest", back_populates="student")
-    grades = relationship("Grade", back_populates="student")
+    mentor_assignment = relationship("MentorAssignment", back_populates="student", uselist=False, cascade="all, delete-orphan")
+    enrollments = relationship("Enrollment", back_populates="student", cascade="all, delete-orphan")
+    attendance_records = relationship("Attendance", back_populates="student", cascade="all, delete-orphan")
+    leave_requests = relationship("StudentLeaveRequest", back_populates="student", cascade="all, delete-orphan")
+    grades = relationship("Grade", back_populates="student", cascade="all, delete-orphan")
