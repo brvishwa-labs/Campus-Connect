@@ -28,10 +28,14 @@ router = APIRouter()
 @router.get("/me/dashboard")
 def get_faculty_dashboard(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    course_id: int = None,  # Keep for backward compatibility
+    assignment_id: int = None,  # New parameter for specific assignment
+    selected_date: str = None
 ):
     """
     Get comprehensive dashboard data for faculty including courses, students, analytics, and timetable.
+    Optionally filter by assignment_id (preferred) or course_id and/or selected_date (YYYY-MM-DD format)
     """
     if current_user.role not in ["faculty", "hod"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only faculty can access this")
@@ -42,16 +46,32 @@ def get_faculty_dashboard(
     
     from app.models.lms import TimetableSlot
     from app.models.academic import Course
-    from datetime import date as date_type, datetime, time as time_type
+    from datetime import date as date_type, datetime, time as time_type, timedelta
     
-    # Get active course assignments
-    assignments = db.query(CourseAssignment).options(
+    # Parse selected date if provided
+    if selected_date:
+        try:
+            selected_date_obj = datetime.strptime(selected_date, "%Y-%m-%d").date()
+        except:
+            selected_date_obj = date_type.today()
+    else:
+        selected_date_obj = date_type.today()
+    
+    # Get active course assignments (optionally filtered by assignment_id or course_id)
+    assignment_query = db.query(CourseAssignment).options(
         joinedload(CourseAssignment.course),
         joinedload(CourseAssignment.section)
     ).filter(
         CourseAssignment.faculty_id == faculty.id,
         CourseAssignment.is_active == True
-    ).all()
+    )
+    
+    if assignment_id:
+        assignment_query = assignment_query.filter(CourseAssignment.id == assignment_id)
+    elif course_id:
+        assignment_query = assignment_query.filter(CourseAssignment.course_id == course_id)
+    
+    assignments = assignment_query.all()
     
     # Calculate total students
     total_students = 0
@@ -63,24 +83,39 @@ def get_faculty_dashboard(
             ).count()
             total_students += student_count
     
-    # Get today's timetable slots
+    # Get schedule for selected date
+    # If assignment_id is provided, show only that course's schedule
+    # Otherwise, show ALL classes for the day
     DAY_MAP = {0: "mon", 1: "tue", 2: "wed", 3: "thu", 4: "fri", 5: "sat", 6: "sun"}
-    today_name = DAY_MAP[date_type.today().weekday()]
+    selected_day_name = DAY_MAP[selected_date_obj.weekday()]
     now_time = datetime.now().time()
+    is_today = selected_date_obj == date_type.today()
     
-    today_classes = []
-    upcoming_classes = []
+    selected_date_classes = []
     
-    for assignment in assignments:
+    # Determine which assignments to show in schedule
+    if assignment_id or course_id:
+        # Show only selected course's schedule
+        schedule_assignments = assignments
+    else:
+        # Show ALL assignments for complete daily schedule
+        schedule_assignments = db.query(CourseAssignment).options(
+            joinedload(CourseAssignment.course),
+            joinedload(CourseAssignment.section)
+        ).filter(
+            CourseAssignment.faculty_id == faculty.id,
+            CourseAssignment.is_active == True
+        ).all()
+    
+    for assignment in schedule_assignments:
         slots = db.query(TimetableSlot).filter(
             TimetableSlot.course_assignment_id == assignment.id
         ).all()
         
         for slot in slots:
             slot_day = slot.day.value if hasattr(slot.day, 'value') else slot.day
-            if slot_day == today_name:
-                is_current = slot.start_time <= now_time <= slot.end_time
-                is_upcoming = slot.start_time > now_time
+            if slot_day == selected_day_name:
+                is_current = is_today and (slot.start_time <= now_time <= slot.end_time)
                 
                 class_info = {
                     "course_name": assignment.course.name,
@@ -89,31 +124,65 @@ def get_faculty_dashboard(
                     "end_time": slot.end_time.strftime("%H:%M"),
                     "room": slot.room,
                     "section": f"{assignment.section.year} Year {assignment.section.name}" if assignment.section else "N/A",
-                    "is_current": is_current
+                    "is_current": is_current,
+                    "course_id": assignment.course_id,
+                    "assignment_id": assignment.id
                 }
                 
-                if is_current or is_upcoming:
-                    today_classes.append(class_info)
-                    if is_upcoming and len(upcoming_classes) < 3:
-                        upcoming_classes.append(class_info)
+                selected_date_classes.append(class_info)
     
-    # Sort today's classes by start time
-    today_classes.sort(key=lambda x: x["start_time"])
+    # Sort classes by start time
+    selected_date_classes.sort(key=lambda x: x["start_time"])
     
-    # Calculate attendance trajectory (last 7 days)
-    from datetime import timedelta
+    # Calculate attendance trajectory (last 30 days for better graph)
     trajectory = []
-    for i in range(6, -1, -1):
+    for i in range(29, -1, -1):
         check_date = date_type.today() - timedelta(days=i)
-        attendance_count = db.query(Attendance).filter(
+        
+        # Count attendance marked by this faculty
+        attendance_query = db.query(Attendance).filter(
             Attendance.marked_by_id == faculty.id,
             Attendance.date == check_date,
             Attendance.status == AttendanceStatus.PRESENT
-        ).count()
+        )
+        
+        # Filter by course if specified
+        if course_id:
+            # Get students from sections for this course
+            section_ids = [a.section_id for a in assignments if a.section_id]
+            if section_ids:
+                attendance_query = attendance_query.filter(
+                    Attendance.student_id.in_(
+                        db.query(Student.id).filter(Student.section_id.in_(section_ids))
+                    )
+                )
+        
+        present_count = attendance_query.count()
+        
+        # Also get total marked (present + absent)
+        total_query = db.query(Attendance).filter(
+            Attendance.marked_by_id == faculty.id,
+            Attendance.date == check_date
+        )
+        
+        if course_id:
+            if section_ids:
+                total_query = total_query.filter(
+                    Attendance.student_id.in_(
+                        db.query(Student.id).filter(Student.section_id.in_(section_ids))
+                    )
+                )
+        
+        total_marked = total_query.count()
+        absent_count = total_marked - present_count
         
         trajectory.append({
             "date": check_date.strftime("%b %d"),
-            "count": attendance_count
+            "full_date": check_date.strftime("%Y-%m-%d"),
+            "present": present_count,
+            "absent": absent_count,
+            "total": total_marked,
+            "percentage": round((present_count / total_marked * 100) if total_marked > 0 else 0, 1)
         })
     
     # Calculate pending evaluations (grades not entered)
@@ -139,7 +208,8 @@ def get_faculty_dashboard(
         grades = db.query(Grade).filter(
             Grade.course_id == assignment.course_id,
             Grade.graded_by_id == faculty.id,
-            Grade.marks_obtained != None
+            Grade.marks_obtained != None,
+            Grade.max_marks != None
         ).all()
         
         for grade in grades:
@@ -150,29 +220,213 @@ def get_faculty_dashboard(
     
     avg_performance = round(total_marks / grade_count) if grade_count > 0 else 0
     
-    # Get recent announcements count
-    recent_announcements = db.query(Announcement).filter(
-        Announcement.posted_by_id == current_user.id
-    ).count()
+    # Get recent campus announcements (latest 5)
+    campus_announcements = db.query(Announcement).options(
+        joinedload(Announcement.posted_by)
+    ).order_by(
+        Announcement.created_at.desc()
+    ).limit(5).all()
+    
+    announcements_data = [
+        {
+            "id": ann.id,
+            "title": ann.title,
+            "content": ann.content,
+            "posted_by": ann.posted_by.email if ann.posted_by else "Unknown",
+            "created_at": ann.created_at.strftime("%b %d, %Y %I:%M %p") if ann.created_at else "N/A",
+            "priority": getattr(ann, 'priority', 'normal')
+        }
+        for ann in campus_announcements
+    ]
+    
+    # Calculate student performance breakdown by grade ranges
+    student_performance = {
+        "excellent": 0,  # 90-100%
+        "good": 0,       # 75-89%
+        "average": 0,    # 60-74%
+        "poor": 0        # below 60%
+    }
+    
+    for assignment in assignments:
+        grades = db.query(Grade).filter(
+            Grade.course_id == assignment.course_id,
+            Grade.graded_by_id == faculty.id,
+            Grade.marks_obtained != None,
+            Grade.max_marks != None
+        ).all()
+        
+        for grade in grades:
+            if grade.max_marks and grade.marks_obtained:
+                percentage = (float(grade.marks_obtained) / float(grade.max_marks)) * 100
+                if percentage >= 90:
+                    student_performance["excellent"] += 1
+                elif percentage >= 75:
+                    student_performance["good"] += 1
+                elif percentage >= 60:
+                    student_performance["average"] += 1
+                else:
+                    student_performance["poor"] += 1
+    
+    # AI Risk Analysis - Identify at-risk students (course-specific if filtered)
+    at_risk_students = []
+    for assignment in assignments:
+        if assignment.section:
+            students = db.query(Student).filter(
+                Student.section_id == assignment.section_id,
+                Student.is_active == True
+            ).limit(50).all()  # Limit for performance
+            
+            for student in students:
+                risk_factors = []
+                risk_score = 0
+                
+                # Check attendance for this specific course
+                # Get attendance records where this faculty marked for this student
+                total_classes_query = db.query(Attendance).filter(
+                    Attendance.student_id == student.id,
+                    Attendance.marked_by_id == faculty.id
+                )
+                
+                # Filter by course if needed (check if attendance is for classes of this course)
+                if course_id:
+                    total_classes_query = total_classes_query.filter(
+                        Attendance.course_id == course_id
+                    )
+                
+                total_classes = total_classes_query.count()
+                
+                if total_classes >= 5:  # Only analyze if minimum attendance records exist
+                    present_classes = total_classes_query.filter(
+                        Attendance.status == AttendanceStatus.PRESENT
+                    ).count()
+                    
+                    attendance_percentage = (present_classes / total_classes) * 100
+                    
+                    if attendance_percentage < 50:
+                        risk_factors.append(f"Critical attendance: {attendance_percentage:.0f}%")
+                        risk_score += 50
+                    elif attendance_percentage < 65:
+                        risk_factors.append(f"Low attendance: {attendance_percentage:.0f}%")
+                        risk_score += 30
+                    elif attendance_percentage < 75:
+                        risk_factors.append(f"Below average attendance: {attendance_percentage:.0f}%")
+                        risk_score += 15
+                
+                # Check grades for this course
+                grade_query = db.query(Grade).filter(
+                    Grade.student_id == student.id,
+                    Grade.graded_by_id == faculty.id,
+                    Grade.marks_obtained != None,
+                    Grade.max_marks != None
+                )
+                
+                if course_id:
+                    grade_query = grade_query.filter(Grade.course_id == course_id)
+                
+                recent_grades = grade_query.order_by(Grade.created_at.desc()).limit(3).all()
+                
+                if recent_grades:
+                    failing_grades = 0
+                    grade_percentages = []
+                    
+                    for grade in recent_grades:
+                        if grade.max_marks and grade.marks_obtained:
+                            percentage = (float(grade.marks_obtained) / float(grade.max_marks)) * 100
+                            grade_percentages.append(percentage)
+                            if percentage < 40:
+                                failing_grades += 1
+                            elif percentage < 60:
+                                failing_grades += 0.5
+                    
+                    avg_grade = sum(grade_percentages) / len(grade_percentages) if grade_percentages else 0
+                    
+                    if failing_grades >= 2:
+                        risk_factors.append(f"Multiple failing grades (avg: {avg_grade:.0f}%)")
+                        risk_score += 40
+                    elif failing_grades >= 1:
+                        risk_factors.append(f"Recent low performance (avg: {avg_grade:.0f}%)")
+                        risk_score += 25
+                    elif avg_grade < 70:
+                        risk_factors.append(f"Below average grades ({avg_grade:.0f}%)")
+                        risk_score += 10
+                
+                # Check for assignment submissions (if available)
+                # This would require an assignments table - skipping for now
+                
+                # Determine risk level and add to list
+                if risk_score >= 50:
+                    risk_level = "high"
+                    suggestion = "Schedule immediate intervention meeting"
+                elif risk_score >= 25:
+                    risk_level = "medium"
+                    suggestion = "Send academic support resources"
+                elif risk_score >= 10:
+                    risk_level = "low"
+                    suggestion = "Monitor closely"
+                else:
+                    continue  # Skip students with no risk
+                
+                at_risk_students.append({
+                    "student_id": student.id,
+                    "name": f"{student.first_name} {student.last_name}",
+                    "register_number": student.register_number,
+                    "risk_level": risk_level,
+                    "risk_score": risk_score,
+                    "risk_factors": risk_factors,
+                    "suggestion": suggestion,
+                    "course": assignment.course.name,
+                    "course_code": assignment.course.code
+                })
+    
+    # Sort by risk score and get top 10
+    at_risk_students.sort(key=lambda x: x["risk_score"], reverse=True)
+    at_risk_students = at_risk_students[:10]
+    
+    # Get faculty profile for name and gender
+    # Use first_name and last_name from faculty table, fallback to email if not available
+    faculty_name = f"{faculty.first_name} {faculty.last_name}" if faculty.first_name and faculty.last_name else (current_user.email.split('@')[0].title() if current_user.email else "Faculty")
+    
+    faculty_profile = {
+        "name": faculty_name,
+        "gender": getattr(faculty, 'gender', 'male'),  # Default to male if not set
+        "title": getattr(faculty, 'title', None)  # Use actual title from database, no default
+    }
+    
+    # Get all courses for dropdown (each course-section pair should be unique)
+    all_courses = [
+        {
+            "id": a.id,  # Use assignment ID instead of course_id for uniqueness
+            "course_id": a.course_id,
+            "course_name": a.course.name,
+            "course_code": a.course.code,
+            "section": f"{a.section.year} Year {a.section.name}" if a.section else "N/A",
+            "section_id": a.section_id
+        }
+        for a in db.query(CourseAssignment).options(
+            joinedload(CourseAssignment.course),
+            joinedload(CourseAssignment.section)
+        ).filter(
+            CourseAssignment.faculty_id == faculty.id,
+            CourseAssignment.is_active == True
+        ).all()
+    ]
     
     return {
         "assigned_courses": len(assignments),
         "total_students": total_students,
         "pending_evaluations": pending_evaluations,
         "class_performance": avg_performance,
-        "today_classes": today_classes,
-        "upcoming_classes": upcoming_classes,
+        "selected_date_classes": selected_date_classes,
+        "selected_date": selected_date_obj.strftime("%Y-%m-%d"),
         "attendance_trajectory": trajectory,
-        "recent_announcements": recent_announcements,
-        "courses": [
-            {
-                "id": a.id,
-                "course_name": a.course.name,
-                "course_code": a.course.code,
-                "section": f"{a.section.year} Year {a.section.name}" if a.section else "N/A"
-            }
-            for a in assignments
-        ]
+        "campus_announcements": announcements_data,
+        "student_performance": student_performance,
+        "at_risk_students": at_risk_students,
+        "faculty_profile": faculty_profile,
+        "all_courses": all_courses,
+        "current_assignment_id": assignment_id,
+        "current_course_id": course_id,  # Keep for backward compatibility
+        "total_at_risk": len(at_risk_students)
     }
 
 
@@ -1323,3 +1577,185 @@ def get_student_grades(
         }
         for g in grades
     ]
+
+
+# ── PDF Report Generation ─────────────────────────────────────────────────────
+
+@router.get("/student-report/{student_id}")
+def generate_student_report(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Generate a comprehensive academic report for a student (at-risk analysis).
+    Returns JSON data that frontend can use to generate PDF.
+    """
+    if current_user.role not in ["faculty", "hod"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only faculty can access this")
+    
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not faculty:
+        raise HTTPException(status_code=404, detail="Faculty profile not found")
+    
+    # Get student details
+    student = db.query(Student).options(
+        joinedload(Student.department),
+        joinedload(Student.section)
+    ).filter(Student.id == student_id).first()
+    
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    from datetime import datetime, timedelta
+    
+    # Get attendance data
+    total_classes = db.query(Attendance).filter(
+        Attendance.student_id == student_id
+    ).count()
+    
+    present_classes = db.query(Attendance).filter(
+        Attendance.student_id == student_id,
+        Attendance.status == AttendanceStatus.PRESENT
+    ).count()
+    
+    attendance_percentage = round((present_classes / total_classes * 100), 1) if total_classes > 0 else 0
+    
+    # Get grade data
+    grades = db.query(Grade).options(
+        joinedload(Grade.course)
+    ).filter(
+        Grade.student_id == student_id,
+        Grade.marks_obtained != None,
+        Grade.max_marks != None
+    ).all()
+    
+    grade_details = []
+    total_percentage = 0
+    failing_count = 0
+    
+    for grade in grades:
+        if grade.max_marks and grade.marks_obtained:
+            percentage = round((float(grade.marks_obtained) / float(grade.max_marks)) * 100, 1)
+            total_percentage += percentage
+            
+            status = "Pass"
+            if percentage < 40:
+                status = "Fail"
+                failing_count += 1
+            elif percentage < 60:
+                status = "Below Average"
+            elif percentage < 75:
+                status = "Average"
+            elif percentage < 90:
+                status = "Good"
+            else:
+                status = "Excellent"
+            
+            grade_details.append({
+                "course_name": grade.course.name if grade.course else "N/A",
+                "course_code": grade.course.code if grade.course else "N/A",
+                "grade_type": grade.grade_type.value if grade.grade_type else "N/A",
+                "marks_obtained": float(grade.marks_obtained),
+                "max_marks": float(grade.max_marks),
+                "percentage": percentage,
+                "status": status
+            })
+    
+    average_grade = round(total_percentage / len(grades), 1) if grades else 0
+    
+    # Calculate risk score
+    risk_score = 0
+    risk_factors = []
+    
+    if attendance_percentage < 50:
+        risk_factors.append(f"Critical attendance: {attendance_percentage}%")
+        risk_score += 50
+    elif attendance_percentage < 65:
+        risk_factors.append(f"Low attendance: {attendance_percentage}%")
+        risk_score += 30
+    elif attendance_percentage < 75:
+        risk_factors.append(f"Below average attendance: {attendance_percentage}%")
+        risk_score += 15
+    
+    if failing_count >= 2:
+        risk_factors.append(f"Multiple failing grades ({failing_count} subjects)")
+        risk_score += 40
+    elif failing_count >= 1:
+        risk_factors.append(f"Failing in {failing_count} subject(s)")
+        risk_score += 25
+    elif average_grade < 70:
+        risk_factors.append(f"Below average grades ({average_grade}%)")
+        risk_score += 10
+    
+    # Determine risk level
+    if risk_score >= 50:
+        risk_level = "high"
+        recommendation = "Immediate intervention required. Schedule a meeting with student and parents."
+    elif risk_score >= 25:
+        risk_level = "medium"
+        recommendation = "Academic support needed. Provide tutoring resources and monitor progress."
+    elif risk_score >= 10:
+        risk_level = "low"
+        recommendation = "Monitor student performance closely. Encourage improvement."
+    else:
+        risk_level = "none"
+        recommendation = "Student is performing well. Continue regular monitoring."
+    
+    # Get recent attendance trend (last 30 days)
+    attendance_trend = []
+    for i in range(29, -1, -1):
+        check_date = date_type.today() - timedelta(days=i)
+        day_records = db.query(Attendance).filter(
+            Attendance.student_id == student_id,
+            Attendance.date == check_date
+        ).all()
+        
+        if day_records:
+            present = sum(1 for r in day_records if r.status == AttendanceStatus.PRESENT)
+            total = len(day_records)
+            attendance_trend.append({
+                "date": check_date.strftime("%Y-%m-%d"),
+                "present": present,
+                "total": total,
+                "percentage": round((present / total * 100), 1) if total > 0 else 0
+            })
+    
+    return {
+        "report_generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "generated_by": {
+            "name": f"{faculty.first_name} {faculty.last_name}",
+            "employee_id": faculty.employee_id,
+            "designation": faculty.designation
+        },
+        "student": {
+            "id": student.id,
+            "name": f"{student.first_name} {student.last_name}",
+            "register_number": student.register_number,
+            "email": student.college_email,
+            "department": student.department.name if student.department else "N/A",
+            "section": f"{student.section.year} Year {student.section.name}" if student.section else "N/A",
+            "batch": student.batch,
+            "current_semester": student.current_semester,
+            "current_year": student.current_year
+        },
+        "attendance_summary": {
+            "total_classes": total_classes,
+            "present": present_classes,
+            "absent": total_classes - present_classes,
+            "percentage": attendance_percentage,
+            "trend": attendance_trend[-7:]  # Last 7 days for chart
+        },
+        "academic_performance": {
+            "total_subjects": len(grades),
+            "average_percentage": average_grade,
+            "failing_count": failing_count,
+            "grade_details": grade_details
+        },
+        "risk_analysis": {
+            "risk_score": risk_score,
+            "risk_level": risk_level,
+            "risk_factors": risk_factors,
+            "recommendation": recommendation
+        }
+    }
