@@ -20,7 +20,9 @@ app.add_middleware(
         "http://localhost:3000", 
         "http://10.1.10.24:5173",
         "http://localhost:4173",
-        "http://10.1.10.24:4173"
+        "http://10.1.10.24:4173",
+        "https://robust-presence-production-82b0.up.railway.app",
+        "https://campus-connect-production-6cbf.up.railway.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
