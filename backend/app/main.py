@@ -64,3 +64,20 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+@app.get("/import-db")
+def import_db():
+    import os
+    import subprocess
+    try:
+        # Use subprocess to capture output
+        result = subprocess.run(
+            ["psql", os.environ.get("DATABASE_URL"), "-f", "dump.sql"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return {"status": "success", "output": result.stdout}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
