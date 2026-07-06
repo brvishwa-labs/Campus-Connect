@@ -67,17 +67,11 @@ def health_check():
 
 @app.get("/import-db")
 def import_db():
-    import os
-    import subprocess
-    try:
-        # Use subprocess to capture output
-        result = subprocess.run(
-            ["psql", os.environ.get("DATABASE_URL"), "-f", "dump.sql"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return {"status": "success", "output": result.stdout}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
+    from app.import_db_python import run_import
+    result = run_import()
+    if result == "success":
+        return {"status": "success", "message": "Database imported perfectly!"}
+    else:
+        return {"status": "error", "error": result}
+
 
