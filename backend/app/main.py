@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import traceback
 from app.api import (
     auth, admin, departments, faculty, 
     students, authorities, discipline, late, leave, class_advisor
@@ -13,6 +15,13 @@ app = FastAPI(
     description="Backend API for Campus Connect Education Resource Planning System",
     version="1.0.0",
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "traceback": traceback.format_exc()}
+    )
 
 # Configure CORS for the React frontend
 app.add_middleware(
