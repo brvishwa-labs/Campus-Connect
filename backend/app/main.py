@@ -17,17 +17,14 @@ app = FastAPI(
 # Configure CORS for the React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173", 
-        "http://localhost:5174", 
-        "http://localhost:3000", 
-        "http://10.1.10.24:5173",
-        "http://localhost:4173",
-        "http://10.1.10.24:4173",
-        settings.FRONTEND_URL,
-        "https://robust-presence-production-82b0.up.railway.app",
-        "https://campus-connect-production-6cbf.up.railway.app"
-    ],
+    allow_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:3000",
+    "http://localhost:4173",
+
+    "https://secure-healing-production-6347.up.railway.app",
+],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
