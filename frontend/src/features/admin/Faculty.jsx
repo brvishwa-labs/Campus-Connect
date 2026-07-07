@@ -43,7 +43,7 @@ export const Faculty = () => {
     try {
       setLoading(true);
       const [facRes, deptRes] = await Promise.all([
-        axios.get('/api/faculty'),
+        axios.get('/api/faculty/'),
         axios.get('/api/departments')
       ]);
       setFaculty(facRes.data);

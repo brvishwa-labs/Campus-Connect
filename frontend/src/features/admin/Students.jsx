@@ -62,7 +62,7 @@ export const Students = () => {
     try {
       setLoading(true);
       const [stuRes, deptRes] = await Promise.all([
-        axios.get('/api/students?limit=10000'),
+        axios.get('/api/students/?limit=10000'),
         axios.get('/api/departments')
       ]);
       setStudents(stuRes.data);
