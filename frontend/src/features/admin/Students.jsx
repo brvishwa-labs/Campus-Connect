@@ -69,8 +69,8 @@ export const Students = () => {
       setDepartments(deptRes.data);
       setError(null);
     } catch (err) {
-      console.error(err);
-      setError('Failed to load student data');
+      console.error('Student fetch error:', err?.response?.status, err?.response?.data, err?.config?.url, err?.message);
+      setError(`Failed to load student data: ${err?.response?.status || ''} ${err?.response?.data?.detail || err?.message || ''}`);
     } finally {
       setLoading(false);
     }

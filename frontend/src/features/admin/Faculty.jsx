@@ -50,8 +50,8 @@ export const Faculty = () => {
       setDepartments(deptRes.data);
       setError(null);
     } catch (err) {
-      console.error(err);
-      setError('Failed to load faculty data');
+      console.error('Faculty fetch error:', err?.response?.status, err?.response?.data, err?.config?.url, err?.message);
+      setError(`Failed to load faculty data: ${err?.response?.status || ''} ${err?.response?.data?.detail || err?.message || ''}`);
     } finally {
       setLoading(false);
     }
