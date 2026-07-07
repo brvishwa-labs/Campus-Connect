@@ -13,6 +13,7 @@ const ROLE_NAV_LINKS = {
     { name: 'Departments', path: '/admin/departments', icon: Settings },
     { name: 'Faculty', path: '/admin/faculty', icon: Users },
     { name: 'Students', path: '/admin/students', icon: GraduationCap },
+    { name: 'Alumni', path: '/admin/alumni', icon: Award },
     { name: 'Authorities', path: '/admin/authorities', icon: Home },
     { name: 'Courses', path: '/admin/courses', icon: BookOpen },
     { name: 'Discipline', path: '/admin/discipline', icon: ShieldAlert },
