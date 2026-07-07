@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import DashboardLayout from './layouts/DashboardLayout';
 import Login from './features/auth/Login';
 import { 
@@ -12,6 +13,7 @@ import {
 import { Departments } from './features/admin/Departments';
 import { Faculty } from './features/admin/Faculty';
 import { Students } from './features/admin/Students';
+import { Alumni } from './features/admin/Alumni';
 import { Authorities } from './features/admin/Authorities';
 import { Courses } from './features/admin/Courses';
 import { HodDashboard } from './features/hod/HodDashboard';
@@ -118,6 +120,11 @@ function AppRoutes() {
         <Route path="/admin/students" element={
           <ProtectedRoute allowedRole="admin">
             <Students />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/alumni" element={
+          <ProtectedRoute allowedRole="admin">
+            <Alumni />
           </ProtectedRoute>
         } />
         <Route path="/admin/authorities" element={
@@ -471,12 +478,16 @@ function AppRoutes() {
   );
 }
 
+
+
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
