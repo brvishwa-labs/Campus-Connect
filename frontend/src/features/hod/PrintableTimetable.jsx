@@ -45,7 +45,7 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
         </div>
         <div className="space-y-2">
           <div className="flex"><span className="w-32 inline-block">BATCH</span> : {sectionData.batch || '______'}</div>
-          <div className="flex"><span className="w-32 inline-block">CLASS ADVISOR</span> : {sectionData.class_advisor_name || '_________________'}</div>
+          <div className="flex"><span className="w-32 inline-block">CLASS ADVISOR</span> : {sectionData.class_advisor ? `${sectionData.class_advisor.first_name} ${sectionData.class_advisor.last_name}` : '_________________'}</div>
         </div>
       </div>
 
