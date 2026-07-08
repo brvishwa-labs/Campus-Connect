@@ -73,8 +73,8 @@ export const LateTrackerDashboard = () => {
       try {
         const token = localStorage.getItem("token");
         const [deptRes, studentsRes, recordsRes, notificationsRes] = await Promise.all([
-          axios.get('/api/departments', { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get('/api/students?limit=1000', { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get('/api/departments/', { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get('/api/students/?limit=1000', { headers: { Authorization: `Bearer ${token}` } }),
           axios.get('/api/late?limit=5', { headers: { Authorization: `Bearer ${token}` } }),
           axios.get('/api/late/notifications?date_filter=' + new Date().toISOString().split('T')[0], { 
             headers: { Authorization: `Bearer ${token}` } 
@@ -149,7 +149,7 @@ export const LateTrackerDashboard = () => {
 
     try {
       const token = localStorage.getItem("token");
-      await axios.post('/api/late', {
+      await axios.post('/api/late/', {
         student_id: selectedStudent.id,
         action_status: actionStatus
       }, {
@@ -336,7 +336,7 @@ export const LateTrackerDashboard = () => {
                         className="w-full pl-9 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none"
                       />
                       {showStudentDropdown && studentSearch && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                           {searchFilteredStudents.length > 0 ? searchFilteredStudents.map(s => (
                             <div 
                               key={s.id} 

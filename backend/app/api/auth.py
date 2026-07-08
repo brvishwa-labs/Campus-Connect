@@ -69,6 +69,7 @@ def read_users_me(current_user: User = Depends(get_current_active_user), db: Ses
         "id": current_user.id,
         "email": current_user.email,
         "role": current_user.role.value,
+        "name": current_user.email.split('@')[0],
         **extra
     }
 
@@ -236,7 +237,8 @@ def update_my_profile(
             "father_name", "father_phone", "father_occupation",
             "mother_name", "mother_phone", "mother_occupation", "annual_income",
             "tenth_school", "tenth_board", "tenth_marks", "tenth_percentage",
-            "twelfth_school", "twelfth_board", "twelfth_marks", "twelfth_percentage"
+            "twelfth_school", "twelfth_board", "twelfth_marks", "twelfth_percentage",
+            "aadhar_number", "accommodation", "transportation", "bus_number"
         ]
         for field in editable:
             if field in payload:
