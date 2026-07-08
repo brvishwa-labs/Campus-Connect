@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Calendar, Save, Trash2, Check, BookOpen, Clock, Eraser, Download } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { PrintableTimetable } from './PrintableTimetable';
 
@@ -53,14 +53,17 @@ export function Timetable() {
     if (!printableRef.current || !selectedSection) return;
     setIsDownloading(true);
     try {
-      const canvas = await html2canvas(printableRef.current, { scale: 2 });
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = await toPng(printableRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff'
+      });
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'px',
-        format: [canvas.width, canvas.height]
+        format: [1000, 1414] // Using the fixed dimensions from PrintableTimetable
       });
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.addImage(imgData, 'PNG', 0, 0, 1000, 1414);
       const sectionName = sections.find(s => s.id.toString() === selectedSection)?.name || 'Timetable';
       pdf.save(`Timetable_${sectionName}.pdf`);
     } catch (err) {
