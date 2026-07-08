@@ -59,9 +59,9 @@ export function Timetable() {
         backgroundColor: '#ffffff'
       });
       const pdf = new jsPDF({
-        orientation: 'landscape',
+        orientation: 'portrait',
         unit: 'px',
-        format: [1000, 1414] // Using the fixed dimensions from PrintableTimetable
+        format: [1000, 1414] // A4 aspect ratio in portrait
       });
       pdf.addImage(imgData, 'PNG', 0, 0, 1000, 1414);
       const sectionName = sections.find(s => s.id.toString() === selectedSection)?.name || 'Timetable';

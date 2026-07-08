@@ -45,7 +45,7 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
         </div>
         <div className="space-y-2">
           <div className="flex"><span className="w-32 inline-block">BATCH</span> : {sectionData.batch || '______'}</div>
-          <div className="flex"><span className="w-32 inline-block">CLASS ADVISOR</span> : _________________</div>
+          <div className="flex"><span className="w-32 inline-block">CLASS ADVISOR</span> : {sectionData.class_advisor_name || '_________________'}</div>
         </div>
       </div>
 
@@ -76,19 +76,24 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
         <tbody>
           {DAYS.map((day, idx) => (
             <tr key={day.id}>
-              <td className="border border-[#000000] p-2">{idx + 1}</td>
+              <td className="border border-[#000000] p-2">{day.label}</td>
               {PERIODS.filter(p => p.type === 'period').map(period => {
                 const assignment = grid[day.id][period.id];
-                // Try to extract a short code from the course name (e.g. "Computer Networks (CN)" -> "CN")
-                let shortName = '';
-                if (assignment && assignment.course?.name) {
-                  const match = assignment.course.name.match(/\((.*?)\)/);
-                  shortName = match ? match[1] : assignment.course.name.split(' ').map(w => w[0]).join('').substring(0,3).toUpperCase();
-                }
                 
                 return (
-                  <td key={period.id} className="border border-[#000000] p-2 h-12">
-                    {shortName || '-'}
+                  <td key={period.id} className="border border-[#000000] p-1 h-16 align-top">
+                    {assignment ? (
+                      <div className="flex flex-col h-full w-full justify-center text-left px-1">
+                        <span className="font-bold text-[10px] text-indigo-700 leading-tight block mb-[2px]">
+                          {assignment.course?.code || assignment.course?.name || 'Course'}
+                        </span>
+                        <span className="text-[8px] text-gray-500 leading-tight block">
+                          {assignment.faculty?.first_name} {assignment.faculty?.last_name}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-300 flex items-center justify-center h-full">-</span>
+                    )}
                   </td>
                 );
               })}
