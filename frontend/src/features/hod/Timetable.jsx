@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Calendar, Save, Trash2, Check, BookOpen, Clock, Eraser, Download } from 'lucide-react';
 import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import { PrintableTimetable } from './PrintableTimetable';
 
 const PERIODS = [
@@ -65,7 +65,7 @@ export function Timetable() {
       pdf.save(`Timetable_${sectionName}.pdf`);
     } catch (err) {
       console.error("Failed to generate PDF", err);
-      alert("Failed to generate PDF");
+      alert("Failed to generate PDF: " + (err.message || err.toString()));
     } finally {
       setIsDownloading(false);
     }
