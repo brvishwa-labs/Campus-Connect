@@ -34,7 +34,7 @@ app.add_middleware(
     "https://secure-healing-production-6347.up.railway.app",
     settings.FRONTEND_URL,
     ],
-    allow_origin_regex="https://.*\.vercel\.app",
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
