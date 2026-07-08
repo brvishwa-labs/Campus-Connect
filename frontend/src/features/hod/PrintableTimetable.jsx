@@ -15,7 +15,7 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
   return (
     <div 
       ref={ref} 
-      className="bg-[#ffffff] text-[#000000] p-8 font-sans mx-auto"
+      className="bg-[#ffffff] text-[#000000] p-8 font-sans mx-auto flex flex-col"
       style={{
         width: '1000px', // Fixed width to ensure consistent PDF rendering
         minHeight: '1414px', // A4 aspect ratio
@@ -25,7 +25,7 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
     >
       {/* HEADER SECTION */}
       <div className="flex items-center justify-center border-b-2 border-[#000000] pb-4 mb-4">
-        <div className="h-24 w-full flex-shrink-0">
+        <div className="h-32 w-full flex-shrink-0">
           <img src="/logo.png" alt="College Logo" className="w-full h-full object-contain" />
         </div>
       </div>
@@ -50,33 +50,32 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
       </div>
 
       {/* TIMETABLE GRID */}
-      <table className="w-full border-collapse border border-[#000000] text-center text-xs font-bold mb-8">
-        <thead>
-          <tr>
-            <th className="border border-[#000000] p-2">DAY<br/>ORDER</th>
-            {PERIODS.map(p => {
-              if (p.type === 'break') {
+      <div className="flex-1">
+        <table className="w-full table-fixed border-collapse border border-[#000000] text-center text-xs font-bold mb-8">
+          <tbody>
+            <tr>
+              <th className="border border-[#000000] p-2">DAY<br/>ORDER</th>
+              {PERIODS.map(p => {
+                if (p.type === 'break') {
+                  return (
+                    <th key={p.id} className="border border-[#000000] p-1 w-10" rowSpan="6">
+                      <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }} className="whitespace-nowrap h-40">
+                        {p.label} {p.time}
+                      </div>
+                    </th>
+                  );
+                }
                 return (
-                  <th key={p.id} className="border border-[#000000] p-1 w-8" rowSpan="6">
-                    <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }} className="whitespace-nowrap h-40">
-                      {p.label} {p.time}
-                    </div>
+                  <th key={p.id} className="border border-[#000000] p-2">
+                    <div className="mb-1">{p.label}</div>
+                    <div className="text-[10px] whitespace-nowrap">{p.time}</div>
                   </th>
                 );
-              }
-              return (
-                <th key={p.id} className="border border-[#000000] p-2">
-                  <div className="mb-1">{p.label}</div>
-                  <div className="text-[10px] whitespace-nowrap">{p.time}</div>
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {DAYS.map((day, idx) => (
-            <tr key={day.id}>
-              <td className="border border-[#000000] p-2">{day.label}</td>
+              })}
+            </tr>
+            {DAYS.map((day, idx) => (
+              <tr key={day.id}>
+                <td className="border border-[#000000] p-2">{day.label}</td>
               {PERIODS.filter(p => p.type === 'period').map(period => {
                 const assignment = grid[day.id][period.id];
                 
@@ -157,9 +156,10 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* SIGNATURES */}
-      <div className="flex justify-between items-end mt-24 text-sm font-bold">
+      <div className="flex justify-between items-end mt-auto pt-8 text-sm font-bold">
         <div className="text-center">
           <div className="border-t border-[#000000] w-40 mb-2 mx-auto"></div>
           TIME TABLE COORDINATOR
