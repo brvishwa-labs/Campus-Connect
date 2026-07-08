@@ -9,8 +9,8 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
   const semester = sectionData.year * 2 - 1; // Assuming odd semester for now
   
   // Group assignments into Theory and Practical (based on course type or name, or just a simple split)
-  const theoryAssignments = assignments.filter(a => !a.course_name.toLowerCase().includes('lab'));
-  const practicalAssignments = assignments.filter(a => a.course_name.toLowerCase().includes('lab'));
+  const theoryAssignments = assignments.filter(a => !a.course?.name?.toLowerCase().includes('lab'));
+  const practicalAssignments = assignments.filter(a => a.course?.name?.toLowerCase().includes('lab'));
 
   return (
     <div 
@@ -101,9 +101,9 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
                 const assignment = grid[day.id][period.id];
                 // Try to extract a short code from the course name (e.g. "Computer Networks (CN)" -> "CN")
                 let shortName = '';
-                if (assignment) {
-                  const match = assignment.course_name.match(/\((.*?)\)/);
-                  shortName = match ? match[1] : assignment.course_name.split(' ').map(w => w[0]).join('').substring(0,3).toUpperCase();
+                if (assignment && assignment.course?.name) {
+                  const match = assignment.course.name.match(/\((.*?)\)/);
+                  shortName = match ? match[1] : assignment.course.name.split(' ').map(w => w[0]).join('').substring(0,3).toUpperCase();
                 }
                 
                 return (
@@ -135,9 +135,9 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
           )}
           {theoryAssignments.map(a => (
             <tr key={a.id}>
-              <td className="border border-black p-2 text-center">{a.course_code}</td>
-              <td className="border border-black p-2">{a.course_name}</td>
-              <td className="border border-black p-2">{a.faculty_name}</td>
+              <td className="border border-black p-2 text-center">{a.course?.code}</td>
+              <td className="border border-black p-2">{a.course?.name}</td>
+              <td className="border border-black p-2">{a.faculty?.first_name} {a.faculty?.last_name}</td>
               <td className="border border-black p-2 text-center">
                 {/* Count occurrences of this assignment in the grid */}
                 {DAYS.reduce((total, day) => {
@@ -157,9 +157,9 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
           )}
           {practicalAssignments.map(a => (
             <tr key={a.id}>
-              <td className="border border-black p-2 text-center">{a.course_code}</td>
-              <td className="border border-black p-2">{a.course_name}</td>
-              <td className="border border-black p-2">{a.faculty_name}</td>
+              <td className="border border-black p-2 text-center">{a.course?.code}</td>
+              <td className="border border-black p-2">{a.course?.name}</td>
+              <td className="border border-black p-2">{a.faculty?.first_name} {a.faculty?.last_name}</td>
               <td className="border border-black p-2 text-center">
                 {DAYS.reduce((total, day) => {
                   return total + PERIODS.filter(p => p.type === 'period').filter(p => {
