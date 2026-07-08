@@ -24,26 +24,9 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
       }}
     >
       {/* HEADER SECTION */}
-      <div className="flex items-center justify-between border-b-2 border-[#000000] pb-4 mb-4">
-        {/* Left Logo */}
-        <div className="w-24 h-24 flex-shrink-0">
+      <div className="flex items-center justify-center border-b-2 border-[#000000] pb-4 mb-4">
+        <div className="h-24 w-full flex-shrink-0">
           <img src="/logo.png" alt="College Logo" className="w-full h-full object-contain" />
-        </div>
-        
-        {/* Center Text */}
-        <div className="flex-1 text-center px-4">
-          <h1 className="text-3xl font-serif font-bold tracking-tight">srivenkateshwaraa</h1>
-          <h2 className="text-xl font-serif font-semibold mt-1">College of Engineering & Technology</h2>
-          <div className="bg-[#000000] text-[#ffffff] text-xs font-bold inline-block px-4 py-1 mt-2">
-            ASPIRE TO EXCEL
-          </div>
-          <p className="text-xs font-bold mt-1">Ariyur, Puducherry-605 102.</p>
-        </div>
-
-        {/* Right Accreditations (Placeholder text if logos aren't available, but user said logo is at @logo.png) */}
-        <div className="w-32 flex flex-col items-end justify-center space-y-2">
-          <div className="text-[10px] font-bold text-center border-2 border-[#000000] rounded-full px-2 py-1">NAAC A</div>
-          <div className="text-[10px] font-bold text-center">ISO 21001</div>
         </div>
       </div>
 
@@ -59,11 +42,10 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
           <div className="flex"><span className="w-32 inline-block">YEAR</span> : {yearText}</div>
           <div className="flex"><span className="w-32 inline-block">SEMESTER</span> : {semester}</div>
           <div className="flex"><span className="w-32 inline-block">SECTION</span> : {sectionData.name}</div>
-          <div className="flex"><span className="w-32 inline-block">CLASS ADVISOR</span> : _________________</div>
         </div>
         <div className="space-y-2">
-          <div className="flex"><span className="w-32 inline-block">LECTURE HALL</span> : ______</div>
-          <div className="flex"><span className="w-32 inline-block">BATCH</span> : ______</div>
+          <div className="flex"><span className="w-32 inline-block">BATCH</span> : {sectionData.batch || '______'}</div>
+          <div className="flex"><span className="w-32 inline-block">CLASS ADVISOR</span> : _________________</div>
         </div>
       </div>
 
@@ -71,11 +53,11 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
       <table className="w-full border-collapse border border-[#000000] text-center text-xs font-bold mb-8">
         <thead>
           <tr>
-            <th className="border border-[#000000] p-2" rowSpan="2">DAY<br/>ORDER</th>
+            <th className="border border-[#000000] p-2">DAY<br/>ORDER</th>
             {PERIODS.map(p => {
               if (p.type === 'break') {
                 return (
-                  <th key={p.id} className="border border-[#000000] p-1 w-8" rowSpan="7">
+                  <th key={p.id} className="border border-[#000000] p-1 w-8" rowSpan="6">
                     <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }} className="whitespace-nowrap h-40">
                       {p.label} {p.time}
                     </div>
