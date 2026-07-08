@@ -64,6 +64,9 @@ app.include_router(student_portal.router, prefix="/api/student-portal", tags=["S
 from app.api import gatepass
 app.include_router(gatepass.router, prefix="/api/gatepass", tags=["Gate Pass"])
 
+from app.api import notifications
+app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
+
 from app.api import alumni
 app.include_router(alumni.router, prefix="/api/admin", tags=["Alumni"])
 

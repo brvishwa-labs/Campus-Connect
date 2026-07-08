@@ -206,7 +206,6 @@ export const HodDashboard = () => {
     current_sem_start_date: '',
     attendance_closed: false
   });
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   const greeting = useMemo(() => getGreeting(), []);
 
@@ -277,20 +276,18 @@ export const HodDashboard = () => {
     fetchData();
   }, []);
 
-  const handleSaveSettings = async () => {
+  const handleUpdateSettings = async (updates) => {
+    const nextSettings = { ...deptSettings, ...updates };
+    setDeptSettings(nextSettings);
     try {
-      setIsSavingSettings(true);
       await axios.put('/api/hod/department-settings', {
-        current_sem_start_date: deptSettings.current_sem_start_date ? new Date(deptSettings.current_sem_start_date).toISOString() : null,
-        attendance_closed: deptSettings.attendance_closed
+        current_sem_start_date: nextSettings.current_sem_start_date ? new Date(nextSettings.current_sem_start_date).toISOString() : null,
+        attendance_closed: nextSettings.attendance_closed
       });
-      // show success, could use toast if available
       fetchData();
     } catch (err) {
       console.error(err);
-      alert('Failed to save settings');
-    } finally {
-      setIsSavingSettings(false);
+      alert('Failed to update department settings');
     }
   };
 
@@ -550,12 +547,12 @@ export const HodDashboard = () => {
               type="date"
               className="bg-white dark:bg-gray-100 text-sm font-bold text-slate-700 dark:text-gray-900 px-3 py-1.5 rounded-lg border-none focus:ring-2 focus:ring-primary-500 w-full sm:w-auto outline-none"
               value={deptSettings.current_sem_start_date}
-              onChange={(e) => setDeptSettings(prev => ({ ...prev, current_sem_start_date: e.target.value }))}
+              onChange={(e) => handleUpdateSettings({ current_sem_start_date: e.target.value })}
             />
           </div>
 
           {/* Attendance Lock Toggle */}
-          <div className="flex items-center gap-3 bg-rose-50/50 dark:bg-rose-500/10 p-2.5 rounded-xl border border-rose-100 dark:border-rose-500/20 w-full sm:w-auto px-5 cursor-pointer" onClick={() => setDeptSettings(prev => ({ ...prev, attendance_closed: !prev.attendance_closed }))}>
+          <div className="flex items-center gap-3 bg-rose-50/50 dark:bg-rose-500/10 p-2.5 rounded-xl border border-rose-100 dark:border-rose-500/20 w-full sm:w-auto px-5 cursor-pointer" onClick={() => handleUpdateSettings({ attendance_closed: !deptSettings.attendance_closed })}>
             <span className={`text-sm font-bold ${deptSettings.attendance_closed ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-gray-500'}`}>
               {deptSettings.attendance_closed ? "Attendance Locked" : "Attendance Open"}
             </span>
@@ -563,16 +560,6 @@ export const HodDashboard = () => {
               <div className={`absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ease-in-out ${deptSettings.attendance_closed ? 'transform translate-x-5' : ''}`} />
             </div>
           </div>
-
-          {/* Save Button */}
-          <button
-            onClick={handleSaveSettings}
-            disabled={isSavingSettings}
-            className="w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20"
-          >
-            {isSavingSettings ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            Save 
-          </button>
         </div>
       </div>
 
@@ -669,7 +656,7 @@ export const HodDashboard = () => {
                   Today is a holiday. Attendance monitoring is unavailable.
                 </p>
               </div>
-            ) : (!studentAttendanceSummary || !studentAttendanceSummary.isMarkedToday || dateConditions.isBefore10) ? (
+            ) : (!studentAttendanceSummary || (dateConditions.isBefore10 && !studentAttendanceSummary.isMarkedToday)) ? (
               <div className="text-center py-8 space-y-4">
                 <div className="w-12 h-12 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto border border-primary-100">
                   <RefreshCw className="w-5 h-5 text-primary-500 animate-spin" />
@@ -680,7 +667,7 @@ export const HodDashboard = () => {
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {/* Overall Student Attendance Card */}
                 <div className="bg-gradient-to-r from-emerald-50/40 to-teal-50/10 dark:from-gray-100 dark:to-transparent border border-emerald-100/50 dark:border-gray-200 rounded-2xl p-4 flex items-center justify-between mb-4">
                   <div>
@@ -695,50 +682,62 @@ export const HodDashboard = () => {
                   </div>
                 </div>
 
-                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Grouped Year-wise (Hover for breakdown)</h4>
+                <h4 className="text-xs font-black text-slate-400 dark:text-gray-550 uppercase tracking-wider mb-4">Department Student Attendance Overview</h4>
                 
-                <div className="space-y-3.5 relative">
-                  {Object.entries(studentAttendanceSummary.yearBreakdown || {}).map(([year, info]) => (
-                    <div
-                      key={year}
-                      className="relative flex items-center gap-3 py-0.5 cursor-pointer group"
-                      onMouseEnter={() => setHoveredYear(year)}
-                      onMouseLeave={() => setHoveredYear(null)}
-                    >
-                      <span className="text-[11px] font-bold text-slate-600 dark:text-gray-700 w-14 shrink-0">{year}</span>
-                      <div className="flex-1 h-3.5 bg-slate-100 dark:bg-gray-100 rounded-full overflow-hidden relative border border-slate-200/40 dark:border-transparent">
-                        <div
-                          className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500"
-                          style={{ width: `${info.totalRate}%` }}
-                        />
-                      </div>
-                      <span className="text-[11px] font-black text-slate-900 dark:text-gray-900 w-8 text-right shrink-0">{info.totalRate}%</span>
+                <div className="border border-slate-150 dark:border-gray-200 rounded-[20px] overflow-hidden shadow-sm">
+                  {/* Table Header */}
+                  <div className="grid grid-cols-5 items-center px-6 py-4 text-xs font-black bg-slate-50 dark:bg-gray-150 text-slate-500 dark:text-gray-500 uppercase tracking-wider border-b border-slate-150 dark:border-gray-200">
+                    <span className="col-span-2 text-left">Year / Section</span>
+                    <span className="text-center">Total</span>
+                    <span className="text-center">Present</span>
+                    <span className="text-center">Absent</span>
+                    <span className="text-right">Rate</span>
+                  </div>
 
-                      {/* Tooltip Hover Interaction */}
-                      {hoveredYear === year && (
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-3 bg-slate-900/95 backdrop-blur-lg text-white text-[11px] rounded-2xl p-4 shadow-xl shadow-slate-950/40 z-50 border border-slate-800 w-[180px] text-left transition-all duration-200">
-                          <p className="font-extrabold text-[10px] text-indigo-400 border-b border-slate-800 pb-2 mb-2.5 flex items-center gap-2 uppercase tracking-wider">
-                            <Layers className="w-3.5 h-3.5" />
-                            {year} Sections
-                          </p>
-                          <div className="space-y-2">
+                  <div className="divide-y divide-slate-100 dark:divide-gray-200 relative">
+                    {Object.entries(studentAttendanceSummary.yearBreakdown || {}).map(([year, info]) => {
+                      const totalStudents = info.sections?.reduce((sum, s) => sum + (s.total_students || 0), 0) || 0;
+                      const totalPresent = info.sections?.reduce((sum, s) => sum + (s.present || 0), 0) || 0;
+                      const totalAbsent = info.sections?.reduce((sum, s) => sum + (s.absent || 0), 0) || 0;
+                      const isAnyMarked = info.sections?.some(s => s.is_marked) || false;
+
+                      return (
+                        <div key={year} className="flex flex-col">
+                          {/* Year Row */}
+                          <div className="grid grid-cols-5 items-center py-4 px-6 text-sm font-black text-slate-800 dark:text-gray-900 bg-slate-50/20 dark:bg-transparent">
+                            <span className="col-span-2 text-left font-black text-slate-900 dark:text-gray-900">{year}</span>
+                            <span className="text-center font-bold text-slate-700 dark:text-gray-700">{totalStudents}</span>
+                            <span className="text-center font-extrabold text-emerald-600 dark:text-emerald-450">{isAnyMarked ? totalPresent : '—'}</span>
+                            <span className="text-center font-bold text-rose-600 dark:text-rose-455">{isAnyMarked ? totalAbsent : '—'}</span>
+                            <span className="text-right font-black text-slate-900 dark:text-gray-900">{isAnyMarked ? `${info.totalRate}%` : '—'}</span>
+                          </div>
+
+                          {/* Sections Rows */}
+                          <div className="bg-white/50 dark:bg-transparent">
                             {info.sections.map(sec => {
-                              const total = sec.present + sec.absent;
+                              const isMarked = sec.is_marked;
                               const nameParts = sec.name.split(' ');
                               const lastPart = nameParts[nameParts.length - 1];
                               const displayName = lastPart.length === 1 ? `${lastPart} sec` : sec.name;
+                              const secRate = isMarked && (sec.present + sec.absent > 0)
+                                ? Math.round((sec.present / (sec.present + sec.absent)) * 100)
+                                : 0;
+
                               return (
-                                <div key={sec.name} className="flex justify-between items-center text-xs font-bold text-slate-200">
-                                  <span>{displayName}</span>
-                                  <span className="text-emerald-400 font-extrabold">{sec.present}/{total}</span>
+                                <div key={sec.name} className="grid grid-cols-5 items-center py-3.5 px-6 text-xs font-semibold text-slate-600 dark:text-gray-700 pl-12 border-t border-slate-100/50 dark:border-gray-200">
+                                  <span className="col-span-2 text-left text-slate-500 font-bold border-l-4 border-indigo-400 pl-3">{displayName}</span>
+                                  <span className="text-center font-bold text-slate-500">{sec.total_students}</span>
+                                  <span className="text-center font-extrabold text-emerald-500 dark:text-emerald-400">{isMarked ? sec.present : '—'}</span>
+                                  <span className="text-center font-bold text-rose-500 dark:text-rose-455">{isMarked ? sec.absent : '—'}</span>
+                                  <span className="text-right font-black text-slate-700 dark:text-gray-900">{isMarked ? `${secRate}%` : '—'}</span>
                                 </div>
                               );
                             })}
                           </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
