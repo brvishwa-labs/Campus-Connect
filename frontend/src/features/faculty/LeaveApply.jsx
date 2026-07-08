@@ -9,9 +9,12 @@ export const LeaveApply = () => {
   const { user } = useAuth();
   
   const [balance, setBalance] = useState({
-    casual_leaves_total: 15, casual_leaves_used: 0,
-    sick_leaves_total: 10, sick_leaves_used: 0,
-    earned_leaves_total: 30, earned_leaves_used: 0
+    casual_leaves_total: 12, casual_leaves_used: 0,
+    earned_leaves_total: 30, earned_leaves_used: 0,
+    vacation_leaves_total: 14, vacation_leaves_used: 0,
+    compensation_leaves_total: 5, compensation_leaves_used: 0,
+    academic_leaves_total: 10, academic_leaves_used: 0,
+    restricted_leaves_total: 2, restricted_leaves_used: 0
   });
   const [facultyProfile, setFacultyProfile] = useState(null);
   const [allFaculty, setAllFaculty] = useState([]);
@@ -145,9 +148,11 @@ export const LeaveApply = () => {
                     required
                   >
                     <option value="Casual Leave">Casual Leave</option>
-                    <option value="Sick Leave">Sick Leave</option>
                     <option value="Earned Leave">Earned Leave</option>
-                    <option value="On Duty Permission">On Duty Permission</option>
+                    <option value="Vacation Leave">Vacation Leave</option>
+                    <option value="Compensation Leave">Compensation Leave</option>
+                    <option value="Academic Leave">Academic Leave</option>
+                    <option value="Restricted Leave">Restricted Leave</option>
                   </select>
                 </div>
                 
@@ -296,8 +301,51 @@ export const LeaveApply = () => {
           </form>
         </div>
 
-        {/* Right Column - Submission Tips */}
+        {/* Right Column - Balance Summary & Tips */}
         <div className="w-full lg:w-80 space-y-6">
+          <div className="bg-[#1e3a5f] rounded-xl shadow-sm overflow-hidden text-white">
+            <div className="px-6 py-5 border-b border-white/10">
+              <h2 className="text-base font-bold">Balance Summary</h2>
+            </div>
+            <div className="p-6 space-y-4 text-sm font-medium">
+              <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                <div className="flex flex-col">
+                  <span className="text-blue-100">Casual Leave</span>
+                  <span className="text-[10px] text-blue-200">1 per month</span>
+                </div>
+                <span className="text-lg font-bold">{(balance.casual_leaves_total || 12) - (balance.casual_leaves_used || 0)}/{balance.casual_leaves_total || 12}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                <div className="flex flex-col">
+                  <span className="text-blue-100">Restricted Leave</span>
+                  <span className="text-[10px] text-blue-200">1 per sem</span>
+                </div>
+                <span className="text-lg font-bold">{(balance.restricted_leaves_total || 2) - (balance.restricted_leaves_used || 0)}/{balance.restricted_leaves_total || 2}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                <span className="text-blue-100">Earned Leave</span>
+                <span className="text-lg font-bold">{(balance.earned_leaves_total || 30) - (balance.earned_leaves_used || 0)}/{balance.earned_leaves_total || 30}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                <span className="text-blue-100">Vacation Leave</span>
+                <span className="text-lg font-bold">{(balance.vacation_leaves_total || 14) - (balance.vacation_leaves_used || 0)}/{balance.vacation_leaves_total || 14}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                <span className="text-blue-100">Compensation Leave</span>
+                <span className="text-lg font-bold">{(balance.compensation_leaves_total || 5) - (balance.compensation_leaves_used || 0)}/{balance.compensation_leaves_total || 5}</span>
+              </div>
+              <div className="flex justify-between items-center pb-1">
+                <span className="text-blue-100">Academic Leave</span>
+                <span className="text-lg font-bold">{(balance.academic_leaves_total || 10) - (balance.academic_leaves_used || 0)}/{balance.academic_leaves_total || 10}</span>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-black/10">
+              <p className="text-[10px] text-blue-200 italic leading-relaxed">
+                Calculated based on the current academic year ending June 2024.
+              </p>
+            </div>
+          </div>
+
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100">
               <h2 className="text-sm font-bold text-gray-800">Submission Tips</h2>

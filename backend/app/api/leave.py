@@ -266,14 +266,23 @@ def approve_leave_request(
             
             # Deduct leave balance
             academic_year = "2023-2024"
-            balance = db.query(LeaveBalance).filter(LeaveBalance.faculty_id == req.faculty_id, LeaveBalance.academic_year == academic_year).first()
+            balance = db.query(FacultyLeaveBalance).filter(FacultyLeaveBalance.faculty_id == req.faculty_id, FacultyLeaveBalance.academic_year == academic_year).first()
             if balance:
-                if "casual" in req.leave_type.lower():
+                ltype = req.leave_type.lower()
+                if "casual" in ltype:
                     balance.casual_leaves_used += req.duration_days
-                elif "sick" in req.leave_type.lower() or "medical" in req.leave_type.lower():
-                    balance.sick_leaves_used += req.duration_days
-                else:
+                elif "restricted" in ltype or "rh" in ltype:
+                    balance.restricted_leaves_used += req.duration_days
+                elif "earned" in ltype:
                     balance.earned_leaves_used += req.duration_days
+                elif "vacation" in ltype:
+                    balance.vacation_leaves_used += req.duration_days
+                elif "compensation" in ltype:
+                    balance.compensation_leaves_used += req.duration_days
+                elif "academic" in ltype or "od" in ltype or "duty" in ltype:
+                    balance.academic_leaves_used += req.duration_days
+                elif "sick" in ltype or "medical" in ltype:
+                    balance.sick_leaves_used += req.duration_days
     else:
         raise HTTPException(status_code=403, detail="Not authorized to approve at this stage")
         
