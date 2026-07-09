@@ -21,9 +21,9 @@ class LeaveStatus(str, enum.Enum):
     WITHDRAWN = "withdrawn"
 
 class ArrangementStatus(str, enum.Enum):
-    PENDING = "pending"
-    ACCEPTED = "accepted"
-    REJECTED = "rejected"
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
 
 class FacultyLeaveRequest(Base):
     __tablename__ = "faculty_leave_requests"
@@ -142,7 +142,7 @@ class FacultyLeaveBalance(Base):
     restricted_leaves_total = Column(Integer, default=2) # RH: 2 days total (1 per semester)
     restricted_leaves_used = Column(Integer, default=0)
 
-    vacation_leaves_total = Column(Integer, default=14)
+    vacation_leaves_total = Column(Integer, default=12)
     vacation_leaves_used = Column(Integer, default=0)
 
     compensation_leaves_total = Column(Integer, default=5)
