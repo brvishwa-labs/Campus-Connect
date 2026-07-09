@@ -67,8 +67,9 @@ import { GatePass } from './features/student/GatePass';
 import { StudentLeave } from './features/student/StudentLeave';
 import { MenteeGatePasses } from './features/faculty/MenteeGatePasses';
 import { GatePassApprovals as HodGatePassApprovals } from './features/hod/GatePassApprovals';
-import { StudentLeaveApprovals } from './features/hod/StudentLeaveApprovals';
+import { LeaveApprovals } from './features/hod/LeaveApprovals';
 import { OMGatePassApprovals } from './features/authority/OMGatePassApprovals';
+import { AuthorityLeaveApprovals } from './features/authority/AuthorityLeaveApprovals';
 import { Profile } from './features/profile/Profile';
 import LateEntryNotification from './features/student/LateEntryNotification';
 import PrincipalDashboard from './features/authority/PrincipalDashboard';
@@ -223,7 +224,7 @@ function AppRoutes() {
         } />
         <Route path="/hod/leave" element={
           <ProtectedRoute allowedRole="hod">
-            <StudentLeaveApprovals />
+            <LeaveApprovals />
           </ProtectedRoute>
         } />
         <Route path="/hod/latetracker" element={
@@ -435,7 +436,6 @@ function AppRoutes() {
             <AuthorityDashboardRouter />
           </ProtectedRoute>
         } />
-        
         {/* Principal Dashboard Route */}
         <Route path="/principal" element={
           <ProtectedRoute allowedRole="authority">
@@ -450,6 +450,11 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         
+        <Route path="/authority/leave" element={
+          <ProtectedRoute allowedRole="authority">
+            <AuthorityLeaveApprovals />
+          </ProtectedRoute>
+        } />
         <Route path="/authority/discipline" element={
           <ProtectedRoute allowedRole="authority">
             <AuthorityDiscipline />
