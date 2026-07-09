@@ -110,7 +110,7 @@ export const LMSTimetable = () => {
             <Calendar className="w-8 h-8 text-pink-600 animate-pulse" /> Course Timetable
           </h1>
           <p className="text-sm text-gray-500 mt-1 font-medium">
-            {courseDetails ? `${courseDetails.course.code} - ${courseDetails.course.name} (${courseDetails.section.department.code} Year-${courseDetails.section.year} ${courseDetails.section.name})` : 'View the weekly schedule for this course'}
+            {courseDetails ? `${courseDetails.course.code} - ${courseDetails.course.name} (Year-${courseDetails.section.year} ${courseDetails.section.name})` : 'View the weekly schedule for this course'}
           </p>
         </div>
       </div>
