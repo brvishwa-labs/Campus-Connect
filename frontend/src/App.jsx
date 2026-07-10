@@ -82,6 +82,8 @@ import PrincipalDashboard from './features/authority/PrincipalDashboard';
 import DeanDashboard from './features/authority/DeanDashboard';
 import OMDashboard from './features/authority/OMDashboard';
 import AuthorityDashboardRouter from './features/authority/AuthorityDashboardRouter';
+import StudentMessaging from './features/student/StudentMessaging';
+import DeanMessaging from './features/dean/DeanMessaging';
 import MyAttendance from './features/faculty/MyAttendance';
 // A simple protective wrapper that forces login and checks roles
 const ProtectedRoute = ({ children, allowedRole }) => {
@@ -452,6 +454,11 @@ function AppRoutes() {
             <StudentLeave />
           </ProtectedRoute>
         } />
+        <Route path="/student/messaging" element={
+          <ProtectedRoute allowedRole="student">
+            <StudentMessaging />
+          </ProtectedRoute>
+        } />
       </Route>
 
       {/* Late Tracker Routes (No Sidebar) */}
@@ -485,6 +492,11 @@ function AppRoutes() {
         <Route path="/dean" element={
           <ProtectedRoute allowedRole="authority">
             <DeanDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/dean/messaging" element={
+          <ProtectedRoute allowedRole="authority">
+            <DeanMessaging />
           </ProtectedRoute>
         } />
         
