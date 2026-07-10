@@ -798,8 +798,8 @@ export const FacultyDashboard = () => {
   useEffect(() => {
     const fetchNotificationCounts = async () => {
       try {
-        // Fetch leave requests count (for mentors)
-        const leaveRes = await axios.get('/api/leave/requests');
+        // Fetch leave requests count (Student Leaves)
+        const leaveRes = await axios.get('/api/student-portal/leave/mentor-queue');
         const pendingLeaves = leaveRes.data.filter(req => 
           req.status === 'pending_mentor' || req.status === 'pending_class_advisor'
         );
