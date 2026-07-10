@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
-import { BookOpen, Users, Edit3, Clock, TrendingUp, Award, ChevronRight, GraduationCap } from 'lucide-react';
+import { BookOpen, Users, Edit3, Clock, TrendingUp, Award, ChevronRight, GraduationCap, Calendar, MapPin } from 'lucide-react';
 import StudentCourseService from '../student/StudentCourseService';
 
 const KPICard = ({ title, value, icon: Icon, colorClass, bgColorClass }) => (
@@ -53,6 +54,9 @@ export const StudentDashboard = () => {
   const [courseCount, setCourseCount] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [todaysClasses, setTodaysClasses] = useState([]);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
+
   useEffect(() => {
     Promise.all([
       StudentCourseService.getMyProfile(),
@@ -65,6 +69,56 @@ export const StudentDashboard = () => {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  // Fetch student section classes
+  useEffect(() => {
+    const fetchClassInfo = async () => {
+      try {
+        const response = await axios.get('/api/student-portal/my-class');
+        const timetable = response.data.timetable || [];
+        const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const currentDay = daysOfWeek[new Date().getDay()];
+        const todaySlots = timetable
+          .filter(t => t.day === currentDay)
+          .sort((a, b) => a.start_time.localeCompare(b.start_time));
+        setTodaysClasses(todaySlots);
+      } catch (err) {
+        console.error('Failed to fetch timetable info', err);
+      } finally {
+        setScheduleLoading(false);
+      }
+    };
+    fetchClassInfo();
+  }, []);
+
+  const getMinutes = (timeStr) => {
+    if (!timeStr) return 0;
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const now = new Date();
+  const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const ongoingClass = todaysClasses.find(slot => {
+    const startMins = getMinutes(slot.start_time);
+    const endMins = getMinutes(slot.end_time);
+    return currentTotalMinutes >= startMins && currentTotalMinutes < endMins;
+  });
+
+  const upcomingClasses = todaysClasses.filter(slot => {
+    const startMins = getMinutes(slot.start_time);
+    return currentTotalMinutes < startMins;
+  });
+
+  const formatTime = (timeStr) => {
+    if (!timeStr) return '';
+    const [hours, minutes] = timeStr.split(':');
+    const h = parseInt(hours, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 || 12;
+    return `${displayH}:${minutes} ${ampm}`;
+  };
 
   const studentName = profile
     ? `${profile.first_name} ${profile.last_name}`
@@ -120,37 +174,128 @@ export const StudentDashboard = () => {
 
       {/* Quick Links — My Courses + My Marks */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-[20px] shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-gray-100 p-6 sm:p-8">
-          <h3 className="text-[16px] font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-primary-500" />
-            My Courses
-          </h3>
-          {loading ? (
-            <div className="space-y-3 animate-pulse">
-              {[1,2,3].map(i => <div key={i} className="h-12 bg-gray-100 rounded-xl" />)}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-[20px] shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-gray-100 p-6 sm:p-8">
+            <h3 className="text-[16px] font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-primary-500" />
+              My Courses
+            </h3>
+            {loading ? (
+              <div className="space-y-3 animate-pulse">
+                {[1,2,3].map(i => <div key={i} className="h-12 bg-gray-100 rounded-xl" />)}
+              </div>
+            ) : courseCount === 0 ? (
+              <p className="text-[14px] text-gray-400">No courses enrolled for your current semester.</p>
+            ) : (
+              <p className="text-[14px] text-gray-500 mb-5">
+                You have <span className="font-bold text-gray-800">{courseCount}</span> course{courseCount !== 1 ? 's' : ''} enrolled for Semester {profile?.current_semester}.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-3 mt-2">
+              <Link
+                to="/student/courses"
+                className="inline-flex items-center gap-2 text-[13px] font-bold text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 px-4 py-2.5 rounded-xl transition-colors"
+              >
+                View All Courses
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+              <Link
+                to="/student/marks"
+                className="inline-flex items-center gap-2 text-[13px] font-bold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 px-4 py-2.5 rounded-xl transition-colors"
+              >
+                <Award className="w-4 h-4" />
+                My Marks
+              </Link>
             </div>
-          ) : courseCount === 0 ? (
-            <p className="text-[14px] text-gray-400">No courses enrolled for your current semester.</p>
-          ) : (
-            <p className="text-[14px] text-gray-500 mb-5">
-              You have <span className="font-bold text-gray-800">{courseCount}</span> course{courseCount !== 1 ? 's' : ''} enrolled for Semester {profile?.current_semester}.
-            </p>
-          )}
-          <div className="flex flex-wrap gap-3 mt-2">
-            <Link
-              to="/student/courses"
-              className="inline-flex items-center gap-2 text-[13px] font-bold text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 px-4 py-2.5 rounded-xl transition-colors"
-            >
-              View All Courses
-              <ChevronRight className="w-4 h-4" />
-            </Link>
-            <Link
-              to="/student/marks"
-              className="inline-flex items-center gap-2 text-[13px] font-bold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 px-4 py-2.5 rounded-xl transition-colors"
-            >
-              <Award className="w-4 h-4" />
-              My Marks
-            </Link>
+          </div>
+
+          {/* Today's Schedule */}
+          <div className="bg-white rounded-[20px] shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-gray-100 overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-primary-500" />
+                <h3 className="text-[16px] font-bold text-gray-900">Today's Schedule</h3>
+              </div>
+              <Link to="/student/schedule" className="text-xs text-primary-600 font-semibold hover:underline flex items-center gap-1">
+                More about today's schedule
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+            
+            <div className="p-6">
+              {scheduleLoading ? (
+                <div className="space-y-3 animate-pulse">
+                  {[1,2].map(i => <div key={i} className="h-16 bg-gray-100 rounded-xl" />)}
+                </div>
+              ) : todaysClasses.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Ongoing Class */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-gray-400 tracking-wider uppercase">Ongoing Class</h4>
+                    {ongoingClass ? (
+                      <div className="bg-blue-50/40 border border-blue-100 shadow-sm p-4 rounded-xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 px-2 py-0.5 bg-blue-500 text-[10px] font-black text-white rounded-bl-lg uppercase tracking-wider animate-pulse">
+                          Active
+                        </div>
+                        <div className="flex items-center justify-between mb-1 pr-12">
+                          <span className="font-bold text-gray-900 text-sm">{ongoingClass.course_name}</span>
+                        </div>
+                        <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-block mb-2">
+                          {formatTime(ongoingClass.start_time)} - {formatTime(ongoingClass.end_time)}
+                        </span>
+                        <p className="text-xs text-gray-500 font-medium">{ongoingClass.course_code}</p>
+                        <div className="mt-3 flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-blue-50/50">
+                          <span className="flex items-center gap-1"><Users className="w-3 h-3"/> {ongoingClass.faculty_name}</span>
+                          {ongoingClass.room_number && <span className="flex items-center gap-1"><MapPin className="w-3 h-3"/> {ongoingClass.room_number}</span>}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 border border-gray-100 p-4 rounded-xl text-center py-6 text-gray-500 text-xs font-medium">
+                        No ongoing class at this time
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Upcoming Class */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-gray-400 tracking-wider uppercase">Upcoming Class</h4>
+                    {upcomingClasses.length > 0 ? (
+                      <div className="bg-white border border-gray-100 shadow-sm p-4 rounded-xl">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-gray-900 text-sm">{upcomingClasses[0].course_name}</span>
+                          <span className="text-xs font-semibold text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
+                            {formatTime(upcomingClasses[0].start_time)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 font-medium mb-2">{upcomingClasses[0].course_code}</p>
+                        <div className="mt-3 flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-50">
+                          <span className="flex items-center gap-1"><Users className="w-3 h-3"/> {upcomingClasses[0].faculty_name}</span>
+                          {upcomingClasses[0].room_number && <span className="flex items-center gap-1"><MapPin className="w-3 h-3"/> {upcomingClasses[0].room_number}</span>}
+                        </div>
+                        {upcomingClasses.length > 1 && (
+                          <div className="mt-3 text-right">
+                            <Link to="/student/schedule" className="text-[11px] font-bold text-primary-500 hover:underline">
+                              +{upcomingClasses.length - 1} more upcoming class{upcomingClasses.length - 1 > 1 ? 'es' : ''} today
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 border border-gray-100 p-4 rounded-xl text-center py-6 text-gray-500 text-xs font-medium">
+                        No upcoming classes remaining today
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-10">
+                  <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <Calendar className="w-8 h-8 text-gray-300" />
+                  </div>
+                  <p className="text-sm text-gray-500 font-medium">No classes scheduled for today. Enjoy your day!</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
