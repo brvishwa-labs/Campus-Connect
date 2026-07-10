@@ -223,8 +223,18 @@ export default function DashboardLayout() {
     if (title !== 'office manager') {
       navLinks = navLinks.filter(link => link.name !== 'Gate Pass Approvals');
     }
-    if (title !== 'dean' && title !== 'office manager') {
+    if (title !== 'dean' && title !== 'office manager' && title !== 'hr') {
       navLinks = navLinks.filter(link => link.name !== 'Faculty Gate Pass Approvals');
+    }
+    if (title === 'hr') {
+      navLinks = navLinks.filter(link => 
+        ['Dashboard'].includes(link.name)
+      );
+      navLinks.push({
+        name: 'Faculty Leaves',
+        path: '/hr/leaves',
+        icon: Calendar
+      });
     }
     if (title === 'dean') {
       // Add Messages to Dean Authority
