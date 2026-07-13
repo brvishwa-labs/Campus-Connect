@@ -18,6 +18,7 @@ import { Authorities } from './features/admin/Authorities';
 import { Courses } from './features/admin/Courses';
 import { HodDashboard } from './features/hod/HodDashboard';
 import { FacultyList } from './features/hod/FacultyList';
+import { FacultyList as AuthorityFacultyList } from './features/authority/FacultyList';
 import { StudentList } from './features/hod/StudentList';
 import { Sections } from './features/hod/Sections';
 import { FacultyAssignment } from './features/hod/FacultyAssignment';
@@ -499,6 +500,13 @@ function AppRoutes() {
         <Route path="/dean/messaging" element={
           <ProtectedRoute allowedRole="authority">
             <DeanMessaging />
+          </ProtectedRoute>
+        } />
+        
+        {/* Authority Faculty List - Dean, Principal, OM */}
+        <Route path="/authority/faculty" element={
+          <ProtectedRoute allowedRole="authority">
+            <AuthorityFacultyList />
           </ProtectedRoute>
         } />
         
