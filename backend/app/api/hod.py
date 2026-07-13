@@ -57,6 +57,7 @@ def hod_dashboard(
     section_count = db.query(Section).filter(Section.department_id == department.id).count()
     assignment_count = db.query(CourseAssignment).join(Course).filter(
         Course.department_id == department.id,
+        Course.is_active == True,
         CourseAssignment.is_active == True
     ).count()
 
@@ -138,7 +139,7 @@ def hod_courses(
     current_user: User = Depends(get_current_active_user)
 ):
     department, _ = get_hod_department(current_user, db)
-    courses = db.query(Course).filter(Course.department_id == department.id).all()
+    courses = db.query(Course).filter(Course.department_id == department.id, Course.is_active == True).all()
     return [
         {
             "id": c.id,
@@ -346,6 +347,7 @@ def get_assignments(
         joinedload(CourseAssignment.faculty)
     ).join(Course).filter(
         Course.department_id == department.id,
+        Course.is_active == True,
         CourseAssignment.is_active == True
     )
     if section_id:
@@ -1154,15 +1156,20 @@ def get_attendance_analytics(
         ).all()
         
     heatmap_counts = {}
+    student_lookup = {st.student_id: {"year": st.year, "section": st.section} for st in student_table}
+    
     for att in heatmap_atts:
+        info = student_lookup.get(att.student_id)
+        if not info:
+            continue
         day_name = att.date.strftime("%A")
         period = att.hour or 1
-        key = (day_name, period)
+        key = (day_name, period, info["year"], info["section"])
         heatmap_counts[key] = heatmap_counts.get(key, 0) + 1
         
-    heatmap = [HeatmapData(day=d, period=p, absent_count=c) for (d, p), c in heatmap_counts.items()]
+    heatmap = [HeatmapData(day=d, period=p, year=y, section=s, absent_count=c) for (d, p, y, s), c in heatmap_counts.items()]
     if not heatmap:
-        heatmap = [HeatmapData(day="Monday", period=1, absent_count=0)]
+        heatmap = [HeatmapData(day="Monday", period=1, year=1, section="A", absent_count=0)]
         
     # ---------------------------------------------------------
     # 6. Faculty Stats

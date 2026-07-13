@@ -91,18 +91,15 @@ def get_authority_dashboard_stats(
         except Exception:
             active_courses = 0
         
-        # 2. ATTENDANCE OVERVIEW
-        # Overall college attendance
-        try:
-            total_attendance_records = db.query(Attendance).count()
-            present_count = db.query(Attendance).filter(Attendance.status == "present").count()
-            overall_attendance_percent = round((present_count / total_attendance_records * 100), 2) if total_attendance_records > 0 else 0
-        except Exception:
-            overall_attendance_percent = 0
-        
-        # Attendance by department
+        # Attendance by department and Overall Attendance calculation
         attendance_by_dept = []
         departments = db.query(Department).all()
+        
+        global_total = 0
+        global_present = 0
+        
+        from app.core.utils import get_sem_start_date
+        
         for dept in departments:
             try:
                 dept_students = db.query(Student).filter(
@@ -112,12 +109,20 @@ def get_authority_dashboard_stats(
                 student_ids = [s.id for s in dept_students]
                 
                 if student_ids:
-                    dept_total = db.query(Attendance).filter(Attendance.student_id.in_(student_ids)).count()
+                    sem_start_date = get_sem_start_date(dept.id, db)
+                    dept_total = db.query(Attendance).filter(
+                        Attendance.student_id.in_(student_ids),
+                        Attendance.date >= sem_start_date
+                    ).count()
                     dept_present = db.query(Attendance).filter(
                         Attendance.student_id.in_(student_ids),
-                        Attendance.status == "present"
+                        Attendance.status == "present",
+                        Attendance.date >= sem_start_date
                     ).count()
                     dept_percent = round((dept_present / dept_total * 100), 2) if dept_total > 0 else 0
+                    
+                    global_total += dept_total
+                    global_present += dept_present
                 else:
                     dept_percent = 0
             except Exception:
@@ -128,6 +133,8 @@ def get_authority_dashboard_stats(
                 "department_code": dept.code,
                 "attendance_percent": dept_percent
             })
+            
+        overall_attendance_percent = round((global_present / global_total * 100), 2) if global_total > 0 else 0
         
         # 3. ACADEMIC PERFORMANCE
         # Overall pass percentage (students with passing grades)
@@ -440,14 +447,15 @@ def get_dean_dashboard_stats(
     active_courses = db.query(Course).filter(Course.is_active == True).count()
     
     # 2. ATTENDANCE OVERVIEW
-    # Overall college attendance
-    total_attendance_records = db.query(Attendance).count()
-    present_count = db.query(Attendance).filter(Attendance.status == "present").count()
-    overall_attendance_percent = round((present_count / total_attendance_records * 100), 2) if total_attendance_records > 0 else 0
-    
-    # Attendance by department
+    # Attendance by department and Overall Attendance calculation
     attendance_by_dept = []
     departments = db.query(Department).all()
+    
+    global_total = 0
+    global_present = 0
+    
+    from app.core.utils import get_sem_start_date
+    
     for dept in departments:
         # Students
         dept_students = db.query(Student).filter(
@@ -458,10 +466,15 @@ def get_dean_dashboard_stats(
         total_dept_students = len(student_ids)
         
         if student_ids:
-            dept_total = db.query(Attendance).filter(Attendance.student_id.in_(student_ids)).count()
+            sem_start_date = get_sem_start_date(dept.id, db)
+            dept_total = db.query(Attendance).filter(
+                Attendance.student_id.in_(student_ids),
+                Attendance.date >= sem_start_date
+            ).count()
             dept_present = db.query(Attendance).filter(
                 Attendance.student_id.in_(student_ids),
-                Attendance.status == "present"
+                Attendance.status == "present",
+                Attendance.date >= sem_start_date
             ).count()
             dept_percent = round((dept_present / dept_total * 100), 2) if dept_total > 0 else 0
             
@@ -495,6 +508,8 @@ def get_dean_dashboard_stats(
             boys_percent = round((boys_present / len(boys_ids)) * 100, 2) if boys_ids else 0
             girls_percent = round((girls_present / len(girls_ids)) * 100, 2) if girls_ids else 0
             
+            global_total += dept_total
+            global_present += dept_present
         else:
             dept_percent = 0
             student_present_today = 0
@@ -535,6 +550,8 @@ def get_dean_dashboard_stats(
             "boys_percent": boys_percent,
             "girls_percent": girls_percent
         })
+        
+    overall_attendance_percent = round((global_present / global_total * 100), 2) if global_total > 0 else 0
     
     # 3. ACADEMIC PERFORMANCE
     # Overall pass percentage (students with passing grades)
@@ -809,14 +826,15 @@ def get_principal_dashboard_stats(
     active_courses = db.query(Course).filter(Course.is_active == True).count()
     
     # 2. ATTENDANCE OVERVIEW
-    # Overall college attendance
-    total_attendance_records = db.query(Attendance).count()
-    present_count = db.query(Attendance).filter(Attendance.status == "present").count()
-    overall_attendance_percent = round((present_count / total_attendance_records * 100), 2) if total_attendance_records > 0 else 0
-    
-    # Attendance by department
+    # Attendance by department and Overall Attendance calculation
     attendance_by_dept = []
     departments = db.query(Department).all()
+    
+    global_total = 0
+    global_present = 0
+    
+    from app.core.utils import get_sem_start_date
+    
     for dept in departments:
         dept_students = db.query(Student).filter(
             Student.department_id == dept.id,
@@ -825,12 +843,20 @@ def get_principal_dashboard_stats(
         student_ids = [s.id for s in dept_students]
         
         if student_ids:
-            dept_total = db.query(Attendance).filter(Attendance.student_id.in_(student_ids)).count()
+            sem_start_date = get_sem_start_date(dept.id, db)
+            dept_total = db.query(Attendance).filter(
+                Attendance.student_id.in_(student_ids),
+                Attendance.date >= sem_start_date
+            ).count()
             dept_present = db.query(Attendance).filter(
                 Attendance.student_id.in_(student_ids),
-                Attendance.status == "present"
+                Attendance.status == "present",
+                Attendance.date >= sem_start_date
             ).count()
             dept_percent = round((dept_present / dept_total * 100), 2) if dept_total > 0 else 0
+            
+            global_total += dept_total
+            global_present += dept_present
         else:
             dept_percent = 0
             
@@ -839,6 +865,8 @@ def get_principal_dashboard_stats(
             "department_code": dept.code,
             "attendance_percent": dept_percent
         })
+        
+    overall_attendance_percent = round((global_present / global_total * 100), 2) if global_total > 0 else 0
     
     # 3. ACADEMIC PERFORMANCE
     # Overall pass percentage (students with passing grades)
