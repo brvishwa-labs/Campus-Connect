@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import DashboardLayout from './layouts/DashboardLayout';
 import Login from './features/auth/Login';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 import { 
   AdminDashboard, 
   FacultyDashboard, 
@@ -599,6 +600,7 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
+          <PWAInstallPrompt />
           <AppRoutes />
         </BrowserRouter>
       </AuthProvider>
