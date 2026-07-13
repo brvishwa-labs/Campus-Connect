@@ -139,6 +139,19 @@ export const LMSAttendance = () => {
         </div>
       </div>
 
+      {/* Substitute Notice */}
+      {data?.is_substitute && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-5 py-4">
+          <span className="text-xl mt-0.5">🔄</span>
+          <div>
+            <p className="font-bold text-sm">You are marking attendance as a Substitute Faculty</p>
+            <p className="text-xs mt-0.5 text-amber-700">
+              The original faculty is on approved leave today. You are authorised to mark attendance for this course for your assigned periods only.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-6">
         {/* Course info + period status */}
         <div className="bg-gray-50 rounded-2xl border border-gray-200 p-6 space-y-4">
