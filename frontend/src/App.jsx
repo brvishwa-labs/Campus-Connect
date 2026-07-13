@@ -89,6 +89,7 @@ import HRDashboard from './features/authority/HRDashboard';
 import HRLeavePortal from './features/authority/HRLeavePortal';
 import HRGatepassPortal from './features/authority/HRGatepassPortal';
 import HRFacultyDirectory from './features/authority/HRFacultyDirectory';
+import AuthorityAnalytics from './features/authority/AuthorityAnalytics';
 import AuthorityDashboardRouter from './features/authority/AuthorityDashboardRouter';
 import StudentMessaging from './features/student/StudentMessaging';
 import DeanMessaging from './features/dean/DeanMessaging';
@@ -584,6 +585,11 @@ function AppRoutes() {
         <Route path="/authority/faculty-gatepass" element={
           <ProtectedRoute allowedRole="authority">
             <AuthorityFacultyGatePass />
+          </ProtectedRoute>
+        } />
+        <Route path="/authority/analytics" element={
+          <ProtectedRoute allowedRole="authority">
+            <AuthorityAnalytics />
           </ProtectedRoute>
         } />
         

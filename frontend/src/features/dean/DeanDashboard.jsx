@@ -4,11 +4,36 @@ import {
   Users, UserCheck, Building2, BookOpen,
   TrendingUp, TrendingDown, AlertCircle, Clock,
   FileText, ShieldAlert, RefreshCw, Activity,
-  BarChart3, PieChart
+  BarChart3, PieChart, Sun, Sunrise, Moon, Bell
 } from 'lucide-react';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+const getGreeting = () => {
+  const h = new Date().getHours();
+  if (h < 12) return { text: 'Good Morning', Icon: Sunrise, color: 'text-amber-300' };
+  if (h < 17) return { text: 'Good Afternoon', Icon: Sun, color: 'text-amber-200' };
+  return { text: 'Good Evening', Icon: Moon, color: 'text-indigo-200' };
+};
+
+const getAcademicYear = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  if (month >= 6) {
+    return `${year}–${String(year + 1).slice(2)}`;
+  }
+  return `${year - 1}–${String(year).slice(2)}`;
+};
+
+const formatFullDate = () =>
+  new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 
 // Stat Card Component
 const StatCard = ({ title, value, icon: Icon, colorClass, bgColorClass, subtitle }) => (
@@ -118,6 +143,8 @@ const DeanDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
+  const greeting = React.useMemo(() => getGreeting(), []);
+
   const fetchDashboardStats = async (showRefreshing = false) => {
     if (showRefreshing) setRefreshing(true);
     setError(null);
@@ -187,31 +214,89 @@ const DeanDashboard = () => {
         </div>
       )}
 
-      {/* Welcome Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[28px] font-bold text-gray-900 tracking-tight mb-1">
-            Dean Dashboard 📊
-          </h1>
-          <p className="text-[14px] text-gray-500">
-            Real-time overview of campus operations • View-only access
-          </p>
+      {/* ═══════════════════════════════════════════════════════════
+          WELCOME HEADER (Enhanced Executive Theme)
+      ═══════════════════════════════════════════════════════════ */}
+      <div className="relative bg-gradient-to-br from-indigo-950 via-slate-900 to-violet-900 rounded-[2rem] p-6 sm:p-8 md:p-10 overflow-hidden shadow-2xl shadow-indigo-900/20 hover:shadow-indigo-900/30 transition-all duration-500 mb-6">
+        
+        {/* Subtle background decoration (5-8% opacity) */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-[0.08] select-none mix-blend-overlay">
+          <svg className="absolute -right-16 -top-16 w-[450px] h-[450px] text-[#ffffff]" fill="currentColor" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="40" />
+          </svg>
+          <svg className="absolute -left-20 -bottom-20 w-[350px] h-[350px] text-[#ffffff]" fill="currentColor" viewBox="0 0 100 100">
+            <polygon points="50,15 90,85 10,85" />
+          </svg>
+          {/* Subtle Grid / Dot pattern */}
+          <div className="absolute inset-0 bg-[radial-gradient(#ffffff_2px,transparent_2px)] [background-size:32px_32px] opacity-70" />
         </div>
-        <div className="flex items-center gap-3">
-          {lastUpdated && (
-            <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
-              <Clock className="w-3.5 h-3.5" />
-              <span>{formatTime(lastUpdated)}</span>
+
+        <div className="relative flex flex-col sm:flex-row sm:items-start justify-between gap-6 z-10">
+          
+          {/* Left Column: Greeting, Details, Academic Info, Status Badge */}
+          <div className="space-y-6 text-left max-w-xl text-[#ffffff]">
+            
+            {/* Working Day Status & Current Date */}
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-white/10 border border-white/20 text-[#ffffff] backdrop-blur-md shadow-inner">
+                {new Date().getDay() === 0 ? '🔴 Holiday' : '🟢 Working Day'}
+              </span>
+              
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-white/10 border border-white/20 text-[#ffffff] backdrop-blur-md shadow-inner">
+                {formatFullDate()}
+              </span>
             </div>
-          )}
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50 shadow-sm"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            <span className="text-sm font-semibold">Refresh</span>
-          </button>
+            
+            {/* Typography Hierarchy */}
+            <div className="space-y-2">
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/80">
+                {greeting.text}, {user?.name || 'Dr. Dean'}
+              </h1>
+              <p className="text-white/80 text-[#ffffff]/80 text-xs font-bold tracking-wide">
+                Ph.D., M.E., B.Tech.
+              </p>
+              <div className="pt-2">
+                <p className="text-white/90 text-[#ffffff]/90 text-xs font-bold uppercase tracking-widest text-indigo-200">
+                  DEAN OF ACADEMICS
+                </p>
+                <p className="text-[#ffffff] text-lg sm:text-xl font-extrabold tracking-wide uppercase mt-1">
+                  CAMPUS ADMINISTRATION
+                </p>
+              </div>
+            </div>
+
+            {/* Academic Info */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-white/90 text-[#ffffff]/90 text-xs font-semibold pt-1">
+              <span>Academic Year : {getAcademicYear()}</span>
+            </div>
+
+          </div>
+
+          {/* Right Column: Requests Notification Badge & Refresh Button */}
+          <div className="flex flex-col items-end gap-3 self-start shrink-0 sm:pt-2">
+            <button
+              className="inline-flex items-center gap-2.5 bg-white/15 border border-white/20 px-4 py-2 rounded-full backdrop-blur-md hover:bg-white/25 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shadow-sm text-[#ffffff] focus:outline-none cursor-pointer"
+            >
+              <Bell className="w-4 h-4 text-[#ffffff] fill-white/10" />
+              <span className="text-xs font-bold tracking-wide">Requests</span>
+              {((stats?.pending_faculty_leaves || 0) + (stats?.pending_complaints || 0)) > 0 && (
+                <span className="bg-rose-500 text-[#ffffff] text-[10px] font-black px-2 py-0.5 rounded-full min-w-[20px] text-center animate-pulse">
+                  {(stats?.pending_faculty_leaves || 0) + (stats?.pending_complaints || 0)}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 border border-white/10 rounded-xl hover:bg-white/20 transition-colors disabled:opacity-50 shadow-sm text-[#ffffff] mt-4"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="text-xs font-semibold">Refresh</span>
+            </button>
+            {lastUpdated && (
+              <span className="text-[10px] text-white/60">Updated: {formatTime(lastUpdated)}</span>
+            )}
+          </div>
         </div>
       </div>
 
