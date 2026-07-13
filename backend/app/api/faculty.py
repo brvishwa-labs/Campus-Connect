@@ -480,11 +480,15 @@ def get_faculty_dashboard(
                 risk_factors = []
                 risk_score = 0
                 
+                from app.core.utils import get_sem_start_date
+                sem_start_date = get_sem_start_date(student.department_id, db)
+                
                 # Check attendance for this specific course
                 # Get attendance records where this faculty marked for this student
                 total_classes_query = db.query(Attendance).filter(
                     Attendance.student_id == student.id,
-                    Attendance.marked_by_id == faculty.id
+                    Attendance.marked_by_id == faculty.id,
+                    Attendance.date >= sem_start_date
                 )
                 
                 # Filter by course if needed (check if attendance is for classes of this course)
@@ -855,19 +859,25 @@ def get_my_mentees(db: Session = Depends(get_db), current_user: User = Depends(g
     for ma in assignments:
         s = ma.student
         
+        from app.core.utils import get_sem_start_date
+        sem_start_date = get_sem_start_date(s.department_id, db)
+        
         # Calculate attendance percentage
-        total = db.query(Attendance).filter(Attendance.student_id == s.id).count()
+        total = db.query(Attendance).filter(Attendance.student_id == s.id, Attendance.date >= sem_start_date).count()
         present = db.query(Attendance).filter(
             Attendance.student_id == s.id,
-            Attendance.status == AttendanceStatus.PRESENT
+            Attendance.status == AttendanceStatus.PRESENT,
+            Attendance.date >= sem_start_date
         ).count()
         od = db.query(Attendance).filter(
             Attendance.student_id == s.id,
-            Attendance.status == AttendanceStatus.ON_DUTY
+            Attendance.status == AttendanceStatus.ON_DUTY,
+            Attendance.date >= sem_start_date
         ).count()
         late = db.query(Attendance).filter(
             Attendance.student_id == s.id,
-            Attendance.status == AttendanceStatus.LATE
+            Attendance.status == AttendanceStatus.LATE,
+            Attendance.date >= sem_start_date
         ).count()
         
         attended = present + od + late
@@ -898,19 +908,25 @@ def get_mentee_detail(student_id: int, db: Session = Depends(get_db), current_us
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     
+    from app.core.utils import get_sem_start_date
+    sem_start_date = get_sem_start_date(student.department_id, db)
+    
     # Calculate attendance percentage
-    total = db.query(Attendance).filter(Attendance.student_id == student_id).count()
+    total = db.query(Attendance).filter(Attendance.student_id == student_id, Attendance.date >= sem_start_date).count()
     present = db.query(Attendance).filter(
         Attendance.student_id == student_id,
-        Attendance.status == AttendanceStatus.PRESENT
+        Attendance.status == AttendanceStatus.PRESENT,
+        Attendance.date >= sem_start_date
     ).count()
     od = db.query(Attendance).filter(
         Attendance.student_id == student_id,
-        Attendance.status == AttendanceStatus.ON_DUTY
+        Attendance.status == AttendanceStatus.ON_DUTY,
+        Attendance.date >= sem_start_date
     ).count()
     late = db.query(Attendance).filter(
         Attendance.student_id == student_id,
-        Attendance.status == AttendanceStatus.LATE
+        Attendance.status == AttendanceStatus.LATE,
+        Attendance.date >= sem_start_date
     ).count()
     
     # We count PRESENT, ON_DUTY, and LATE as attended classes
@@ -2203,14 +2219,19 @@ def generate_student_report(
     
     from datetime import datetime, timedelta
     
+    from app.core.utils import get_sem_start_date
+    sem_start_date = get_sem_start_date(student.department_id, db)
+    
     # Get attendance data
     total_classes = db.query(Attendance).filter(
-        Attendance.student_id == student_id
+        Attendance.student_id == student_id,
+        Attendance.date >= sem_start_date
     ).count()
     
     present_classes = db.query(Attendance).filter(
         Attendance.student_id == student_id,
-        Attendance.status == AttendanceStatus.PRESENT
+        Attendance.status == AttendanceStatus.PRESENT,
+        Attendance.date >= sem_start_date
     ).count()
     
     attendance_percentage = round((present_classes / total_classes * 100), 1) if total_classes > 0 else 0

@@ -32,6 +32,8 @@ export const AdvancedAttendanceMonitor = () => {
   const [tableYearFilter, setTableYearFilter] = useState('All');
   const [tableSectionFilter, setTableSectionFilter] = useState('All');
   const [tableAttendanceFilter, setTableAttendanceFilter] = useState('All');
+  const [heatmapYearFilter, setHeatmapYearFilter] = useState('All');
+  const [heatmapSectionFilter, setHeatmapSectionFilter] = useState('All');
 
   useEffect(() => {
     fetchData();
@@ -388,6 +390,12 @@ export const AdvancedAttendanceMonitor = () => {
     return true;
   });
 
+  const filteredHeatmap = (heatmap || []).filter(h => {
+    if (heatmapYearFilter !== 'All' && h.year !== Number(heatmapYearFilter)) return false;
+    if (heatmapSectionFilter !== 'All' && h.section !== heatmapSectionFilter) return false;
+    return true;
+  });
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10 print:m-0 print:p-0">
       
@@ -723,7 +731,23 @@ export const AdvancedAttendanceMonitor = () => {
       {/* Heatmap & Faculty Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:break-before-page">
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Period-wise Heatmap (Absentees)</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Period-wise Heatmap (Absentees)</h3>
+            <div className="flex gap-2">
+              <select value={heatmapYearFilter} onChange={e => setHeatmapYearFilter(e.target.value)} className="text-xs font-bold text-gray-600 bg-gray-50 border-none rounded-lg p-1.5 outline-none cursor-pointer">
+                <option value="All">All Years</option>
+                <option value="1">1st Year</option>
+                <option value="2">2nd Year</option>
+                <option value="3">3rd Year</option>
+                <option value="4">4th Year</option>
+              </select>
+              <select value={heatmapSectionFilter} onChange={e => setHeatmapSectionFilter(e.target.value)} className="text-xs font-bold text-gray-600 bg-gray-50 border-none rounded-lg p-1.5 outline-none cursor-pointer">
+                <option value="All">All Sections</option>
+                <option value="A">Section A</option>
+                <option value="B">Section B</option>
+              </select>
+            </div>
+          </div>
           <div className="grid grid-cols-8 gap-2 text-center text-xs font-bold text-gray-400 mb-2">
             <div></div>
             <div>P1</div><div>P2</div><div>P3</div><div>P4</div><div>P5</div><div>P6</div><div>P7</div>
@@ -732,8 +756,9 @@ export const AdvancedAttendanceMonitor = () => {
             <div key={day} className="grid grid-cols-8 gap-2 mb-2 items-center">
               <div className="text-xs font-bold text-gray-500">{day.slice(0,3)}</div>
               {[1,2,3,4,5,6,7].map(p => {
-                const heat = heatmap.find(h => h.day === day && h.period === p);
-                const count = heat ? heat.absent_count : 0;
+                const count = filteredHeatmap
+                  .filter(h => h.day === day && h.period === p)
+                  .reduce((sum, h) => sum + h.absent_count, 0);
                 let bg = 'bg-gray-50';
                 if (count > 10) bg = 'bg-rose-500 text-white';
                 else if (count > 5) bg = 'bg-rose-300 text-white';
@@ -788,7 +813,6 @@ export const AdvancedAttendanceMonitor = () => {
               <option value="All">All Sections</option>
               <option value="A">Section A</option>
               <option value="B">Section B</option>
-              <option value="C">Section C</option>
             </select>
             <select value={tableAttendanceFilter} onChange={e => setTableAttendanceFilter(e.target.value)} className="text-xs font-bold text-gray-600 bg-gray-50 border-none rounded-lg p-2 outline-none cursor-pointer">
               <option value="All">All Attendance</option>

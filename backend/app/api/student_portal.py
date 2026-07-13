@@ -466,11 +466,15 @@ def get_course_attendance(
     student = get_student_profile(current_user, db)
     verify_course_enrollment(student, course_id, db)
 
+    from app.core.utils import get_sem_start_date
+    sem_start_date = get_sem_start_date(student.department_id, db)
+
     records = (
         db.query(Attendance)
         .filter(
             Attendance.student_id == student.id,
-            Attendance.course_id == course_id
+            Attendance.course_id == course_id,
+            Attendance.date >= sem_start_date
         )
         .order_by(Attendance.date.desc())
         .all()
@@ -1051,14 +1055,12 @@ def get_my_class_info(
     today_weekday = today.strftime("%a").upper()
     
     from app.models.leave import FacultyDutyArrangement, FacultyLeaveRequest, LeaveStatus, ArrangementStatus
-    from sqlalchemy.orm import joinedload
-    
     timetable = []
     for slot in slots:
         assignment = assignment_map.get(slot.course_assignment_id)
         if assignment and assignment.course:
             day_val = (slot.day.value if hasattr(slot.day, 'value') else str(slot.day)).upper()
-            day_name = day_val.lower()
+            day_name = DAY_MAP.get(day_val, day_val)
             
             faculty_name = f"{assignment.faculty.first_name} {assignment.faculty.last_name}" if assignment.faculty else "TBD"
             course_name = assignment.course.name
@@ -1151,7 +1153,6 @@ def get_my_class_info(
         "section": {
             "name": section.name,
             "year": section.year,
-            "batch": section.batch,
             "department": section.department.name if section.department else None,
         },
         "advisor": advisor_info,

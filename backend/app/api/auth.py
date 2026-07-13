@@ -183,12 +183,17 @@ def get_my_profile(current_user: User = Depends(get_current_active_user), db: Se
                 c = db.query(Course).filter(Course.id == cid).first()
                 if c:
                     # Per-course attendance
+                    from app.core.utils import get_sem_start_date
+                    sem_start_date = get_sem_start_date(s.department_id, db)
+                    
                     total = db.query(Attendance).filter(
-                        Attendance.student_id == s.id, Attendance.course_id == cid
+                        Attendance.student_id == s.id, Attendance.course_id == cid,
+                        Attendance.date >= sem_start_date
                     ).count()
                     present = db.query(Attendance).filter(
                         Attendance.student_id == s.id, Attendance.course_id == cid,
-                        Attendance.status == AttendanceStatus.PRESENT
+                        Attendance.status == AttendanceStatus.PRESENT,
+                        Attendance.date >= sem_start_date
                     ).count()
                     att_pct = round((present / total * 100), 1) if total > 0 else None
                     courses_list.append({
