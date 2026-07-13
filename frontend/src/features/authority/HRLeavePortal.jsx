@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, User, AlertCircle, FileText, Clock } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, User, AlertCircle, FileText, Clock, Info } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, addDays, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -9,7 +9,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 const LeaveStatusBadge = ({ status }) => {
   let colorClass = 'bg-gray-100 text-gray-700 border-gray-200';
   const upperStatus = status?.toUpperCase() || '';
-  
+
   if (upperStatus === 'APPROVED') {
     colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
   } else if (upperStatus === 'REJECTED') {
@@ -30,9 +30,24 @@ const HRLeavePortal = () => {
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDates, setSelectedDates] = useState([startOfDay(new Date())]);
+  const [lastClickedDate, setLastClickedDate] = useState(startOfDay(new Date()));
+  const [selectedLeaveType, setSelectedLeaveType] = useState('All');
+
+  // Include all standard leave types, plus any dynamic ones found in the data
+  const standardLeaveTypes = [
+    'Academic Leave',
+    'Casual Leave',
+    'Compensation Leave',
+    'Earned Leave',
+    'Restricted Leave',
+    'Vacation Leave'
+  ];
+  const dynamicLeaveTypes = leaves.map(l => l.leave_type).filter(Boolean);
+  const availableLeaveTypes = ['All', ...new Set([...standardLeaveTypes, ...dynamicLeaveTypes])].sort();
+
 
   const fetchLeaves = async () => {
     try {
@@ -63,13 +78,13 @@ const HRLeavePortal = () => {
           {format(currentMonth, 'MMMM yyyy')}
         </h2>
         <div className="flex gap-2">
-          <button 
+          <button
             onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
             className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <button 
+          <button
             onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
             className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
           >
@@ -110,37 +125,60 @@ const HRLeavePortal = () => {
       for (let i = 0; i < 7; i++) {
         formattedDate = format(day, dateFormat);
         const cloneDay = day;
-        
+
         // Check if anyone is on leave this day
         const isLeaveOnDay = leaves.some(leave => {
           if (leave.status?.toUpperCase() !== 'APPROVED') return false; // Only show dots for approved leaves
           const from = parseISO(leave.from_date);
           const to = parseISO(leave.to_date);
-          // Set time boundaries to ensure entire day matches
-          const dayStart = startOfDay(cloneDay);
           return cloneDay >= startOfDay(from) && cloneDay <= endOfDay(to);
         });
+
+        const isSelected = selectedDates.some(d => isSameDay(d, cloneDay));
 
         days.push(
           <div
             key={day}
-            onClick={() => setSelectedDate(cloneDay)}
+            onClick={(e) => {
+              const normalizedClick = startOfDay(cloneDay);
+              if (e.ctrlKey && e.shiftKey) {
+                const newSelected = [];
+                const start = lastClickedDate < normalizedClick ? lastClickedDate : normalizedClick;
+                const end = lastClickedDate < normalizedClick ? normalizedClick : lastClickedDate;
+                let curr = start;
+                while (curr <= end) {
+                  newSelected.push(curr);
+                  curr = addDays(curr, 1);
+                }
+                setSelectedDates(newSelected);
+              } else if (e.ctrlKey) {
+                setSelectedDates(prev => {
+                  const exists = prev.some(d => isSameDay(d, normalizedClick));
+                  if (exists) return prev.filter(d => !isSameDay(d, normalizedClick));
+                  return [...prev, normalizedClick];
+                });
+                setLastClickedDate(normalizedClick);
+              } else {
+                setSelectedDates([normalizedClick]);
+                setLastClickedDate(normalizedClick);
+              }
+            }}
             className={`relative flex flex-col items-center justify-center p-2 h-[52px] cursor-pointer transition-all duration-200
-              ${!isSameMonth(day, monthStart) ? 'text-slate-300' : 
-                isSameDay(day, selectedDate) ? 'text-white' : 'text-slate-700 hover:bg-slate-50 rounded-xl'
+              ${!isSameMonth(day, monthStart) ? 'text-slate-300' :
+                isSelected ? 'text-white' : 'text-slate-700 hover:bg-slate-50 rounded-xl'
               }
             `}
           >
-            {isSameDay(day, selectedDate) && (
+            {isSelected && (
               <div className="absolute inset-1 bg-indigo-600 rounded-full shadow-md shadow-indigo-200"></div>
             )}
-            <span className={`relative z-10 text-[15px] ${isSameDay(day, selectedDate) ? 'font-bold' : 'font-medium'}`}>
+            <span className={`relative z-10 text-[15px] ${isSelected ? 'font-bold' : 'font-medium'}`}>
               {formattedDate}
             </span>
             {/* Indicator dot if someone is on leave */}
             {isLeaveOnDay && (
               <span className={`absolute bottom-2 w-1.5 h-1.5 rounded-full z-10 
-                ${isSameDay(day, selectedDate) ? 'bg-white' : 'bg-indigo-400'}
+                ${isSelected ? 'bg-white' : 'bg-indigo-400'}
               `}></span>
             )}
           </div>
@@ -157,13 +195,42 @@ const HRLeavePortal = () => {
     return <div>{rows}</div>;
   };
 
-  // Get leaves for the selected date
+  // Get leaves for the selected dates
   const leavesForSelectedDate = leaves.filter(leave => {
-    const from = parseISO(leave.from_date);
-    const to = parseISO(leave.to_date);
-    const target = startOfDay(selectedDate);
-    return target >= startOfDay(from) && target <= endOfDay(to);
+    const from = startOfDay(parseISO(leave.from_date));
+    const to = endOfDay(parseISO(leave.to_date));
+
+    // Check if the leave overlaps with ANY selected date
+    const isDateMatch = selectedDates.some(selectedDay => {
+      return selectedDay >= from && selectedDay <= to;
+    });
+
+    if (selectedLeaveType === 'All') return isDateMatch;
+    return isDateMatch && leave.leave_type === selectedLeaveType;
   });
+
+  const getSelectedDatesLabel = () => {
+    if (selectedDates.length === 0) return 'No dates selected';
+    if (selectedDates.length === 1) return `Leaves on ${format(selectedDates[0], 'MMM do, yyyy')}`;
+    
+    const sorted = [...selectedDates].sort((a, b) => a - b);
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    
+    let isContinuous = true;
+    for (let i = 1; i < sorted.length; i++) {
+      if (!isSameDay(sorted[i], addDays(sorted[i-1], 1))) {
+        isContinuous = false;
+        break;
+      }
+    }
+    
+    if (isContinuous) {
+      return `Leaves from ${format(first, 'MMM do')} to ${format(last, 'MMM do, yyyy')}`;
+    }
+    
+    return `Leaves on ${sorted.length} selected dates`;
+  };
 
   return (
     <div className="max-w-[1200px] mx-auto p-4 md:p-6 lg:p-8">
@@ -186,20 +253,59 @@ const HRLeavePortal = () => {
           {renderHeader()}
           {renderDays()}
           {renderCells()}
+          
+          {/* Shortcuts Info */}
+          <div className="mt-8 pt-6 border-t border-slate-100">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Info className="w-4 h-4 text-blue-500" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800 text-sm mb-2">Selection Shortcuts</p>
+                <ul className="space-y-2 text-[13px] text-slate-600">
+                  <li className="flex items-center gap-2">
+                    <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Click</kbd> 
+                    <span>Select a single day</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Ctrl</kbd> + <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Click</kbd> 
+                    <span>Select multiple specific days</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Ctrl</kbd> + <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Shift</kbd> + <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Click</kbd> 
+                    <span>Select a continuous date range</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Right Column: Leaves List */}
         <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-8 min-h-[500px] flex flex-col">
-          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
+          <div className="flex items-start justify-between mb-8 pb-4 border-b border-slate-100">
             <div>
               <h3 className="text-xl font-bold text-slate-900">
-                Leaves on {format(selectedDate, 'MMM do, yyyy')}
+                {getSelectedDatesLabel()}
               </h3>
               <p className="text-sm text-slate-500 mt-1 font-medium">
                 {leavesForSelectedDate.length} {leavesForSelectedDate.length === 1 ? 'staff member' : 'staff members'} on leave
               </p>
+
+              <div className="flex items-center gap-2 mt-4">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Filter:</span>
+                <select
+                  value={selectedLeaveType}
+                  onChange={(e) => setSelectedLeaveType(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block px-3 py-1.5 transition-colors cursor-pointer outline-none"
+                >
+                  {availableLeaveTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center flex-shrink-0">
               <CalendarIcon className="w-6 h-6 text-indigo-600" />
             </div>
           </div>
@@ -236,7 +342,7 @@ const HRLeavePortal = () => {
                       </div>
                       <LeaveStatusBadge status={leave.status} />
                     </div>
-                    
+
                     <div className="pl-13 ml-13">
                       <div className="flex items-center text-sm text-slate-600 mb-2">
                         <Clock className="w-4 h-4 mr-2 text-slate-400" />

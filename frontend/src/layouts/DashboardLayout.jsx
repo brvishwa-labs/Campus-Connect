@@ -235,6 +235,11 @@ export default function DashboardLayout() {
         path: '/hr/leaves',
         icon: Calendar
       });
+      navLinks.push({
+        name: 'Gatepass Tracking',
+        path: '/hr/gatepass',
+        icon: Clock
+      });
     }
     if (title === 'dean') {
       // Add Messages to Dean Authority
