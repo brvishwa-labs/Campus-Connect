@@ -65,6 +65,7 @@ const ROLE_NAV_LINKS = {
   ],
   authority: [
     { name: 'Dashboard', path: '/authority', icon: LayoutDashboard },
+    { name: 'Faculty', path: '/authority/faculty', icon: Users },
     { name: 'Analytics', path: '/authority/analytics', icon: BookOpen },
     { name: 'Discipline', path: '/authority/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/authority/latetracker', icon: Clock },
@@ -220,6 +221,12 @@ export default function DashboardLayout() {
   
   if (user.role === 'authority') {
     const title = user.title ? user.title.toLowerCase().trim() : '';
+    
+    // Filter Faculty menu - only for Dean, Principal, and OM
+    if (title !== 'dean' && title !== 'principal' && title !== 'office manager') {
+      navLinks = navLinks.filter(link => link.name !== 'Faculty');
+    }
+    
     if (title !== 'office manager') {
       navLinks = navLinks.filter(link => link.name !== 'Gate Pass Approvals');
     }

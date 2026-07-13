@@ -9,6 +9,8 @@ class CoursePlanTopicBase(BaseModel):
     unit: str
     topic: str
     cognitive_level: str
+    co: Optional[str] = None
+    po: Optional[str] = None
     mode_of_delivery: str
     actual_date: Optional[date] = None
     reason_for_deviation: Optional[str] = None
