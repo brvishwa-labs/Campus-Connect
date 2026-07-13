@@ -8,6 +8,9 @@ class FacultyDutyArrangementBase(BaseModel):
     subject: str
     class_section: str
     period: str
+    day: Optional[str] = None
+    compensation_date: Optional[date] = None
+    compensation_period: Optional[str] = None
 
 class FacultyDutyArrangementCreate(FacultyDutyArrangementBase):
     pass

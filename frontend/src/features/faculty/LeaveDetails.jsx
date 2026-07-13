@@ -179,7 +179,14 @@ export const LeaveDetails = () => {
                     <div className="flex-1">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Substitute Instructor</p>
                       <p className="text-sm font-bold text-gray-900">{arr.substitute_faculty_name}</p>
-                      <p className="text-xs text-gray-500 mb-2">{arr.subject} ({arr.class_section}) - Period {arr.period}</p>
+                      <p className="text-xs text-gray-500 mb-2">
+                        {arr.subject} ({arr.class_section}) - Period {arr.period}
+                        {arr.compensation_date && (
+                          <span className="block text-xs text-indigo-600 font-semibold mt-1">
+                            🔄 Compensated on {new Date(arr.compensation_date).toLocaleDateString()} during Period: {arr.compensation_period}
+                          </span>
+                        )}
+                      </p>
                       
                       {arr.status?.toLowerCase() === 'accepted' ? (
                         <div className="inline-flex items-center text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200">
