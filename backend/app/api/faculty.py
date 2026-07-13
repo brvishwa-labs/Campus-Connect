@@ -64,7 +64,8 @@ def get_faculty_dashboard(
         joinedload(CourseAssignment.course),
         joinedload(CourseAssignment.section)
     ).filter(
-        CourseAssignment.faculty_id == faculty.id
+        CourseAssignment.faculty_id == faculty.id,
+        CourseAssignment.is_active == True
     )
     
     if assignment_id:
@@ -104,7 +105,8 @@ def get_faculty_dashboard(
             joinedload(CourseAssignment.course),
             joinedload(CourseAssignment.section)
         ).filter(
-            CourseAssignment.faculty_id == faculty.id
+            CourseAssignment.faculty_id == faculty.id,
+            CourseAssignment.is_active == True
         ).all()
     
     from app.models.leave import FacultyDutyArrangement, FacultyLeaveRequest, LeaveStatus, ArrangementStatus
@@ -610,7 +612,8 @@ def get_faculty_dashboard(
             joinedload(CourseAssignment.course),
             joinedload(CourseAssignment.section)
         ).filter(
-            CourseAssignment.faculty_id == faculty.id
+            CourseAssignment.faculty_id == faculty.id,
+            CourseAssignment.is_active == True
         ).all()
     ]
     
@@ -657,7 +660,8 @@ def get_my_courses(
         joinedload(CourseAssignment.section),
         joinedload(CourseAssignment.faculty)
     ).filter(
-        CourseAssignment.faculty_id == faculty.id
+        CourseAssignment.faculty_id == faculty.id,
+        CourseAssignment.is_active == True
     ).all()
 
     result = []
@@ -794,7 +798,8 @@ def get_faculty_workload(
         joinedload(CourseAssignment.course),
         joinedload(CourseAssignment.section)
     ).filter(
-        CourseAssignment.faculty_id == faculty_id
+        CourseAssignment.faculty_id == faculty_id,
+        CourseAssignment.is_active == True
     ).order_by(
         CourseAssignment.semester.asc()
     ).all()

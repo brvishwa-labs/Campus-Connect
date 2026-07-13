@@ -276,7 +276,8 @@ def generate_student_report(
         elements = []
 
         import os
-        logo_path = r"C:\Users\SYS5\Documents\ERP\Campus-Connect\frontend\public\logo.png"
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        logo_path = os.path.join(base_dir, 'frontend', 'public', 'logo.png')
         if os.path.exists(logo_path):
             img = Image(logo_path, width=550, height=110)
             elements.append(img)

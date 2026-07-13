@@ -57,6 +57,7 @@ def hod_dashboard(
     section_count = db.query(Section).filter(Section.department_id == department.id).count()
     assignment_count = db.query(CourseAssignment).join(Course).filter(
         Course.department_id == department.id,
+        Course.is_active == True,
         CourseAssignment.is_active == True
     ).count()
 
@@ -138,7 +139,7 @@ def hod_courses(
     current_user: User = Depends(get_current_active_user)
 ):
     department, _ = get_hod_department(current_user, db)
-    courses = db.query(Course).filter(Course.department_id == department.id).all()
+    courses = db.query(Course).filter(Course.department_id == department.id, Course.is_active == True).all()
     return [
         {
             "id": c.id,
@@ -346,6 +347,7 @@ def get_assignments(
         joinedload(CourseAssignment.faculty)
     ).join(Course).filter(
         Course.department_id == department.id,
+        Course.is_active == True,
         CourseAssignment.is_active == True
     )
     if section_id:
