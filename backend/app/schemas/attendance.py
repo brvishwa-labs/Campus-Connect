@@ -52,6 +52,8 @@ class HeatmapData(BaseModel):
     day: str
     period: int
     absent_count: int
+    year: int = 0
+    section: str = ""
 
 class FacultyAttendanceStats(BaseModel):
     faculty_name: str

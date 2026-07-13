@@ -529,7 +529,7 @@ export const StudentDashboard = () => {
                     {attendance.percentage >= 75 ? 'On Track' : 'Below Threshold'}
                   </span>
                 </p>
-                <p className="text-xs text-gray-400 mt-1">({attendance.present}/{attendance.total} days)</p>
+                <p className="text-xs text-gray-400 mt-1">({attendance.present}/{attendance.total} classes)</p>
                 {attendance.percentage < 75 && <p className="text-xs text-red-500 mt-1">Current Threshold: 75%</p>}
               </div>
             </div>

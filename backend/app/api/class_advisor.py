@@ -335,24 +335,31 @@ def get_student_profile(
 
     dept = db.query(Department).filter(Department.id == student.department_id).first()
 
+    from app.core.utils import get_sem_start_date
+    sem_start_date = get_sem_start_date(student.department_id, db)
+
     # Attendance percentage - count all records
     total_days = db.query(Attendance).filter(
-        Attendance.student_id == student.id
+        Attendance.student_id == student.id,
+        Attendance.date >= sem_start_date
     ).count()
 
     present_days = db.query(Attendance).filter(
         Attendance.student_id == student.id,
-        Attendance.status == AttendanceStatus.PRESENT
+        Attendance.status == AttendanceStatus.PRESENT,
+        Attendance.date >= sem_start_date
     ).count()
     
     od_days = db.query(Attendance).filter(
         Attendance.student_id == student.id,
-        Attendance.status == AttendanceStatus.ON_DUTY
+        Attendance.status == AttendanceStatus.ON_DUTY,
+        Attendance.date >= sem_start_date
     ).count()
     
     late_days = db.query(Attendance).filter(
         Attendance.student_id == student.id,
-        Attendance.status == AttendanceStatus.LATE
+        Attendance.status == AttendanceStatus.LATE,
+        Attendance.date >= sem_start_date
     ).count()
     
     attended_days = present_days + od_days + late_days
@@ -652,25 +659,32 @@ def get_attendance_summary(
     if assignment:
         homeroom_course_id = assignment.course_id
 
+    from app.core.utils import get_sem_start_date
+    sem_start_date = get_sem_start_date(section.department_id, db)
+
     result = []
     for s in students:
         total_days = db.query(Attendance).filter(
-            Attendance.student_id == s.id
+            Attendance.student_id == s.id,
+            Attendance.date >= sem_start_date
         ).count()
 
         present_days = db.query(Attendance).filter(
             Attendance.student_id == s.id,
-            Attendance.status == AttendanceStatus.PRESENT
+            Attendance.status == AttendanceStatus.PRESENT,
+            Attendance.date >= sem_start_date
         ).count()
         
         od_days = db.query(Attendance).filter(
             Attendance.student_id == s.id,
-            Attendance.status == AttendanceStatus.ON_DUTY
+            Attendance.status == AttendanceStatus.ON_DUTY,
+            Attendance.date >= sem_start_date
         ).count()
         
         late_days = db.query(Attendance).filter(
             Attendance.student_id == s.id,
-            Attendance.status == AttendanceStatus.LATE
+            Attendance.status == AttendanceStatus.LATE,
+            Attendance.date >= sem_start_date
         ).count()
         
         attended_days = present_days + od_days + late_days
