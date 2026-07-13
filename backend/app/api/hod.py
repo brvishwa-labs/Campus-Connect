@@ -344,7 +344,10 @@ def get_assignments(
     query = db.query(CourseAssignment).options(
         joinedload(CourseAssignment.course),
         joinedload(CourseAssignment.faculty)
-    ).join(Course).filter(Course.department_id == department.id)
+    ).join(Course).filter(
+        Course.department_id == department.id,
+        CourseAssignment.is_active == True
+    )
     if section_id:
         query = query.filter(CourseAssignment.section_id == section_id)
     return query.all()
@@ -534,8 +537,11 @@ def get_timetable(
     if not section:
         raise HTTPException(status_code=404, detail="Section not found in your department")
 
-    # Get all course assignments for this section
-    assignments = db.query(CourseAssignment).filter(CourseAssignment.section_id == section_id).all()
+    # Get all active course assignments for this section
+    assignments = db.query(CourseAssignment).filter(
+        CourseAssignment.section_id == section_id,
+        CourseAssignment.is_active == True
+    ).all()
     assignment_ids = [a.id for a in assignments]
 
     slots = db.query(TimetableSlot).filter(TimetableSlot.course_assignment_id.in_(assignment_ids)).all()
