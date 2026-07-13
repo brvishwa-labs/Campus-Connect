@@ -41,7 +41,7 @@ const FullscreenButton = () => {
   return (
     <button
       onClick={toggleFullscreen}
-      className="md:hidden fixed bottom-6 left-4 z-[9999] p-2.5 bg-gray-900/60 text-white rounded-full backdrop-blur-md shadow-lg active:scale-95 transition-transform border border-white/20"
+      className="md:hidden fixed bottom-4 right-4 z-[9999] p-3 bg-gray-900/60 text-white rounded-full backdrop-blur-md shadow-lg active:scale-95 transition-transform border border-white/20"
       aria-label="Toggle Fullscreen"
       title="Enter Full Screen"
     >
