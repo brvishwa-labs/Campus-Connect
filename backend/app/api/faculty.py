@@ -64,8 +64,7 @@ def get_faculty_dashboard(
         joinedload(CourseAssignment.course),
         joinedload(CourseAssignment.section)
     ).filter(
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     )
     
     if assignment_id:
@@ -105,8 +104,7 @@ def get_faculty_dashboard(
             joinedload(CourseAssignment.course),
             joinedload(CourseAssignment.section)
         ).filter(
-            CourseAssignment.faculty_id == faculty.id,
-            CourseAssignment.is_active == True
+            CourseAssignment.faculty_id == faculty.id
         ).all()
     
     for assignment in schedule_assignments:
@@ -152,8 +150,7 @@ def get_faculty_dashboard(
             joinedload(CourseAssignment.course),
             joinedload(CourseAssignment.section)
         ).filter(
-            CourseAssignment.faculty_id == sub.leave_request.faculty_id,
-            CourseAssignment.is_active == True
+            CourseAssignment.faculty_id == sub.leave_request.faculty_id
         ).all()
         
         matched_assignment = None
@@ -463,8 +460,7 @@ def get_faculty_dashboard(
             joinedload(CourseAssignment.course),
             joinedload(CourseAssignment.section)
         ).filter(
-            CourseAssignment.faculty_id == faculty.id,
-            CourseAssignment.is_active == True
+            CourseAssignment.faculty_id == faculty.id
         ).all()
     ]
     
@@ -506,8 +502,7 @@ def get_my_courses(
         joinedload(CourseAssignment.course),
         joinedload(CourseAssignment.section)
     ).filter(
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).all()
     
     return assignments
@@ -531,8 +526,7 @@ def get_course_timetable(
         
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
@@ -574,8 +568,7 @@ def get_faculty_workload(
         joinedload(CourseAssignment.course),
         joinedload(CourseAssignment.section)
     ).filter(
-        CourseAssignment.faculty_id == faculty_id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty_id
     ).order_by(
         CourseAssignment.semester.asc()
     ).all()
@@ -875,8 +868,7 @@ def get_attendance_slots(
         joinedload(CourseAssignment.section)
     ).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
@@ -913,10 +905,19 @@ def get_attendance_slots(
         })
 
     # Students in this section
-    students = db.query(Student).filter(
-        Student.section_id == assignment.section_id,
-        Student.is_active == True
-    ).order_by(Student.register_number).all()
+    if assignment.is_active:
+        students = db.query(Student).filter(
+            Student.section_id == assignment.section_id,
+            Student.is_active == True
+        ).order_by(Student.register_number).all()
+    else:
+        attended_student_ids = db.query(Attendance.student_id).filter(
+            Attendance.course_id == assignment.course_id,
+            Attendance.marked_by_id == assignment.faculty_id
+        ).distinct()
+        students = db.query(Student).filter(
+            Student.id.in_(attended_student_ids)
+        ).order_by(Student.register_number).all()
 
     today = date_type.today()
     student_ids = [s.id for s in students]
@@ -973,8 +974,7 @@ def save_course_attendance(
         raise HTTPException(status_code=404, detail="Faculty profile not found")
 
     assignment = db.query(CourseAssignment).filter(
-        CourseAssignment.id == assignment_id,
-        CourseAssignment.is_active == True
+        CourseAssignment.id == assignment_id
     ).first()
     
     if not assignment:
@@ -1094,17 +1094,26 @@ def get_attendance_history(
         joinedload(CourseAssignment.section)
     ).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
     # All students in section
-    students = db.query(Student).filter(
-        Student.section_id == assignment.section_id,
-        Student.is_active == True
-    ).order_by(Student.register_number).all()
+    if assignment.is_active:
+        students = db.query(Student).filter(
+            Student.section_id == assignment.section_id,
+            Student.is_active == True
+        ).order_by(Student.register_number).all()
+    else:
+        # For archived courses, find students who had attendance marked by this faculty
+        attended_student_ids = db.query(Attendance.student_id).filter(
+            Attendance.course_id == assignment.course_id,
+            Attendance.marked_by_id == assignment.faculty_id
+        ).distinct()
+        students = db.query(Student).filter(
+            Student.id.in_(attended_student_ids)
+        ).order_by(Student.register_number).all()
     student_map = {s.id: f"{s.first_name} {s.last_name}" for s in students}
     reg_map     = {s.id: s.register_number for s in students}
 
@@ -1175,8 +1184,7 @@ def create_lms_resource(
     # Verify assignment belongs to this faculty
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     
     if not assignment:
@@ -1571,8 +1579,7 @@ def _get_assignment_for_faculty(assignment_id: int, faculty: Faculty, db: Sessio
         joinedload(CourseAssignment.section)
     ).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2091,8 +2098,7 @@ def get_assignment_grades(
     # Verify assignment belongs to this faculty
     course_assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not course_assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2168,8 +2174,7 @@ def save_assignment_grades(
 
     course_assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not course_assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2246,8 +2251,7 @@ def publish_assignment_grades(
 
     course_assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not course_assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2293,8 +2297,7 @@ def update_lms_resource(
     # Verify assignment belongs to this faculty
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2342,8 +2345,7 @@ def delete_lms_resource(
     # Verify assignment belongs to this faculty
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2388,8 +2390,7 @@ def get_seminar_roster(
     # Verify course assignment
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2439,8 +2440,7 @@ def save_seminar_draft(
         
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2495,8 +2495,7 @@ def publish_seminar_topics(
         
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2524,8 +2523,7 @@ def publish_seminar_marks(
         
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")

@@ -387,7 +387,7 @@ export const HodDashboard = () => {
         list.push({
           id: `sec-${sec.id}`,
           text: `Advisor assigned to Section ${sec.name}`,
-          sub: `Batch ${sec.batch}`,
+          sub: `Year ${sec.year}`,
           icon: UserCheck,
           color: 'text-emerald-500',
           bg: 'bg-emerald-50'

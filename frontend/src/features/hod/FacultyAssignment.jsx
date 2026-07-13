@@ -675,7 +675,7 @@ export const FacultyAssignment = () => {
                   onChange={e => setFormData({ ...formData, section_id: e.target.value })}
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-all outline-none"
                 >
-                  {sections.map(s => <option key={s.id} value={s.id}>Section {s.name} — Year {s.year} ({s.batch})</option>)}
+                  {sections.map(s => <option key={s.id} value={s.id}>Section {s.name} — Year {s.year}</option>)}
                 </select>
               </div>
 

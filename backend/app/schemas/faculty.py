@@ -51,7 +51,6 @@ class SimpleSection(BaseModel):
     id: int
     name: str
     year: int
-    batch: str
 
 class CourseAssignmentFacultyResponse(BaseModel):
     id: int

@@ -13,7 +13,7 @@ export const Sections = () => {
   // Modal and Edit States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ name: '', year: 1, batch: '' });
+  const [formData, setFormData] = useState({ name: '', year: 1 });
   const [formError, setFormError] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
 
@@ -46,11 +46,10 @@ export const Sections = () => {
     if (e) e.stopPropagation(); // Prevent triggering card click
     if (sec) {
       setEditingId(sec.id);
-      setFormData({ name: sec.name, year: sec.year, batch: sec.batch });
+      setFormData({ name: sec.name, year: sec.year });
     } else {
       setEditingId(null);
-      const yr = new Date().getFullYear();
-      setFormData({ name: '', year: 1, batch: `${yr}-${yr + 4}` });
+      setFormData({ name: '', year: 1 });
     }
     setFormError(null);
     setIsModalOpen(true);
@@ -132,12 +131,7 @@ export const Sections = () => {
             className="bg-white p-6 rounded-[24px] shadow-[0_2px_12px_rgb(0,0,0,0.04)] border border-gray-200 cursor-pointer transition-all duration-300 group flex flex-col h-full relative overflow-hidden transform hover:-translate-y-1.5 hover:shadow-[0_12px_30px_rgb(0,0,0,0.08)] hover:border-indigo-300"
           >
             {/* Top Badges and Actions */}
-            <div className="flex items-center justify-between mb-2 relative z-10">
-              <div className="flex items-center gap-2">
-                <span className="px-3 py-1 bg-gray-50 text-gray-600 text-xs font-bold rounded-full border border-gray-200 shadow-sm">
-                  Batch: {sec.batch}
-                </span>
-              </div>
+            <div className="flex items-center justify-end mb-2 relative z-10">
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300" onClick={e => e.stopPropagation()}>
                 <button onClick={(e) => handleOpenModal(sec, e)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Edit">
                   <Edit2 className="w-4 h-4" />
@@ -230,7 +224,7 @@ export const Sections = () => {
               <h2 className="text-xl font-bold text-gray-900">
                 Year {selectedSection.year} - Section {selectedSection.name}
               </h2>
-              <p className="text-sm font-medium text-gray-500">{selectedSection.batch} • {sectionStudents.length} Students Assigned</p>
+              <p className="text-sm font-medium text-gray-500">{sectionStudents.length} Students Assigned</p>
             </div>
           </div>
           <button 
@@ -321,15 +315,9 @@ export const Sections = () => {
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Section Name (A, B, C...)</label>
                 <input type="text" required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Year</label>
-                  <input type="number" required min="1" max="4" value={formData.year} onChange={(e) => setFormData({...formData, year: e.target.value})} className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Batch (e.g. 2024-2028)</label>
-                  <input type="text" required value={formData.batch} onChange={(e) => setFormData({...formData, batch: e.target.value})} className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none" />
-                </div>
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Year</label>
+                <input type="number" required min="1" max="4" value={formData.year} onChange={(e) => setFormData({...formData, year: e.target.value})} className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none" />
               </div>
               <div className="pt-4 border-t border-gray-100 flex justify-end space-x-3">
                 <button type="button" onClick={() => { setIsModalOpen(false); setEditingId(null); }} className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>

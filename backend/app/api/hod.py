@@ -202,8 +202,7 @@ def create_section(
     existing = db.query(Section).filter(
         Section.department_id == department.id,
         Section.name == section_in.name,
-        Section.year == section_in.year,
-        Section.batch == section_in.batch
+        Section.year == section_in.year
     ).first()
     if existing:
         raise HTTPException(status_code=400, detail="This section already exists")
@@ -211,8 +210,7 @@ def create_section(
     new_section = Section(
         department_id=department.id,
         name=section_in.name,
-        year=section_in.year,
-        batch=section_in.batch,
+        year=section_in.year
     )
     db.add(new_section)
     db.commit()
@@ -283,10 +281,9 @@ def get_unassigned_students(
     if not section:
         raise HTTPException(status_code=404, detail="Section not found")
 
-    # Fetch students in the same department, year, and batch who don't have a section assigned
+    # Fetch students in the same department and year who don't have a section assigned
     students = db.query(Student).filter(
         Student.department_id == department.id,
-        Student.batch == section.batch,
         Student.current_year == section.year,
         Student.section_id == None,
         Student.is_active == True
@@ -423,7 +420,7 @@ def delete_assignment(
     from app.models.lms import TimetableSlot
     db.query(TimetableSlot).filter(TimetableSlot.course_assignment_id == assignment_id).delete()
 
-    db.delete(assignment)
+    assignment.is_active = False
     db.commit()
     return None
 

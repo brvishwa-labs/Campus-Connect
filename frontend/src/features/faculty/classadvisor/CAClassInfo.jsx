@@ -23,7 +23,7 @@ export const CAClassInfo = () => {
     { label: 'Year',           value: `Year ${info.year}`,         icon: GraduationCap, color: 'text-emerald-500' },
     { label: 'Semester',       value: `Semester ${info.semester}`, icon: BookOpen, color: 'text-purple-500' },
     { label: 'Section',        value: info.section_name,           icon: Hash, color: 'text-amber-500' },
-    { label: 'Batch',          value: info.batch,                  icon: Info, color: 'text-indigo-500' },
+
     { label: 'Total Students', value: info.total_students,         icon: Users, color: 'text-pink-500' },
     { label: 'Class Advisor',  value: info.advisor_name,           icon: GraduationCap, color: 'text-cyan-500' },
   ];

@@ -189,7 +189,7 @@ def get_leave_preparation_data(
             "section_id": sec.id,
             "section_name": sec.name,
             "year": sec.year,
-            "batch": sec.batch,
+            "year": sec.year,
             "department": dept.name if dept else "N/A",
             "class_display": f"{dept.code if dept else 'Dept'} Year-{sec.year} {sec.name}",
             "duty_type": "Class Advisor",

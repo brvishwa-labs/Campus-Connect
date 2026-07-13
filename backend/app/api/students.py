@@ -124,7 +124,28 @@ def promote_students(
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can promote students")
 
+    from app.models.academic import CourseAssignment
+    
     active_students = db.query(Student).filter(Student.is_active == True).all()
+    
+    # Collect section and semester pairs to archive old course assignments
+    sections_to_archive = set()
+    for s in active_students:
+        if s.section_id and s.current_semester:
+            sections_to_archive.add((s.section_id, s.current_semester))
+
+    # Archive the course assignments
+    archived_assignments_count = 0
+    for section_id, sem in sections_to_archive:
+        assignments = db.query(CourseAssignment).filter(
+            CourseAssignment.section_id == section_id,
+            CourseAssignment.semester == sem,
+            CourseAssignment.is_active == True
+        ).all()
+        for a in assignments:
+            a.is_active = False
+            archived_assignments_count += 1
+
     promoted_count = 0
     graduated_count = 0
 
@@ -132,10 +153,14 @@ def promote_students(
         if s.current_semester < 8:
             s.current_semester += 1
             promoted_count += 1
+            # If entering an odd semester (new academic year), unassign from current section
+            if s.current_semester % 2 != 0:
+                s.section_id = None
         elif s.current_semester == 8:
             # Soft delete student and mark as alumni
             s.is_alumni = True
             s.is_active = False
+            s.section_id = None
             
             # Deactivate user account so they can't login as active student
             if s.user:

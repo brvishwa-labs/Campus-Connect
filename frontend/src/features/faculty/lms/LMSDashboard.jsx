@@ -131,7 +131,14 @@ export const LMSDashboard = () => {
               <ArrowLeft className="w-4 h-4" /> Back to My Courses
             </Link>
           </div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Course Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Course Dashboard</h1>
+            {courseDetails && !courseDetails.is_active && (
+              <span className="bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide border border-red-200">
+                Archived
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-500 mt-1 font-medium">Manage all aspects of your course from one place</p>
         </div>
         {allCourses.length > 0 && courseDetails && (

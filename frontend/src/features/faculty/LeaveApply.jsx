@@ -438,7 +438,7 @@ export const LeaveApply = () => {
                         leaveData.class_advisor_duties.map((duty, idx) => (
                           <div key={`advisor-${idx}`} className="text-xs text-purple-800 bg-purple-50 rounded px-2 py-1.5 flex justify-between items-center border border-purple-200">
                             <span><strong>Class Advisor</strong> - {duty.class_display}</span>
-                            <span className="text-purple-600 font-medium">{duty.batch}</span>
+                            <span className="text-purple-600 font-medium">Year {duty.year}</span>
                           </div>
                         ))
                       )}

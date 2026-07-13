@@ -1060,7 +1060,7 @@ def get_my_class_info(
         "section": {
             "name": section.name,
             "year": section.year,
-            "batch": section.batch,
+            "year": section.year,
             "department": section.department.name if section.department else None,
         },
         "advisor": advisor_info,

@@ -92,7 +92,6 @@ def build_class_info(faculty: Faculty, section: Section, db: Session) -> ClassIn
         department_name=dept.name,
         department_code=dept.code,
         year=section.year,
-        batch=section.batch,
         semester=semester,
         total_students=total,
         advisor_name=f"{faculty.first_name} {faculty.last_name}"
