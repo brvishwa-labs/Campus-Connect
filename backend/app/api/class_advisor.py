@@ -418,8 +418,15 @@ def get_attendance_settings(
 ):
     _, section = get_advisor_section(current_user, db)
     department = db.query(Department).filter(Department.id == section.department_id).first()
+
+    from datetime import date as date_type
+    from app.core.holidays import is_holiday, get_holiday_name
+    today = date_type.today()
+
     return {
-        "attendance_closed": department.attendance_closed if department else False
+        "attendance_closed": department.attendance_closed if department else False,
+        "is_holiday": is_holiday(today, db),
+        "holiday_name": get_holiday_name(today, db),
     }
 
 
@@ -539,12 +546,22 @@ def save_attendance(
             detail="Attendance is locked for your department by the HOD."
         )
 
+    # Holiday guard — block attendance on Sundays and admin-marked holidays
+    from app.core.holidays import is_holiday, get_holiday_name
+    if is_holiday(payload.date, db):
+        hname = get_holiday_name(payload.date, db) or "Holiday"
+        raise HTTPException(
+            status_code=400,
+            detail=f"Attendance cannot be marked on a holiday ({hname})."
+        )
+
     # Only allow editing today's attendance
     if payload.date != date.today():
         raise HTTPException(
             status_code=400,
             detail="Attendance can only be marked or edited for today"
         )
+
 
     # Validate all students belong to this section
     section_student_ids = {

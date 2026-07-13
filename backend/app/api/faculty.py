@@ -1188,6 +1188,11 @@ def get_attendance_slots(
         ).all()
         existing = {r.student_id: r.status.value for r in records}
 
+    # Holiday check — Sundays or admin-marked dates
+    from app.core.holidays import is_holiday, get_holiday_name
+    today_is_holiday = is_holiday(today, db)
+    today_holiday_name = get_holiday_name(today, db) if today_is_holiday else None
+
     return {
         "today_slots": today_slots,
         "course_name": assignment.course.name,
@@ -1196,6 +1201,9 @@ def get_attendance_slots(
         "today": str(today),
         "today_day": today_name,
         "is_substitute": is_substitute,
+        "is_holiday": today_is_holiday,
+        "holiday_name": today_holiday_name,
+
         "students": [
             {
                 "id": s.id,
@@ -1207,6 +1215,7 @@ def get_attendance_slots(
             for s in students
         ]
     }
+
 
 
 @router.post("/courses/{assignment_id}/attendance")
@@ -1259,6 +1268,17 @@ def save_course_attendance(
     department = db.query(Department).filter(Department.id == assignment.course.department_id).first()
     if department and department.attendance_closed:
         raise HTTPException(status_code=400, detail="Attendance marking is currently locked by the HOD.")
+
+    # Holiday guard — block attendance on Sundays and admin-marked holidays
+    from app.core.holidays import is_holiday, get_holiday_name
+    today_check = date_type.today()
+    if is_holiday(today_check, db):
+        hname = get_holiday_name(today_check, db) or "Holiday"
+        raise HTTPException(
+            status_code=400,
+            detail=f"Attendance cannot be marked on a holiday ({hname})."
+        )
+
 
     today = date_type.today()
     now_time = datetime.now().time()
