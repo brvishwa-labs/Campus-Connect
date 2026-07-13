@@ -20,6 +20,7 @@ import { Courses } from './features/admin/Courses';
 import { HodDashboard } from './features/hod/HodDashboard';
 import { FacultyList } from './features/hod/FacultyList';
 import { FacultyList as AuthorityFacultyList } from './features/authority/FacultyList';
+import FacultyRoster from './features/hod/FacultyRoster';
 import { StudentList } from './features/hod/StudentList';
 import { Sections } from './features/hod/Sections';
 import { FacultyAssignment } from './features/hod/FacultyAssignment';
@@ -180,6 +181,11 @@ function AppRoutes() {
         <Route path="/hod/faculty" element={
           <ProtectedRoute allowedRole="hod">
             <FacultyList />
+          </ProtectedRoute>
+        } />
+        <Route path="/hod/faculty-roster" element={
+          <ProtectedRoute allowedRole="hod">
+            <FacultyRoster />
           </ProtectedRoute>
         } />
         <Route path="/hod/students" element={
