@@ -25,7 +25,9 @@ class CoursePlanTopic(Base):
     hours = Column(Integer, nullable=False, default=1)   # Hours
     unit = Column(String(50), nullable=False)             # Unit / Module (e.g. "1", "TUTORIAL-I")
     topic = Column(String(500), nullable=False)           # Topic(s)
-    cognitive_level = Column(String(20), nullable=False, default="K1") # K1, K2, K3, K4, K5, K6
+    cognitive_level = Column(String(100), nullable=False, default="K1") # K1, K2, K3, K4, K5, K6
+    co = Column(String(100), nullable=True)                             # CO1, CO2, CO3, CO4, CO5
+    po = Column(String(200), nullable=True)                             # PO1, PO2, PO3, PO4, PO5, PO6
     mode_of_delivery = Column(String(50), nullable=False, default="BB") # BB, PPT, or custom manually entered mode
     
     # Progress & Verification Columns (Work Done Note)
