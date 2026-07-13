@@ -296,14 +296,14 @@ export default function DashboardLayout() {
       {/* Mobile Backdrop */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-gray-900/50 z-40 lg:hidden transition-opacity backdrop-blur-sm"
+          className="fixed inset-0 bg-gray-900/50 z-[104] lg:hidden transition-opacity backdrop-blur-sm"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside 
-        className={`fixed inset-y-0 left-0 w-[280px] bg-white border-r border-gray-200 flex flex-col z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-auto lg:flex-shrink-0 ${
+        className={`fixed inset-y-0 left-0 w-[280px] bg-white border-r border-gray-200 flex flex-col z-[105] transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-auto lg:flex-shrink-0 ${
           isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >
@@ -317,13 +317,6 @@ export default function DashboardLayout() {
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1 ml-1.5">
             {user.role} Portal
           </p>
-          <button 
-            className="absolute right-4 lg:hidden text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100"
-            style={{ top: 'calc(50% + 10px)', transform: 'translateY(-50%)' }}
-            onClick={() => setIsMobileMenuOpen(false)}
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
         
         <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
