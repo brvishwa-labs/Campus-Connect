@@ -18,7 +18,6 @@ import { Authorities } from './features/admin/Authorities';
 import { Courses } from './features/admin/Courses';
 import { HodDashboard } from './features/hod/HodDashboard';
 import { FacultyList } from './features/hod/FacultyList';
-import { FacultyList as AuthorityFacultyList } from './features/authority/FacultyList';
 import { StudentList } from './features/hod/StudentList';
 import { Sections } from './features/hod/Sections';
 import { FacultyAssignment } from './features/hod/FacultyAssignment';
@@ -85,6 +84,7 @@ import OMDashboard from './features/authority/OMDashboard';
 import HRDashboard from './features/authority/HRDashboard';
 import HRLeavePortal from './features/authority/HRLeavePortal';
 import HRGatepassPortal from './features/authority/HRGatepassPortal';
+import HRFacultyDirectory from './features/authority/HRFacultyDirectory';
 import AuthorityDashboardRouter from './features/authority/AuthorityDashboardRouter';
 import StudentMessaging from './features/student/StudentMessaging';
 import DeanMessaging from './features/dean/DeanMessaging';
@@ -507,7 +507,7 @@ function AppRoutes() {
         {/* Authority Faculty List - Dean, Principal, OM */}
         <Route path="/authority/faculty" element={
           <ProtectedRoute allowedRole="authority">
-            <AuthorityFacultyList />
+            <HRFacultyDirectory />
           </ProtectedRoute>
         } />
         
@@ -539,6 +539,11 @@ function AppRoutes() {
         <Route path="/hr/gatepass" element={
           <ProtectedRoute allowedRole="authority">
             <HRGatepassPortal />
+          </ProtectedRoute>
+        } />
+        <Route path="/hr/faculty" element={
+          <ProtectedRoute allowedRole="authority">
+            <HRFacultyDirectory />
           </ProtectedRoute>
         } />
         
