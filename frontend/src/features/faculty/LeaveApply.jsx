@@ -5,92 +5,20 @@ import { ArrowLeft, User as UserIcon, Calendar, Users, Paperclip, UploadCloud, T
 import { useAuth } from '../../context/AuthContext';
 
 const SearchableFacultySelect = ({ value, onChange, options, placeholder = "Select Faculty..." }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const wrapperRef = useRef(null);
-
-  const selectedOption = options.find(o => o.id.toString() === value?.toString());
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const filteredOptions = options.filter(o => {
-    const nameStr = o.name.toLowerCase();
-    const q = search.toLowerCase();
-    return nameStr.includes(q);
-  });
-
   return (
-    <div className="relative w-full" ref={wrapperRef}>
-      <input 
-        type="text" 
-        value={value || ''} 
-        onChange={() => {}}
-        required 
-        className="opacity-0 w-full h-0 absolute bottom-0 left-0 -z-10 pointer-events-none"
-        tabIndex={-1}
-      />
-      <div 
-        className="flex items-center justify-between w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm cursor-pointer hover:border-primary-500 focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <span className={`truncate ${!selectedOption ? 'text-gray-400' : 'text-gray-900'}`}>
-          {selectedOption ? (
-            <span>
-              {selectedOption.name} {selectedOption.teaches_this_class ? '🌟' : ''}
-            </span>
-          ) : placeholder}
-        </span>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </div>
-
-      {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
-          <div className="p-2 border-b border-gray-100 flex items-center bg-gray-50">
-            <Search className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" />
-            <input
-              type="text"
-              className="w-full text-sm bg-transparent outline-none focus:outline-none"
-              placeholder="Search faculty..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              autoFocus
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-          <div className="overflow-y-auto p-1 flex-1">
-            {filteredOptions.length === 0 ? (
-              <div className="p-3 text-sm text-gray-500 text-center">No faculty found</div>
-            ) : (
-              filteredOptions.map((f) => (
-                <div
-                  key={f.id}
-                  className={`flex items-center justify-between p-2 rounded cursor-pointer text-sm ${selectedOption?.id === f.id ? 'bg-primary-50 text-primary-700' : 'hover:bg-gray-50'}`}
-                  onClick={() => {
-                    onChange(f.id);
-                    setIsOpen(false);
-                    setSearch('');
-                  }}
-                >
-                  <div>
-                    <div className="font-medium text-gray-900">{f.name} {f.teaches_this_class && '🌟'}</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">{f.teaches_this_class ? 'Teaches Class' : (f.designation || 'Faculty')}</div>
-                  </div>
-                  {selectedOption?.id === f.id && <Check className="w-4 h-4 text-primary-600 flex-shrink-0 ml-2" />}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+    <select
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+      required
+    >
+      <option value="">{placeholder}</option>
+      {options.map((f) => (
+        <option key={f.id} value={f.id}>
+          {f.name} - {f.designation || 'Faculty'}
+        </option>
+      ))}
+    </select>
   );
 };
 
@@ -120,7 +48,7 @@ export const LeaveApply = () => {
   });
   
   const [arrangements, setArrangements] = useState([
-    { substitute_faculty_id: '', subject: '', class_section: '', period: '' }
+    { substitute_faculty_id: '', subject: '', class_section: '', period: '', day: '', compensation_date: '', compensation_period: '' }
   ]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -159,7 +87,10 @@ export const LeaveApply = () => {
             substitute_faculty_id: a.substitute_faculty_id.toString(),
             subject: a.subject,
             class_section: a.class_section,
-            period: a.period
+            period: a.period,
+            day: a.day || '',
+            compensation_date: a.compensation_date || '',
+            compensation_period: a.compensation_period || ''
           })));
         }
       }
@@ -190,7 +121,9 @@ export const LeaveApply = () => {
           class_section: slot.class_section,
           period: slot.period_display,
           day: slot.day,
-          available_substitutes: slot.available_substitutes
+          available_substitutes: slot.available_substitutes,
+          compensation_date: '',
+          compensation_period: ''
         }));
         
         // Add class advisor duty if exists
@@ -202,7 +135,9 @@ export const LeaveApply = () => {
               class_section: duty.class_display,
               period: 'All Periods',
               day: 'All Days',
-              available_substitutes: duty.available_substitutes
+              available_substitutes: duty.available_substitutes,
+              compensation_date: '',
+              compensation_period: ''
             });
           });
         }
@@ -229,14 +164,67 @@ export const LeaveApply = () => {
     });
   };
 
+  const updateCompensations = async (updatedArrangements) => {
+    if (!formData.to_date) return;
+    
+    const substitute_ids = updatedArrangements.map(a => {
+      if (a.subject === 'Class Advisor') return null;
+      return a.substitute_faculty_id ? parseInt(a.substitute_faculty_id, 10) : null;
+    });
+    
+    if (substitute_ids.every(id => id === null)) {
+      const cleared = updatedArrangements.map(a => {
+        if (a.subject === 'Class Advisor') return a;
+        return {
+          ...a,
+          compensation_date: '',
+          compensation_period: ''
+        };
+      });
+      setArrangements(cleared);
+      return;
+    }
+    
+    try {
+      const res = await axios.post('/api/leave/calculate-compensations', {
+        to_date: formData.to_date,
+        substitute_ids
+      });
+      
+      const updated = updatedArrangements.map((a, idx) => {
+        if (a.subject === 'Class Advisor') return a;
+        const comp = res.data[idx];
+        return {
+          ...a,
+          compensation_date: comp.compensation_date || '',
+          compensation_period: comp.compensation_period || ''
+        };
+      });
+      setArrangements(updated);
+    } catch (err) {
+      console.error("Failed to calculate compensations:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (formData.to_date && arrangements.length > 0) {
+      updateCompensations(arrangements);
+    }
+  }, [formData.to_date]);
+
   const handleArrangementChange = (index, field, value) => {
     const newArr = [...arrangements];
     newArr[index][field] = value;
-    setArrangements(newArr);
+    
+    if (field === 'substitute_faculty_id') {
+      updateCompensations(newArr);
+    } else {
+      setArrangements(newArr);
+    }
   };
 
   const addArrangementRow = () => {
-    setArrangements([...arrangements, { substitute_faculty_id: '', subject: '', class_section: '', period: '', available_substitutes: null }]);
+    setArrangements([...arrangements, { substitute_faculty_id: '', subject: '', class_section: '', period: '', day: '', available_substitutes: null, compensation_date: '', compensation_period: '' }]);
   };
 
   const removeArrangementRow = (index) => {
@@ -259,7 +247,19 @@ export const LeaveApply = () => {
     }
     
     // Validate that at least one substitute arrangement is provided
-    const validArrangements = arrangements.filter(a => a.substitute_faculty_id !== '');
+    const validArrangements = arrangements
+      .filter(a => a.substitute_faculty_id !== '')
+      .map(a => {
+        if (a.subject === 'Class Advisor') {
+          return {
+            ...a,
+            compensation_date: null,
+            compensation_period: null
+          };
+        }
+        return a;
+      });
+      
     if (validArrangements.length === 0) {
       setError('At least one substitute faculty arrangement is required. Your leave request will only be forwarded to HOD after all substitutes accept.');
       setIsSubmitting(false);
@@ -438,7 +438,7 @@ export const LeaveApply = () => {
                         leaveData.class_advisor_duties.map((duty, idx) => (
                           <div key={`advisor-${idx}`} className="text-xs text-purple-800 bg-purple-50 rounded px-2 py-1.5 flex justify-between items-center border border-purple-200">
                             <span><strong>Class Advisor</strong> - {duty.class_display}</span>
-                            <span className="text-purple-600 font-medium">{duty.batch}</span>
+                            <span className="text-purple-600 font-medium">Year {duty.year}</span>
                           </div>
                         ))
                       )}
@@ -458,74 +458,109 @@ export const LeaveApply = () => {
               )}
               
               <div className="p-6 pt-4">
-                <div className="hidden md:grid grid-cols-12 gap-2 mb-2 px-2">
-                  <div className="col-span-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Alt. Faculty</div>
-                  <div className="col-span-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Subject</div>
-                  <div className="col-span-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Class/Sec</div>
-                  <div className="col-span-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Period</div>
-                  <div className="col-span-1"></div>
-                </div>
-                
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {arrangements.map((arr, idx) => (
-                    <div key={idx} className="flex flex-col md:grid md:grid-cols-12 gap-1.5 md:gap-1.5 items-center bg-gray-50 md:bg-transparent p-2 md:p-1.5 rounded-lg md:rounded-none border md:border-0 border-gray-200">
-                      {arr.day && (
-                        <div className="col-span-12 md:hidden text-xs font-bold text-gray-600 uppercase">
-                          {arr.day} {arr.day !== 'All Days' && `• ${arr.period}`}
-                        </div>
-                      )}
-                      <div className="col-span-4 w-full">
-                        <label className="block md:hidden text-xs font-bold text-gray-500 uppercase mb-0.5">Substitute Faculty</label>
-                        <SearchableFacultySelect
-                          value={arr.substitute_faculty_id}
-                          onChange={(val) => handleArrangementChange(idx, 'substitute_faculty_id', val)}
-                          options={arr.available_substitutes || allFaculty}
-                        />
-                      </div>
-                      <div className="col-span-2 w-full">
-                        <label className="block md:hidden text-xs font-bold text-gray-500 uppercase mb-0.5">Subject</label>
-                        <input 
-                          type="text" 
-                          placeholder="CS-402"
-                          value={arr.subject} 
-                          onChange={(e) => handleArrangementChange(idx, 'subject', e.target.value)}
-                          className="w-full px-1.5 py-1.5 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:border-primary-500 font-medium"
-                          readOnly={arr.subject === 'Class Advisor'}
-                          required
-                        />
-                      </div>
-                      <div className="col-span-2 w-full">
-                        <label className="block md:hidden text-xs font-bold text-gray-500 uppercase mb-0.5">Class/Sec</label>
-                        <input 
-                          type="text" 
-                          placeholder="CSE-4A"
-                          value={arr.class_section} 
-                          onChange={(e) => handleArrangementChange(idx, 'class_section', e.target.value)}
-                          className="w-full px-1.5 py-1.5 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:border-primary-500 font-medium"
-                          required
-                        />
-                      </div>
-                      <div className="col-span-3 w-full">
-                        <label className="block md:hidden text-xs font-bold text-gray-500 uppercase mb-0.5">Period</label>
-                        <input 
-                          type="text" 
-                          placeholder="08:45 - 09:30"
-                          value={arr.period} 
-                          onChange={(e) => handleArrangementChange(idx, 'period', e.target.value)}
-                          className="w-full px-1.5 py-1.5 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:border-primary-500 font-medium"
-                          required
-                        />
-                      </div>
-                      <div className="col-span-1 w-full md:w-auto flex justify-end">
-                        <button type="button" onClick={() => removeArrangementRow(idx)} className="text-red-400 hover:text-red-600 p-1.5">
-                          <Trash2 className="w-4 h-4" />
+                    <div key={idx} className="bg-slate-50/50 hover:bg-slate-50/80 rounded-xl p-4 border border-slate-200/80 transition-all shadow-sm space-y-3">
+                      
+                      {/* Arrangement Header */}
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center">
+                          <span className="w-2 h-2 rounded-full bg-primary-500 mr-2"></span>
+                          {arr.day ? `Duty: ${arr.day.toUpperCase()} • Time Slot: ${arr.period}` : `Arrangement #${idx + 1}`}
+                        </span>
+                        <button 
+                          type="button" 
+                          onClick={() => removeArrangementRow(idx)} 
+                          className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+                          title="Remove arrangement"
+                        >
+                          <Trash2 className="w-4.5 h-4.5" />
                         </button>
                       </div>
+
+                      {/* Line 1: Substitute, Subject, Class */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Substitute Faculty</label>
+                          <SearchableFacultySelect
+                            value={arr.substitute_faculty_id}
+                            onChange={(val) => handleArrangementChange(idx, 'substitute_faculty_id', val)}
+                            options={arr.available_substitutes || allFaculty}
+                            placeholder="Choose substitute..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Subject / Assignment</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. CS-402"
+                            value={arr.subject} 
+                            onChange={(e) => handleArrangementChange(idx, 'subject', e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
+                            readOnly={arr.subject === 'Class Advisor'}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Class / Section</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. CSE-4A"
+                            value={arr.class_section} 
+                            onChange={(e) => handleArrangementChange(idx, 'class_section', e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      {/* Line 2: Period, Comp. Date, Comp. Period */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Duty Time Slot</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. 08:45 - 09:30"
+                            value={arr.period} 
+                            onChange={(e) => handleArrangementChange(idx, 'period', e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Compensation Date</label>
+                          <input 
+                            type="date" 
+                            value={arr.subject === 'Class Advisor' ? '' : arr.compensation_date} 
+                            onChange={(e) => handleArrangementChange(idx, 'compensation_date', e.target.value)}
+                            className={`w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium ${
+                              arr.subject === 'Class Advisor' ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                            }`}
+                            disabled={arr.subject === 'Class Advisor'}
+                            required={arr.subject !== 'Class Advisor'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Compensation Time Slot</label>
+                          <input 
+                            type="text" 
+                            placeholder={arr.subject === 'Class Advisor' ? 'N/A' : '08:45 AM - 09:30 AM'}
+                            value={arr.subject === 'Class Advisor' ? '' : arr.compensation_period} 
+                            onChange={(e) => handleArrangementChange(idx, 'compensation_period', e.target.value)}
+                            className={`w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium ${
+                              arr.subject === 'Class Advisor' ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                            }`}
+                            disabled={arr.subject === 'Class Advisor'}
+                            required={arr.subject !== 'Class Advisor'}
+                          />
+                        </div>
+                      </div>
+
                     </div>
                   ))}
                   {arrangements.length === 0 && (
-                    <div className="text-center py-6 text-gray-500 text-sm italic">
-                      Select leave dates to see your schedule and add substitute arrangements
+                    <div className="text-center py-8 text-gray-400 text-sm italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      Select leave dates to load your schedule and add substitute arrangements
                     </div>
                   )}
                 </div>

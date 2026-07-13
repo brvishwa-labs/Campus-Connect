@@ -12,7 +12,6 @@ class ClassInfoResponse(BaseModel):
     department_name: str
     department_code: str
     year: int
-    batch: str
     semester: int              # derived: (year-1)*2 + 1
     total_students: int
     advisor_name: str

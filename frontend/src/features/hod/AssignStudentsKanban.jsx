@@ -133,7 +133,7 @@ export default function AssignStudentsKanban({ section, onClose, onSaveComplete 
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Assign Students to Section</h2>
-            <p className="text-sm text-gray-500 mt-1">Section {section.name} (Year {section.year}, Batch {section.batch})</p>
+            <p className="text-sm text-gray-500 mt-1">Section {section.name} (Year {section.year})</p>
           </div>
           <div className="flex items-center gap-3">
             <button 

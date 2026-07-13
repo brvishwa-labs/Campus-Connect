@@ -25,7 +25,6 @@ class Section(Base):
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=False)
     name = Column(String(10), nullable=False)              # A, B, C
     year = Column(Integer, nullable=False)                 # 1, 2, 3, 4
-    batch = Column(String(20), nullable=False)             # "2023-2027"
     class_advisor_id = Column(Integer, ForeignKey("faculty.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

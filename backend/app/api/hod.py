@@ -114,8 +114,8 @@ def hod_faculty(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    department, _ = get_hod_department(current_user, db)
-    faculty = db.query(Faculty).filter(Faculty.department_id == department.id).all()
+    # Get all faculty from all departments (not just current HOD's department)
+    faculty = db.query(Faculty).all()
     return [
         {
             "id": f.id,
@@ -202,8 +202,7 @@ def create_section(
     existing = db.query(Section).filter(
         Section.department_id == department.id,
         Section.name == section_in.name,
-        Section.year == section_in.year,
-        Section.batch == section_in.batch
+        Section.year == section_in.year
     ).first()
     if existing:
         raise HTTPException(status_code=400, detail="This section already exists")
@@ -211,8 +210,7 @@ def create_section(
     new_section = Section(
         department_id=department.id,
         name=section_in.name,
-        year=section_in.year,
-        batch=section_in.batch,
+        year=section_in.year
     )
     db.add(new_section)
     db.commit()
@@ -283,10 +281,9 @@ def get_unassigned_students(
     if not section:
         raise HTTPException(status_code=404, detail="Section not found")
 
-    # Fetch students in the same department, year, and batch who don't have a section assigned
+    # Fetch students in the same department and year who don't have a section assigned
     students = db.query(Student).filter(
         Student.department_id == department.id,
-        Student.batch == section.batch,
         Student.current_year == section.year,
         Student.section_id == None,
         Student.is_active == True
@@ -347,7 +344,10 @@ def get_assignments(
     query = db.query(CourseAssignment).options(
         joinedload(CourseAssignment.course),
         joinedload(CourseAssignment.faculty)
-    ).join(Course).filter(Course.department_id == department.id)
+    ).join(Course).filter(
+        Course.department_id == department.id,
+        CourseAssignment.is_active == True
+    )
     if section_id:
         query = query.filter(CourseAssignment.section_id == section_id)
     return query.all()
@@ -423,7 +423,7 @@ def delete_assignment(
     from app.models.lms import TimetableSlot
     db.query(TimetableSlot).filter(TimetableSlot.course_assignment_id == assignment_id).delete()
 
-    db.delete(assignment)
+    assignment.is_active = False
     db.commit()
     return None
 
@@ -537,8 +537,11 @@ def get_timetable(
     if not section:
         raise HTTPException(status_code=404, detail="Section not found in your department")
 
-    # Get all course assignments for this section
-    assignments = db.query(CourseAssignment).filter(CourseAssignment.section_id == section_id).all()
+    # Get all active course assignments for this section
+    assignments = db.query(CourseAssignment).filter(
+        CourseAssignment.section_id == section_id,
+        CourseAssignment.is_active == True
+    ).all()
     assignment_ids = [a.id for a in assignments]
 
     slots = db.query(TimetableSlot).filter(TimetableSlot.course_assignment_id.in_(assignment_ids)).all()
@@ -1151,15 +1154,20 @@ def get_attendance_analytics(
         ).all()
         
     heatmap_counts = {}
+    student_lookup = {st.student_id: {"year": st.year, "section": st.section} for st in student_table}
+    
     for att in heatmap_atts:
+        info = student_lookup.get(att.student_id)
+        if not info:
+            continue
         day_name = att.date.strftime("%A")
         period = att.hour or 1
-        key = (day_name, period)
+        key = (day_name, period, info["year"], info["section"])
         heatmap_counts[key] = heatmap_counts.get(key, 0) + 1
         
-    heatmap = [HeatmapData(day=d, period=p, absent_count=c) for (d, p), c in heatmap_counts.items()]
+    heatmap = [HeatmapData(day=d, period=p, year=y, section=s, absent_count=c) for (d, p, y, s), c in heatmap_counts.items()]
     if not heatmap:
-        heatmap = [HeatmapData(day="Monday", period=1, absent_count=0)]
+        heatmap = [HeatmapData(day="Monday", period=1, year=1, section="A", absent_count=0)]
         
     # ---------------------------------------------------------
     # 6. Faculty Stats

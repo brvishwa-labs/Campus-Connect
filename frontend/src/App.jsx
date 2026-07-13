@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import DashboardLayout from './layouts/DashboardLayout';
 import Login from './features/auth/Login';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
+import FullscreenButton from './components/FullscreenButton';
 import { 
   AdminDashboard, 
   FacultyDashboard, 
@@ -18,6 +20,8 @@ import { Authorities } from './features/admin/Authorities';
 import { Courses } from './features/admin/Courses';
 import { HodDashboard } from './features/hod/HodDashboard';
 import { FacultyList } from './features/hod/FacultyList';
+import { FacultyList as AuthorityFacultyList } from './features/authority/FacultyList';
+import FacultyRoster from './features/hod/FacultyRoster';
 import { StudentList } from './features/hod/StudentList';
 import { Sections } from './features/hod/Sections';
 import { FacultyAssignment } from './features/hod/FacultyAssignment';
@@ -83,6 +87,8 @@ import DeanDashboard from './features/authority/DeanDashboard';
 import OMDashboard from './features/authority/OMDashboard';
 import HRDashboard from './features/authority/HRDashboard';
 import HRLeavePortal from './features/authority/HRLeavePortal';
+import HRGatepassPortal from './features/authority/HRGatepassPortal';
+import HRFacultyDirectory from './features/authority/HRFacultyDirectory';
 import AuthorityDashboardRouter from './features/authority/AuthorityDashboardRouter';
 import StudentMessaging from './features/student/StudentMessaging';
 import DeanMessaging from './features/dean/DeanMessaging';
@@ -177,6 +183,11 @@ function AppRoutes() {
         <Route path="/hod/faculty" element={
           <ProtectedRoute allowedRole="hod">
             <FacultyList />
+          </ProtectedRoute>
+        } />
+        <Route path="/hod/faculty-roster" element={
+          <ProtectedRoute allowedRole="hod">
+            <FacultyRoster />
           </ProtectedRoute>
         } />
         <Route path="/hod/students" element={
@@ -502,6 +513,13 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         
+        {/* Authority Faculty List - Dean, Principal, OM */}
+        <Route path="/authority/faculty" element={
+          <ProtectedRoute allowedRole="authority">
+            <HRFacultyDirectory />
+          </ProtectedRoute>
+        } />
+        
         {/* Vice Principal Dashboard Route (Uses PrincipalDashboard layout) */}
         <Route path="/vice-principal" element={
           <ProtectedRoute allowedRole="authority">
@@ -525,6 +543,16 @@ function AppRoutes() {
         <Route path="/hr/leaves" element={
           <ProtectedRoute allowedRole="authority">
             <HRLeavePortal />
+          </ProtectedRoute>
+        } />
+        <Route path="/hr/gatepass" element={
+          <ProtectedRoute allowedRole="authority">
+            <HRGatepassPortal />
+          </ProtectedRoute>
+        } />
+        <Route path="/hr/faculty" element={
+          <ProtectedRoute allowedRole="authority">
+            <HRFacultyDirectory />
           </ProtectedRoute>
         } />
         
@@ -585,6 +613,8 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
+          <FullscreenButton />
+          <PWAInstallPrompt />
           <AppRoutes />
         </BrowserRouter>
       </AuthProvider>

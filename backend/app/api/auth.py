@@ -138,7 +138,11 @@ def get_my_profile(current_user: User = Depends(get_current_active_user), db: Se
                 "qualification": f.qualification, "specialization": f.specialization,
                 "experience_years": f.experience_years,
                 "date_of_joining": str(f.date_of_joining) if f.date_of_joining else None,
-                "employment_type": f.employment_type,
+                "pan_card": f.pan_card, "aadhar_number": f.aadhar_number,
+                "accommodation": f.accommodation, "transportation": f.transportation, "bus_number": f.bus_number,
+                "mother_name": f.mother_name, "father_name": f.father_name,
+                "emergency_contacts": f.emergency_contacts, "academic_history": f.academic_history,
+                "past_experience": f.past_experience,
                 "address_line1": f.address_line1, "address_line2": f.address_line2,
                 "city": f.city, "state": f.state, "pincode": f.pincode,
                 "department_name": dept.name if dept else None,
@@ -179,12 +183,17 @@ def get_my_profile(current_user: User = Depends(get_current_active_user), db: Se
                 c = db.query(Course).filter(Course.id == cid).first()
                 if c:
                     # Per-course attendance
+                    from app.core.utils import get_sem_start_date
+                    sem_start_date = get_sem_start_date(s.department_id, db)
+                    
                     total = db.query(Attendance).filter(
-                        Attendance.student_id == s.id, Attendance.course_id == cid
+                        Attendance.student_id == s.id, Attendance.course_id == cid,
+                        Attendance.date >= sem_start_date
                     ).count()
                     present = db.query(Attendance).filter(
                         Attendance.student_id == s.id, Attendance.course_id == cid,
-                        Attendance.status == AttendanceStatus.PRESENT
+                        Attendance.status == AttendanceStatus.PRESENT,
+                        Attendance.date >= sem_start_date
                     ).count()
                     att_pct = round((present / total * 100), 1) if total > 0 else None
                     courses_list.append({
@@ -308,7 +317,9 @@ def update_my_profile(
             "address_line1", "address_line2", "city", "state", "pincode",
             "gender", "date_of_birth", "nationality", "community", "religion",
             "designation", "qualification", "specialization", 
-            "experience_years", "date_of_joining", "employment_type"
+            "experience_years", "date_of_joining",
+            "pan_card", "aadhar_number", "accommodation", "transportation", "bus_number",
+            "mother_name", "father_name", "emergency_contacts", "academic_history", "past_experience"
         ]
         for field in editable:
             if field in payload:

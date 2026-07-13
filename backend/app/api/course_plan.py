@@ -95,6 +95,8 @@ def save_course_plan(
             unit=topic_in.unit,
             topic=topic_in.topic,
             cognitive_level=topic_in.cognitive_level,
+            co=topic_in.co,
+            po=topic_in.po,
             mode_of_delivery=topic_in.mode_of_delivery,
             actual_date=topic_in.actual_date,
             reason_for_deviation=topic_in.reason_for_deviation,

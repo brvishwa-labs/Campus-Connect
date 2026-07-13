@@ -64,8 +64,7 @@ def get_faculty_dashboard(
         joinedload(CourseAssignment.course),
         joinedload(CourseAssignment.section)
     ).filter(
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     )
     
     if assignment_id:
@@ -105,39 +104,67 @@ def get_faculty_dashboard(
             joinedload(CourseAssignment.course),
             joinedload(CourseAssignment.section)
         ).filter(
-            CourseAssignment.faculty_id == faculty.id,
-            CourseAssignment.is_active == True
+            CourseAssignment.faculty_id == faculty.id
         ).all()
     
-    for assignment in schedule_assignments:
-        slots = db.query(TimetableSlot).filter(
-            TimetableSlot.course_assignment_id == assignment.id
-        ).all()
-        
-        for slot in slots:
-            slot_day = slot.day.value if hasattr(slot.day, 'value') else slot.day
-            if slot_day == selected_day_name:
-                is_current = is_today and (slot.start_time <= now_time <= slot.end_time)
-                
-                class_info = {
-                    "course_name": assignment.course.name,
-                    "course_code": assignment.course.code,
-                    "start_time": slot.start_time.strftime("%H:%M"),
-                    "end_time": slot.end_time.strftime("%H:%M"),
-                    "room": slot.room,
-                    "section": f"{assignment.section.year} Year {assignment.section.name}" if assignment.section else "N/A",
-                    "is_current": is_current,
-                    "course_id": assignment.course_id,
-                    "assignment_id": assignment.id
-                }
-                
-                selected_date_classes.append(class_info)
-    
-    # -------------------------------------------------------------
-    # Inject Substituted Classes
-    # -------------------------------------------------------------
     from app.models.leave import FacultyDutyArrangement, FacultyLeaveRequest, LeaveStatus, ArrangementStatus
     
+    # Check if the faculty is on leave on selected_date_obj
+    on_leave = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.faculty_id == faculty.id,
+        FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+        FacultyLeaveRequest.from_date <= selected_date_obj,
+        FacultyLeaveRequest.to_date >= selected_date_obj
+    ).first()
+    is_on_leave = on_leave is not None
+
+    if not is_on_leave:
+        for assignment in schedule_assignments:
+            slots = db.query(TimetableSlot).filter(
+                TimetableSlot.course_assignment_id == assignment.id
+            ).all()
+            
+            for slot in slots:
+                slot_day = slot.day.value if hasattr(slot.day, 'value') else slot.day
+                if slot_day == selected_day_name:
+                    # Check if this slot is relieved today (being compensated)
+                    is_relieved = False
+                    relieved_arrs = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
+                        FacultyDutyArrangement.substitute_faculty_id == faculty.id,
+                        FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
+                        FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+                        FacultyDutyArrangement.compensation_date == selected_date_obj
+                    ).all()
+                    
+                    for r_arr in relieved_arrs:
+                        slot_start_str = slot.start_time.strftime("%H:%M")
+                        slot_start_12h = slot.start_time.strftime("%I:%M %p")
+                        if r_arr.compensation_period and (slot_start_str in r_arr.compensation_period or slot_start_12h in r_arr.compensation_period):
+                            is_relieved = True
+                            break
+                    
+                    if is_relieved:
+                        continue # Skip this slot, they are relieved
+                        
+                    is_current = is_today and (slot.start_time <= now_time <= slot.end_time)
+                    
+                    class_info = {
+                        "course_name": assignment.course.name,
+                        "course_code": assignment.course.code,
+                        "start_time": slot.start_time.strftime("%H:%M"),
+                        "end_time": slot.end_time.strftime("%H:%M"),
+                        "room": slot.room,
+                        "section": f"{assignment.section.year} Year {assignment.section.name}" if assignment.section else "N/A",
+                        "is_current": is_current,
+                        "course_id": assignment.course_id,
+                        "assignment_id": assignment.id
+                    }
+                    
+                    selected_date_classes.append(class_info)
+    
+    # -------------------------------------------------------------
+    # Inject Substituted Classes (Substitute Day for B)
+    # -------------------------------------------------------------
     substitutions = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
         FacultyDutyArrangement.substitute_faculty_id == faculty.id,
         FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
@@ -147,13 +174,12 @@ def get_faculty_dashboard(
     ).all()
     
     for sub in substitutions:
-        # Find the requester's CourseAssignment based on course code
+        # Find requester assignments to identify the class/slot details
         requester_assignments = db.query(CourseAssignment).options(
             joinedload(CourseAssignment.course),
             joinedload(CourseAssignment.section)
         ).filter(
-            CourseAssignment.faculty_id == sub.leave_request.faculty_id,
-            CourseAssignment.is_active == True
+            CourseAssignment.faculty_id == sub.leave_request.faculty_id
         ).all()
         
         matched_assignment = None
@@ -169,24 +195,141 @@ def get_faculty_dashboard(
             for slot in slots:
                 slot_day = slot.day.value if hasattr(slot.day, 'value') else slot.day
                 if slot_day == selected_day_name:
-                    is_current = is_today and (slot.start_time <= now_time <= slot.end_time)
+                    slot_start_str = slot.start_time.strftime("%H:%M")
+                    if sub.period and slot_start_str in sub.period:
+                        is_current = is_today and (slot.start_time <= now_time <= slot.end_time)
+                        
+                        # Substitute B teaches B's OWN subject!
+                        sub_assignment = db.query(CourseAssignment).options(
+                            joinedload(CourseAssignment.course)
+                        ).filter(
+                            CourseAssignment.faculty_id == faculty.id,
+                            CourseAssignment.section_id == matched_assignment.section_id,
+                            CourseAssignment.is_active == True
+                        ).first()
+                        
+                        if sub_assignment:
+                            course_name = sub_assignment.course.name
+                            course_code = sub_assignment.course.code
+                            course_id = sub_assignment.course_id
+                            assignment_id = sub_assignment.id
+                        else:
+                            first_assignment = db.query(CourseAssignment).options(
+                                joinedload(CourseAssignment.course)
+                            ).filter(
+                                CourseAssignment.faculty_id == faculty.id,
+                                CourseAssignment.is_active == True
+                            ).first()
+                            if first_assignment:
+                                course_name = first_assignment.course.name
+                                course_code = first_assignment.course.code
+                                course_id = first_assignment.course_id
+                                assignment_id = first_assignment.id
+                            else:
+                                course_name = f"Cover ({sub.subject})"
+                                course_code = sub.subject
+                                course_id = matched_assignment.course_id
+                                assignment_id = matched_assignment.id
+                                
+                        class_info = {
+                            "course_name": course_name,
+                            "course_code": course_code,
+                            "start_time": slot.start_time.strftime("%H:%M"),
+                            "end_time": slot.end_time.strftime("%H:%M"),
+                            "room": slot.room,
+                            "section": f"{matched_assignment.section.year} Year {matched_assignment.section.name}" if matched_assignment.section else "N/A",
+                            "is_current": is_current,
+                            "course_id": course_id,
+                            "assignment_id": assignment_id,
+                            "is_substitute": True
+                        }
+                        if not any(c.get("assignment_id") == assignment_id and c.get("start_time") == class_info["start_time"] for c in selected_date_classes):
+                            selected_date_classes.append(class_info)
+                            
+    # -------------------------------------------------------------
+    # Inject Compensated Classes (Compensation Day for A)
+    # -------------------------------------------------------------
+    compensations = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.faculty_id == faculty.id,
+        FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
+        FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+        FacultyDutyArrangement.compensation_date == selected_date_obj
+    ).all()
+    
+    for comp in compensations:
+        sub_assignments = db.query(CourseAssignment).options(
+            joinedload(CourseAssignment.course),
+            joinedload(CourseAssignment.section)
+        ).filter(
+            CourseAssignment.faculty_id == comp.substitute_faculty_id,
+            CourseAssignment.is_active == True
+        ).all()
+        
+        matched_sub_assignment = None
+        sub_slot = None
+        for sa in sub_assignments:
+            slots = db.query(TimetableSlot).filter(
+                TimetableSlot.course_assignment_id == sa.id,
+                TimetableSlot.day == selected_day_name
+            ).all()
+            for s in slots:
+                s_start = s.start_time.strftime("%H:%M")
+                s_start_12h = s.start_time.strftime("%I:%M %p")
+                if comp.compensation_period and (s_start in comp.compensation_period or s_start_12h in comp.compensation_period):
+                    matched_sub_assignment = sa
+                    sub_slot = s
+                    break
+            if matched_sub_assignment:
+                break
+                
+        if matched_sub_assignment and sub_slot:
+            # Leave faculty A teaches A's OWN subject
+            my_assignment = db.query(CourseAssignment).options(
+                joinedload(CourseAssignment.course)
+            ).filter(
+                CourseAssignment.faculty_id == faculty.id,
+                CourseAssignment.section_id == matched_sub_assignment.section_id,
+                CourseAssignment.is_active == True
+            ).first()
+            
+            if my_assignment:
+                course_name = my_assignment.course.name
+                course_code = my_assignment.course.code
+                course_id = my_assignment.course_id
+                assignment_id = my_assignment.id
+            else:
+                first_assignment = db.query(CourseAssignment).options(
+                    joinedload(CourseAssignment.course)
+                ).filter(
+                    CourseAssignment.faculty_id == faculty.id,
+                    CourseAssignment.is_active == True
+                ).first()
+                if first_assignment:
+                    course_name = first_assignment.course.name
+                    course_code = first_assignment.course.code
+                    course_id = first_assignment.course_id
+                    assignment_id = first_assignment.id
+                else:
+                    course_name = comp.subject
+                    course_code = comp.subject
+                    course_id = matched_sub_assignment.course_id
+                    assignment_id = matched_sub_assignment.id
                     
-                    # Prevent duplicate if same slot exists
-                    class_info = {
-                        "course_name": matched_assignment.course.name,
-                        "course_code": matched_assignment.course.code,
-                        "start_time": slot.start_time.strftime("%H:%M"),
-                        "end_time": slot.end_time.strftime("%H:%M"),
-                        "room": slot.room,
-                        "section": f"{matched_assignment.section.year} Year {matched_assignment.section.name}" if matched_assignment.section else "N/A",
-                        "is_current": is_current,
-                        "course_id": matched_assignment.course_id,
-                        "assignment_id": matched_assignment.id,
-                        "is_substitute": True
-                    }
-                    # check if not already added to avoid duplicates
-                    if not any(c.get("assignment_id") == matched_assignment.id and c.get("start_time") == class_info["start_time"] for c in selected_date_classes):
-                        selected_date_classes.append(class_info)
+            is_current = is_today and (sub_slot.start_time <= now_time <= sub_slot.end_time)
+            class_info = {
+                "course_name": course_name,
+                "course_code": course_code,
+                "start_time": sub_slot.start_time.strftime("%H:%M"),
+                "end_time": sub_slot.end_time.strftime("%H:%M"),
+                "room": sub_slot.room,
+                "section": f"{matched_sub_assignment.section.year} Year {matched_sub_assignment.section.name}" if matched_sub_assignment.section else "N/A",
+                "is_current": is_current,
+                "course_id": course_id,
+                "assignment_id": assignment_id,
+                "is_compensation": True
+            }
+            if not any(c.get("assignment_id") == assignment_id and c.get("start_time") == class_info["start_time"] for c in selected_date_classes):
+                selected_date_classes.append(class_info)
     
     # Sort classes by start time
     selected_date_classes.sort(key=lambda x: x["start_time"])
@@ -337,11 +480,15 @@ def get_faculty_dashboard(
                 risk_factors = []
                 risk_score = 0
                 
+                from app.core.utils import get_sem_start_date
+                sem_start_date = get_sem_start_date(student.department_id, db)
+                
                 # Check attendance for this specific course
                 # Get attendance records where this faculty marked for this student
                 total_classes_query = db.query(Attendance).filter(
                     Attendance.student_id == student.id,
-                    Attendance.marked_by_id == faculty.id
+                    Attendance.marked_by_id == faculty.id,
+                    Attendance.date >= sem_start_date
                 )
                 
                 # Filter by course if needed (check if attendance is for classes of this course)
@@ -463,8 +610,7 @@ def get_faculty_dashboard(
             joinedload(CourseAssignment.course),
             joinedload(CourseAssignment.section)
         ).filter(
-            CourseAssignment.faculty_id == faculty.id,
-            CourseAssignment.is_active == True
+            CourseAssignment.faculty_id == faculty.id
         ).all()
     ]
     
@@ -487,14 +633,17 @@ def get_faculty_dashboard(
     }
 
 
-@router.get("/me/courses", response_model=List[CourseAssignmentFacultyResponse])
+@router.get("/me/courses")
 def get_my_courses(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Retrieve courses assigned to the current faculty.
+    Retrieve courses assigned to the current faculty,
+    plus any courses they are substituting for today.
     """
+    from app.models.leave import FacultyDutyArrangement, FacultyLeaveRequest, LeaveStatus, ArrangementStatus
+
     if current_user.role not in ["faculty", "hod"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only faculty and HODs can view assigned courses")
     
@@ -502,15 +651,87 @@ def get_my_courses(
     if not faculty:
         raise HTTPException(status_code=404, detail="Faculty profile not found")
 
+    # Own assignments
     assignments = db.query(CourseAssignment).options(
         joinedload(CourseAssignment.course),
-        joinedload(CourseAssignment.section)
+        joinedload(CourseAssignment.section),
+        joinedload(CourseAssignment.faculty)
     ).filter(
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).all()
-    
-    return assignments
+
+    result = []
+    for a in assignments:
+        result.append({
+            "id": a.id,
+            "course_id": a.course_id,
+            "section_id": a.section_id,
+            "academic_year": a.academic_year,
+            "semester": a.semester,
+            "is_active": a.is_active,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+            "course": {"id": a.course.id, "code": a.course.code, "name": a.course.name,
+                       "credits": a.course.credits, "course_type": a.course.course_type} if a.course else None,
+            "section": {"id": a.section.id, "name": a.section.name, "year": a.section.year} if a.section else None,
+            "is_substitute": False,
+            "original_faculty_name": None,
+        })
+
+    # Substitute assignments for today
+    today = date_type.today()
+    sub_arrangements = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
+        FacultyDutyArrangement.substitute_faculty_id == faculty.id,
+        FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
+        FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+        FacultyLeaveRequest.from_date <= today,
+        FacultyLeaveRequest.to_date >= today,
+    ).all()
+
+    # Look up unique course assignments from arrangements using subject code + original faculty
+    seen_sub_keys = set()
+    for arr in sub_arrangements:
+        original_faculty_id = arr.leave_request.faculty_id
+        subject_code = arr.subject  # e.g. "CS3401"
+
+        # Build a unique key to avoid duplicates
+        sub_key = f"{original_faculty_id}_{subject_code}"
+        if sub_key in seen_sub_keys:
+            continue
+        seen_sub_keys.add(sub_key)
+
+        # Find the CourseAssignment by matching original faculty + course code
+        from app.models.academic import Course
+        sub_assignment = db.query(CourseAssignment).options(
+            joinedload(CourseAssignment.course),
+            joinedload(CourseAssignment.section),
+            joinedload(CourseAssignment.faculty)
+        ).join(Course).filter(
+            CourseAssignment.faculty_id == original_faculty_id,
+            CourseAssignment.is_active == True,
+            (Course.code == subject_code) | (Course.short_name == subject_code)
+        ).first()
+
+        if sub_assignment:
+            orig_fac = sub_assignment.faculty
+            orig_name = f"{orig_fac.first_name} {orig_fac.last_name}" if orig_fac else "Unknown"
+            result.append({
+                "id": sub_assignment.id,
+                "course_id": sub_assignment.course_id,
+                "section_id": sub_assignment.section_id,
+                "academic_year": sub_assignment.academic_year,
+                "semester": sub_assignment.semester,
+                "is_active": sub_assignment.is_active,
+                "created_at": sub_assignment.created_at.isoformat() if sub_assignment.created_at else None,
+                "course": {"id": sub_assignment.course.id, "code": sub_assignment.course.code,
+                           "name": sub_assignment.course.name, "credits": sub_assignment.course.credits,
+                           "course_type": sub_assignment.course.course_type} if sub_assignment.course else None,
+                "section": {"id": sub_assignment.section.id, "name": sub_assignment.section.name,
+                            "year": sub_assignment.section.year} if sub_assignment.section else None,
+                "is_substitute": True,
+                "original_faculty_name": orig_name,
+            })
+
+    return result
 
 
 @router.get("/courses/{assignment_id}/timetable")
@@ -531,8 +752,7 @@ def get_course_timetable(
         
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
@@ -574,8 +794,7 @@ def get_faculty_workload(
         joinedload(CourseAssignment.course),
         joinedload(CourseAssignment.section)
     ).filter(
-        CourseAssignment.faculty_id == faculty_id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty_id
     ).order_by(
         CourseAssignment.semester.asc()
     ).all()
@@ -640,19 +859,25 @@ def get_my_mentees(db: Session = Depends(get_db), current_user: User = Depends(g
     for ma in assignments:
         s = ma.student
         
+        from app.core.utils import get_sem_start_date
+        sem_start_date = get_sem_start_date(s.department_id, db)
+        
         # Calculate attendance percentage
-        total = db.query(Attendance).filter(Attendance.student_id == s.id).count()
+        total = db.query(Attendance).filter(Attendance.student_id == s.id, Attendance.date >= sem_start_date).count()
         present = db.query(Attendance).filter(
             Attendance.student_id == s.id,
-            Attendance.status == AttendanceStatus.PRESENT
+            Attendance.status == AttendanceStatus.PRESENT,
+            Attendance.date >= sem_start_date
         ).count()
         od = db.query(Attendance).filter(
             Attendance.student_id == s.id,
-            Attendance.status == AttendanceStatus.ON_DUTY
+            Attendance.status == AttendanceStatus.ON_DUTY,
+            Attendance.date >= sem_start_date
         ).count()
         late = db.query(Attendance).filter(
             Attendance.student_id == s.id,
-            Attendance.status == AttendanceStatus.LATE
+            Attendance.status == AttendanceStatus.LATE,
+            Attendance.date >= sem_start_date
         ).count()
         
         attended = present + od + late
@@ -683,19 +908,25 @@ def get_mentee_detail(student_id: int, db: Session = Depends(get_db), current_us
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     
+    from app.core.utils import get_sem_start_date
+    sem_start_date = get_sem_start_date(student.department_id, db)
+    
     # Calculate attendance percentage
-    total = db.query(Attendance).filter(Attendance.student_id == student_id).count()
+    total = db.query(Attendance).filter(Attendance.student_id == student_id, Attendance.date >= sem_start_date).count()
     present = db.query(Attendance).filter(
         Attendance.student_id == student_id,
-        Attendance.status == AttendanceStatus.PRESENT
+        Attendance.status == AttendanceStatus.PRESENT,
+        Attendance.date >= sem_start_date
     ).count()
     od = db.query(Attendance).filter(
         Attendance.student_id == student_id,
-        Attendance.status == AttendanceStatus.ON_DUTY
+        Attendance.status == AttendanceStatus.ON_DUTY,
+        Attendance.date >= sem_start_date
     ).count()
     late = db.query(Attendance).filter(
         Attendance.student_id == student_id,
-        Attendance.status == AttendanceStatus.LATE
+        Attendance.status == AttendanceStatus.LATE,
+        Attendance.date >= sem_start_date
     ).count()
     
     # We count PRESENT, ON_DUTY, and LATE as attended classes
@@ -863,23 +1094,53 @@ def get_attendance_slots(
     Returns today's timetable slots for this assignment.
     Each slot includes is_current (True if current time is within that period).
     Faculty can only mark attendance during or after the period starts.
+    Also supports substitute faculty accessing courses they are covering today.
     """
     from datetime import datetime, time as time_type
+    from app.models.leave import FacultyDutyArrangement, FacultyLeaveRequest, LeaveStatus, ArrangementStatus
 
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
     if not faculty:
         raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+    today = date_type.today()
+    is_substitute = False
+    substitute_periods = []  # list of period start times (HH:MM) this sub is covering today
 
     assignment = db.query(CourseAssignment).options(
         joinedload(CourseAssignment.course),
         joinedload(CourseAssignment.section)
     ).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
+
+    # Check ownership
+    if assignment.faculty_id != faculty.id:
+        # Not the original faculty — check if they are an accepted substitute today
+        sub_arrangements = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
+            FacultyDutyArrangement.substitute_faculty_id == faculty.id,
+            FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
+            FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+            FacultyLeaveRequest.faculty_id == assignment.faculty_id,
+            FacultyLeaveRequest.from_date <= today,
+            FacultyLeaveRequest.to_date >= today
+        ).all()
+
+        if not sub_arrangements:
+            raise HTTPException(status_code=403, detail="Assignment not found")
+
+        is_substitute = True
+        # Collect periods this substitute is covering
+        for arr in sub_arrangements:
+            if arr.period:
+                period_str = arr.period.strip()
+                if " - " in period_str:
+                    # period is stored like "09:30 - 10:20" — extract start time
+                    start_part = period_str.split(" - ")[0].strip()
+                    substitute_periods.append(start_part)
+                # else: "All Periods" or similar — don't filter, show all slots
 
     # Use weekday() — locale-independent: 0=Monday ... 5=Saturday
     DAY_MAP = {0: "mon", 1: "tue", 2: "wed", 3: "thu", 4: "fri", 5: "sat", 6: "sun"}
@@ -898,6 +1159,11 @@ def get_attendance_slots(
 
         start = s.start_time if isinstance(s.start_time, time_type) else s.start_time
         end   = s.end_time   if isinstance(s.end_time,   time_type) else s.end_time
+        start_str = start.strftime("%H:%M")
+
+        # If substitute, only show the periods they're covering
+        if is_substitute and substitute_periods and start_str not in substitute_periods:
+            continue
 
         # Allow marking from start_time until end of day (so staff can mark even slightly late)
         is_active = now_time >= start
@@ -905,20 +1171,29 @@ def get_attendance_slots(
         today_slots.append({
             "id": s.id,
             "day": slot_day,
-            "start_time": start.strftime("%H:%M"),
+            "start_time": start_str,
             "end_time":   end.strftime("%H:%M"),
             "room": s.room,
             "is_active": is_active,   # True = faculty can mark now
             "is_current": start <= now_time <= end,  # True = currently in this period
+            "is_substitute_period": is_substitute,
         })
 
     # Students in this section
-    students = db.query(Student).filter(
-        Student.section_id == assignment.section_id,
-        Student.is_active == True
-    ).order_by(Student.register_number).all()
+    if assignment.is_active:
+        students = db.query(Student).filter(
+            Student.section_id == assignment.section_id,
+            Student.is_active == True
+        ).order_by(Student.register_number).all()
+    else:
+        attended_student_ids = db.query(Attendance.student_id).filter(
+            Attendance.course_id == assignment.course_id,
+            Attendance.marked_by_id == assignment.faculty_id
+        ).distinct()
+        students = db.query(Student).filter(
+            Student.id.in_(attended_student_ids)
+        ).order_by(Student.register_number).all()
 
-    today = date_type.today()
     student_ids = [s.id for s in students]
     existing = {}
     if student_ids:
@@ -929,6 +1204,11 @@ def get_attendance_slots(
         ).all()
         existing = {r.student_id: r.status.value for r in records}
 
+    # Holiday check — Sundays or admin-marked dates
+    from app.core.holidays import is_holiday, get_holiday_name
+    today_is_holiday = is_holiday(today, db)
+    today_holiday_name = get_holiday_name(today, db) if today_is_holiday else None
+
     return {
         "today_slots": today_slots,
         "course_name": assignment.course.name,
@@ -936,6 +1216,10 @@ def get_attendance_slots(
         "section": f"{assignment.section.year} Year {assignment.section.name}" if assignment.section else "",
         "today": str(today),
         "today_day": today_name,
+        "is_substitute": is_substitute,
+        "is_holiday": today_is_holiday,
+        "holiday_name": today_holiday_name,
+
         "students": [
             {
                 "id": s.id,
@@ -947,6 +1231,7 @@ def get_attendance_slots(
             for s in students
         ]
     }
+
 
 
 @router.post("/courses/{assignment_id}/attendance")
@@ -973,8 +1258,7 @@ def save_course_attendance(
         raise HTTPException(status_code=404, detail="Faculty profile not found")
 
     assignment = db.query(CourseAssignment).filter(
-        CourseAssignment.id == assignment_id,
-        CourseAssignment.is_active == True
+        CourseAssignment.id == assignment_id
     ).first()
     
     if not assignment:
@@ -1000,6 +1284,17 @@ def save_course_attendance(
     department = db.query(Department).filter(Department.id == assignment.course.department_id).first()
     if department and department.attendance_closed:
         raise HTTPException(status_code=400, detail="Attendance marking is currently locked by the HOD.")
+
+    # Holiday guard — block attendance on Sundays and admin-marked holidays
+    from app.core.holidays import is_holiday, get_holiday_name
+    today_check = date_type.today()
+    if is_holiday(today_check, db):
+        hname = get_holiday_name(today_check, db) or "Holiday"
+        raise HTTPException(
+            status_code=400,
+            detail=f"Attendance cannot be marked on a holiday ({hname})."
+        )
+
 
     today = date_type.today()
     now_time = datetime.now().time()
@@ -1094,17 +1389,26 @@ def get_attendance_history(
         joinedload(CourseAssignment.section)
     ).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
     # All students in section
-    students = db.query(Student).filter(
-        Student.section_id == assignment.section_id,
-        Student.is_active == True
-    ).order_by(Student.register_number).all()
+    if assignment.is_active:
+        students = db.query(Student).filter(
+            Student.section_id == assignment.section_id,
+            Student.is_active == True
+        ).order_by(Student.register_number).all()
+    else:
+        # For archived courses, find students who had attendance marked by this faculty
+        attended_student_ids = db.query(Attendance.student_id).filter(
+            Attendance.course_id == assignment.course_id,
+            Attendance.marked_by_id == assignment.faculty_id
+        ).distinct()
+        students = db.query(Student).filter(
+            Student.id.in_(attended_student_ids)
+        ).order_by(Student.register_number).all()
     student_map = {s.id: f"{s.first_name} {s.last_name}" for s in students}
     reg_map     = {s.id: s.register_number for s in students}
 
@@ -1175,8 +1479,7 @@ def create_lms_resource(
     # Verify assignment belongs to this faculty
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     
     if not assignment:
@@ -1571,8 +1874,7 @@ def _get_assignment_for_faculty(assignment_id: int, faculty: Faculty, db: Sessio
         joinedload(CourseAssignment.section)
     ).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -1917,14 +2219,19 @@ def generate_student_report(
     
     from datetime import datetime, timedelta
     
+    from app.core.utils import get_sem_start_date
+    sem_start_date = get_sem_start_date(student.department_id, db)
+    
     # Get attendance data
     total_classes = db.query(Attendance).filter(
-        Attendance.student_id == student_id
+        Attendance.student_id == student_id,
+        Attendance.date >= sem_start_date
     ).count()
     
     present_classes = db.query(Attendance).filter(
         Attendance.student_id == student_id,
-        Attendance.status == AttendanceStatus.PRESENT
+        Attendance.status == AttendanceStatus.PRESENT,
+        Attendance.date >= sem_start_date
     ).count()
     
     attendance_percentage = round((present_classes / total_classes * 100), 1) if total_classes > 0 else 0
@@ -2091,8 +2398,7 @@ def get_assignment_grades(
     # Verify assignment belongs to this faculty
     course_assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not course_assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2168,8 +2474,7 @@ def save_assignment_grades(
 
     course_assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not course_assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2246,8 +2551,7 @@ def publish_assignment_grades(
 
     course_assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not course_assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2293,8 +2597,7 @@ def update_lms_resource(
     # Verify assignment belongs to this faculty
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2342,8 +2645,7 @@ def delete_lms_resource(
     # Verify assignment belongs to this faculty
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2388,8 +2690,7 @@ def get_seminar_roster(
     # Verify course assignment
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2439,8 +2740,7 @@ def save_seminar_draft(
         
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2495,8 +2795,7 @@ def publish_seminar_topics(
         
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")
@@ -2524,8 +2823,7 @@ def publish_seminar_marks(
         
     assignment = db.query(CourseAssignment).filter(
         CourseAssignment.id == assignment_id,
-        CourseAssignment.faculty_id == faculty.id,
-        CourseAssignment.is_active == True
+        CourseAssignment.faculty_id == faculty.id
     ).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Course assignment not found")

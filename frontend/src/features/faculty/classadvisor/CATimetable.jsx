@@ -34,13 +34,15 @@ const emptyGrid = () => {
 };
 
 export const CATimetable = () => {
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [slots, setSlots]   = useState([]);
   const [grid, setGrid]     = useState(emptyGrid());
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState(null);
 
   useEffect(() => {
-    axios.get('/api/class-advisor/timetable')
+    setLoading(true);
+    axios.get('/api/class-advisor/timetable', { params: { date: selectedDate } })
       .then(r => {
         setSlots(r.data);
 
@@ -61,7 +63,7 @@ export const CATimetable = () => {
       })
       .catch(() => setError('Failed to load timetable'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedDate]);
 
   if (loading) return <div className="p-8 text-center text-gray-500 font-medium">Loading...</div>;
   if (error)   return <div className="p-8 text-center text-red-500 font-medium">{error}</div>;
@@ -69,13 +71,24 @@ export const CATimetable = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-          <Calendar className="w-6 h-6" />
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+            <Calendar className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Class Timetable</h1>
+            <p className="text-gray-500 text-sm">Read-only view of your class schedule (with temporary changes)</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Class Timetable</h1>
-          <p className="text-gray-500 text-sm">Read-only view of your class schedule</p>
+        <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 border border-gray-200 rounded-xl shadow-sm">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">View Date:</span>
+          <input 
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="text-sm font-semibold text-slate-800 focus:outline-none bg-transparent cursor-pointer"
+          />
         </div>
       </div>
 

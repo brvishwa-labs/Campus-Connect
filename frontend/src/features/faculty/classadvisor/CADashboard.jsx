@@ -51,7 +51,7 @@ export const CADashboard = () => {
               {ci.department_code} — Section {ci.section_name}
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              Year {ci.year} · Sem {ci.semester} · Batch {ci.batch}
+              Year {ci.year} · Sem {ci.semester}
             </p>
           </div>
         </div>

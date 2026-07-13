@@ -92,7 +92,6 @@ def build_class_info(faculty: Faculty, section: Section, db: Session) -> ClassIn
         department_name=dept.name,
         department_code=dept.code,
         year=section.year,
-        batch=section.batch,
         semester=semester,
         total_students=total,
         advisor_name=f"{faculty.first_name} {faculty.last_name}"
@@ -336,24 +335,31 @@ def get_student_profile(
 
     dept = db.query(Department).filter(Department.id == student.department_id).first()
 
+    from app.core.utils import get_sem_start_date
+    sem_start_date = get_sem_start_date(student.department_id, db)
+
     # Attendance percentage - count all records
     total_days = db.query(Attendance).filter(
-        Attendance.student_id == student.id
+        Attendance.student_id == student.id,
+        Attendance.date >= sem_start_date
     ).count()
 
     present_days = db.query(Attendance).filter(
         Attendance.student_id == student.id,
-        Attendance.status == AttendanceStatus.PRESENT
+        Attendance.status == AttendanceStatus.PRESENT,
+        Attendance.date >= sem_start_date
     ).count()
     
     od_days = db.query(Attendance).filter(
         Attendance.student_id == student.id,
-        Attendance.status == AttendanceStatus.ON_DUTY
+        Attendance.status == AttendanceStatus.ON_DUTY,
+        Attendance.date >= sem_start_date
     ).count()
     
     late_days = db.query(Attendance).filter(
         Attendance.student_id == student.id,
-        Attendance.status == AttendanceStatus.LATE
+        Attendance.status == AttendanceStatus.LATE,
+        Attendance.date >= sem_start_date
     ).count()
     
     attended_days = present_days + od_days + late_days
@@ -419,8 +425,15 @@ def get_attendance_settings(
 ):
     _, section = get_advisor_section(current_user, db)
     department = db.query(Department).filter(Department.id == section.department_id).first()
+
+    from datetime import date as date_type
+    from app.core.holidays import is_holiday, get_holiday_name
+    today = date_type.today()
+
     return {
-        "attendance_closed": department.attendance_closed if department else False
+        "attendance_closed": department.attendance_closed if department else False,
+        "is_holiday": is_holiday(today, db),
+        "holiday_name": get_holiday_name(today, db),
     }
 
 
@@ -540,12 +553,22 @@ def save_attendance(
             detail="Attendance is locked for your department by the HOD."
         )
 
+    # Holiday guard — block attendance on Sundays and admin-marked holidays
+    from app.core.holidays import is_holiday, get_holiday_name
+    if is_holiday(payload.date, db):
+        hname = get_holiday_name(payload.date, db) or "Holiday"
+        raise HTTPException(
+            status_code=400,
+            detail=f"Attendance cannot be marked on a holiday ({hname})."
+        )
+
     # Only allow editing today's attendance
     if payload.date != date.today():
         raise HTTPException(
             status_code=400,
             detail="Attendance can only be marked or edited for today"
         )
+
 
     # Validate all students belong to this section
     section_student_ids = {
@@ -636,25 +659,32 @@ def get_attendance_summary(
     if assignment:
         homeroom_course_id = assignment.course_id
 
+    from app.core.utils import get_sem_start_date
+    sem_start_date = get_sem_start_date(section.department_id, db)
+
     result = []
     for s in students:
         total_days = db.query(Attendance).filter(
-            Attendance.student_id == s.id
+            Attendance.student_id == s.id,
+            Attendance.date >= sem_start_date
         ).count()
 
         present_days = db.query(Attendance).filter(
             Attendance.student_id == s.id,
-            Attendance.status == AttendanceStatus.PRESENT
+            Attendance.status == AttendanceStatus.PRESENT,
+            Attendance.date >= sem_start_date
         ).count()
         
         od_days = db.query(Attendance).filter(
             Attendance.student_id == s.id,
-            Attendance.status == AttendanceStatus.ON_DUTY
+            Attendance.status == AttendanceStatus.ON_DUTY,
+            Attendance.date >= sem_start_date
         ).count()
         
         late_days = db.query(Attendance).filter(
             Attendance.student_id == s.id,
-            Attendance.status == AttendanceStatus.LATE
+            Attendance.status == AttendanceStatus.LATE,
+            Attendance.date >= sem_start_date
         ).count()
         
         attended_days = present_days + od_days + late_days
@@ -677,6 +707,7 @@ def get_attendance_summary(
 
 @router.get("/timetable", response_model=List[CATimetableSlot])
 def get_timetable(
+    date: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -700,20 +731,121 @@ def get_timetable(
         TimetableSlot.course_assignment_id.in_(assignment_ids)
     ).order_by(TimetableSlot.day, TimetableSlot.start_time).all()
 
+    import datetime
+    if date:
+        try:
+            today = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        except Exception:
+            today = datetime.date.today()
+    else:
+        today = datetime.date.today()
+        
+    DAY_MAP = {
+        "MON": "Monday",
+        "TUE": "Tuesday",
+        "WED": "Wednesday",
+        "THU": "Thursday",
+        "FRI": "Friday",
+        "SAT": "Saturday",
+        "SUN": "Sunday"
+    }
+    today_weekday = today.strftime("%a").upper()
+    
+    from app.models.leave import FacultyDutyArrangement, FacultyLeaveRequest, LeaveStatus, ArrangementStatus
+    
     result = []
     for slot in slots:
         assignment = assignment_map.get(slot.course_assignment_id)
         if not assignment:
             continue
+            
+        day_val = (slot.day.value if hasattr(slot.day, 'value') else str(slot.day)).upper()
+        
+        course_name = assignment.course.name
+        course_code = assignment.course.short_name or assignment.course.code
+        faculty_name = f"{assignment.faculty.first_name} {assignment.faculty.last_name}"
+        
+        if day_val == today_weekday:
+            slot_start_str = slot.start_time.strftime("%H:%M") if slot.start_time else ""
+            slot_start_12h = slot.start_time.strftime("%I:%M %p") if slot.start_time else ""
+            
+            # Case A: Scheduled faculty is on leave today, B substitutes
+            sub_arr = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
+                FacultyLeaveRequest.faculty_id == assignment.faculty_id,
+                FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+                FacultyLeaveRequest.from_date <= today,
+                FacultyLeaveRequest.to_date >= today,
+                FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED
+            ).all()
+            
+            matched_sub = None
+            for sa in sub_arr:
+                if sa.period and slot_start_str in sa.period:
+                    matched_sub = sa
+                    break
+            
+            if matched_sub:
+                sub_fac = db.query(Faculty).filter(Faculty.id == matched_sub.substitute_faculty_id).first()
+                if sub_fac:
+                    faculty_name = f"{sub_fac.first_name} {sub_fac.last_name}"
+                    sub_assign = db.query(CourseAssignment).options(joinedload(CourseAssignment.course)).filter(
+                        CourseAssignment.faculty_id == sub_fac.id,
+                        CourseAssignment.section_id == section.id,
+                        CourseAssignment.is_active == True
+                    ).first()
+                    if sub_assign:
+                        course_name = sub_assign.course.name
+                        course_code = sub_assign.course.short_name or sub_assign.course.code
+                    else:
+                        first_assign = db.query(CourseAssignment).options(joinedload(CourseAssignment.course)).filter(
+                            CourseAssignment.faculty_id == sub_fac.id,
+                            CourseAssignment.is_active == True
+                        ).first()
+                        if first_assign:
+                            course_name = first_assign.course.name
+                            course_code = first_assign.course.short_name or first_assign.course.code
+                            
+            # Case B: Compensation day, A compensates B
+            comp_arr = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
+                FacultyDutyArrangement.substitute_faculty_id == assignment.faculty_id,
+                FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
+                FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+                FacultyDutyArrangement.compensation_date == today
+            ).all()
+            
+            matched_comp = None
+            for ca in comp_arr:
+                if ca.compensation_period and (slot_start_str in ca.compensation_period or slot_start_12h in ca.compensation_period):
+                    matched_comp = ca
+                    break
+                    
+            if matched_comp:
+                leave_fac = db.query(Faculty).filter(Faculty.id == matched_comp.leave_request.faculty_id).first()
+                if leave_fac:
+                    faculty_name = f"{leave_fac.first_name} {leave_fac.last_name}"
+                    leave_assign = db.query(CourseAssignment).options(joinedload(CourseAssignment.course)).filter(
+                        CourseAssignment.faculty_id == leave_fac.id,
+                        CourseAssignment.section_id == section.id,
+                        CourseAssignment.is_active == True
+                    ).first()
+                    if leave_assign:
+                        course_name = leave_assign.course.name
+                        course_code = leave_assign.course.short_name or leave_assign.course.code
+                    else:
+                        course_code = matched_comp.subject
+                        from app.models.academic import Course
+                        c_model = db.query(Course).filter(Course.code == matched_comp.subject).first()
+                        course_name = c_model.name if c_model else matched_comp.subject
+                        
         result.append(CATimetableSlot(
             id=slot.id,
-            day=slot.day.value if hasattr(slot.day, 'value') else slot.day,
+            day=day_val.lower(),
             start_time=slot.start_time.strftime("%H:%M") if hasattr(slot.start_time, 'strftime') else str(slot.start_time),
             end_time=slot.end_time.strftime("%H:%M") if hasattr(slot.end_time, 'strftime') else str(slot.end_time),
             room=slot.room,
-            subject_code=assignment.course.short_name or assignment.course.code,
-            subject_name=assignment.course.name,
-            faculty_name=f"{assignment.faculty.first_name} {assignment.faculty.last_name}"
+            subject_code=course_code,
+            subject_name=course_name,
+            faculty_name=faculty_name
         ))
 
     return result

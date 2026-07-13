@@ -136,6 +136,25 @@ def get_om_gatepasses(
         GatePass.is_deleted_by_student == False
     ).order_by(GatePass.created_at.desc()).all()
 
+@router.get("/tracking", response_model=List[GatePassResponse])
+def get_tracking(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Global tracking endpoint for HR and other authorities to fetch all gate passes."""
+    if current_user.role != UserRole.AUTHORITY:
+        raise HTTPException(status_code=403, detail="Only Authorities can view global gate pass tracking")
+        
+    return db.query(GatePass).options(
+        joinedload(GatePass.student).joinedload(Student.department),
+        joinedload(GatePass.mentor),
+        joinedload(GatePass.hod),
+        joinedload(GatePass.om)
+    ).filter(
+        GatePass.is_deleted_by_student == False
+    ).order_by(GatePass.created_at.desc()).all()
+
+
 @router.put("/{gatepass_id}/approve", response_model=GatePassResponse)
 def approve_gatepass(
     gatepass_id: int,

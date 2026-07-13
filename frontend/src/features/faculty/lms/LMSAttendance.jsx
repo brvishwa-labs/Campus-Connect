@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { Users, ArrowLeft, CheckCircle, XCircle, Save, BookOpen, Layers } from 'lucide-react';
+import { Users, ArrowLeft, CheckCircle, XCircle, Save, BookOpen, Layers, CalendarOff } from 'lucide-react';
+
 
 export const LMSAttendance = () => {
   const { assignmentId } = useParams();
@@ -119,8 +120,43 @@ export const LMSAttendance = () => {
   const canMark = data?.today_slots?.some(s => s.is_active);
   const nextSlot = data?.today_slots?.find(s => !s.is_active);
 
+  // ── Holiday banner ──────────────────────────────────────────
+  if (data?.is_holiday) {
+    const holidayName = data.holiday_name || 'Holiday';
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-8">
+        <div className="mb-6">
+          <Link
+            to={`/faculty/courses/${assignmentId}/lms`}
+            className="text-gray-500 hover:text-green-600 transition-colors flex items-center gap-1 text-sm font-medium"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+          </Link>
+        </div>
+        <div className="flex flex-col items-center justify-center text-center bg-gradient-to-br from-red-50 to-orange-50 border border-red-100 rounded-2xl p-12 space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center">
+            <CalendarOff className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Today is a Holiday</h2>
+          <p className="text-lg font-semibold text-red-600">{holidayName}</p>
+          <p className="text-sm text-gray-500 max-w-sm">
+            No attendance is required for today. Attendance marking is disabled on holidays.
+          </p>
+          <Link
+            to={`/faculty/courses/${assignmentId}/lms`}
+            className="mt-4 px-6 py-2.5 bg-white border border-gray-200 text-gray-700 font-semibold text-sm rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
+          >
+            Return to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  // ── End holiday banner ──────────────────────────────────────
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-4 md:p-6 lg:p-8">
+
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
@@ -138,6 +174,19 @@ export const LMSAttendance = () => {
           <p className="text-sm text-gray-500 mt-1">Mark attendance for today's lecture or lab sessions.</p>
         </div>
       </div>
+
+      {/* Substitute Notice */}
+      {data?.is_substitute && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-5 py-4">
+          <span className="text-xl mt-0.5">🔄</span>
+          <div>
+            <p className="font-bold text-sm">You are marking attendance as a Substitute Faculty</p>
+            <p className="text-xs mt-0.5 text-amber-700">
+              The original faculty is on approved leave today. You are authorised to mark attendance for this course for your assigned periods only.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-6">
         {/* Course info + period status */}

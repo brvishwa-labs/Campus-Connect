@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { BookOpen, Users, Edit3, TrendingUp, Building2, GraduationCap } from 'lucide-react';
+import { HolidayCalendar } from '../admin/HolidayCalendar';
+
 
 const KPICard = ({ title, value, icon: Icon, colorClass, bgColorClass }) => (
   <div className="bg-white rounded-[20px] shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-gray-100 p-6 flex items-center space-x-5 transition-transform hover:translate-y-[-2px]">
@@ -141,6 +143,10 @@ export const AdminDashboard = () => {
             </div>
         </div>
       </div>
+
+      {/* ── Holiday Calendar ─────────────────────────── */}
+      <HolidayCalendar />
     </div>
   );
 };
+

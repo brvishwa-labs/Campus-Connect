@@ -106,21 +106,28 @@ def get_leave_preparation_data(
             "id": f.id,
             "name": f"{f.first_name} {f.last_name}",
             "designation": f.designation,
-            "department": dept.name if dept else "N/A"
+            "department": dept.name if dept else "N/A",
+            "department_id": f.department_id  # Add department_id for filtering
         })
         
     # Pre-fetch data for substitute filtering
     other_faculty_ids = [f["id"] for f in faculty_list]
-    active_assignments = db.query(CourseAssignment).filter(
+    
+    # Get only active course assignments to ensure we only suggest faculty currently teaching this class
+    all_assignments = db.query(CourseAssignment).filter(
         CourseAssignment.faculty_id.in_(other_faculty_ids),
         CourseAssignment.is_active == True
     ).all()
     
+    # Build faculty_sections mapping (include all assignments, active or not)
     faculty_sections = {}
-    for a in active_assignments:
+    for a in all_assignments:
         if a.faculty_id not in faculty_sections:
             faculty_sections[a.faculty_id] = set()
         faculty_sections[a.faculty_id].add(a.section_id)
+    
+    # Filter to only active assignments for timetable checking
+    active_assignments = [a for a in all_assignments if a.is_active]
         
     assignment_to_faculty = {a.id: a.faculty_id for a in active_assignments}
     all_slots = db.query(TimetableSlot).filter(
@@ -141,7 +148,13 @@ def get_leave_preparation_data(
         target_section_id = item.get("_section_id")
         for f in faculty_list:
             fid = f["id"]
-            # Check overlap
+            
+            # FILTER: Only include faculty who teach this specific section
+            teaches_this_section = target_section_id in faculty_sections.get(fid, set())
+            if not teaches_this_section:
+                continue  # Skip faculty who don't teach this section
+            
+            # Check if faculty is busy at this time
             is_busy = False
             if fid in faculty_busy_slots:
                 for bs in faculty_busy_slots[fid]:
@@ -152,13 +165,12 @@ def get_leave_preparation_data(
                                 break
             
             if not is_busy:
-                teaches_class = target_section_id in faculty_sections.get(fid, set())
                 sub_info = dict(f)
-                sub_info["teaches_this_class"] = teaches_class
+                sub_info["teaches_this_class"] = True  # All filtered faculty teach this section
                 item["available_substitutes"].append(sub_info)
                 
-        # Sort so those who teach class appear first
-        item["available_substitutes"].sort(key=lambda x: not x["teaches_this_class"])
+        # Sort by name if needed
+        item["available_substitutes"].sort(key=lambda x: x["name"])
         
         # Remove internal fields
         item.pop("_section_id", None)
@@ -176,33 +188,178 @@ def get_leave_preparation_data(
         dept = db.query(Department).filter(Department.id == sec.department_id).first()
         
         # Compute available_substitutes for class advisor
+        # FILTER: Only faculty from the same department
         available_subs = []
         for f in faculty_list:
+            # Only include faculty from the same department as the section
+            if f.get("department_id") != sec.department_id:
+                continue
+            
             fid = f["id"]
             teaches_class = sec.id in faculty_sections.get(fid, set())
             sub_info = dict(f)
             sub_info["teaches_this_class"] = teaches_class
+            # Remove department_id from response (internal use only)
+            sub_info.pop("department_id", None)
             available_subs.append(sub_info)
-        available_subs.sort(key=lambda x: not x["teaches_this_class"])
+        
+        # Sort: those who teach the class first, then by name
+        available_subs.sort(key=lambda x: (not x["teaches_this_class"], x["name"]))
         
         class_advisor_duties.append({
             "section_id": sec.id,
             "section_name": sec.name,
             "year": sec.year,
-            "batch": sec.batch,
+            "year": sec.year,
             "department": dept.name if dept else "N/A",
             "class_display": f"{dept.code if dept else 'Dept'} Year-{sec.year} {sec.name}",
             "duty_type": "Class Advisor",
             "available_substitutes": available_subs
         })
     
+    # Filter available_faculty to only include those who teach the same sections
+    # Get all section IDs that the requesting faculty teaches
+    my_section_ids = set()
+    for item in my_schedule:
+        if "_section_id" in item or "section_id" in item:
+            # If we still have the section_id before cleanup
+            pass
+    
+    # Re-fetch sections for the current faculty
+    my_assignments = db.query(CourseAssignment).filter(
+        CourseAssignment.faculty_id == faculty.id,
+        CourseAssignment.is_active == True
+    ).all()
+    
+    for assignment in my_assignments:
+        my_section_ids.add(assignment.section_id)
+    
+    # Also add sections where faculty is class advisor
+    for sec in advised_sections:
+        my_section_ids.add(sec.id)
+    
+    # Filter faculty_list to only include those who teach at least one of my sections
+    filtered_faculty_list = []
+    for f in faculty_list:
+        fid = f["id"]
+        # Check if this faculty teaches any of my sections
+        if fid in faculty_sections:
+            common_sections = my_section_ids.intersection(faculty_sections[fid])
+            if common_sections:
+                f_copy = dict(f)
+                f_copy["teaches_same_section"] = True
+                # Remove department_id before sending to frontend
+                f_copy.pop("department_id", None)
+                filtered_faculty_list.append(f_copy)
+    
+    # If filtered list is empty, fall back to all faculty (to avoid blocking the request)
+    if not filtered_faculty_list:
+        filtered_faculty_list = faculty_list
+    
     return {
         "my_schedule": my_schedule,
-        "available_faculty": faculty_list,
+        "available_faculty": filtered_faculty_list,
         "class_advisor_duties": class_advisor_duties,
         "total_periods_to_cover": len(my_schedule),
         "requires_class_advisor_substitute": len(class_advisor_duties) > 0
     }
+
+from pydantic import BaseModel
+from typing import Optional, List
+
+class CompensationRequest(BaseModel):
+    to_date: str
+    substitute_ids: List[Optional[int]]
+
+@router.post("/calculate-compensations")
+def calculate_compensations(
+    req: CompensationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from datetime import datetime, timedelta
+    from app.models.lms import TimetableSlot
+    from app.models.academic import CourseAssignment
+    
+    try:
+        end_date = datetime.strptime(req.to_date, "%Y-%m-%d").date()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid to_date format. Use YYYY-MM-DD")
+        
+    WEEKDAY_MAP = {
+        0: "mon",
+        1: "tue",
+        2: "wed",
+        3: "thu",
+        4: "fri",
+        5: "sat",
+        6: "sun"
+    }
+    
+    unique_sub_ids = list(set([sid for sid in req.substitute_ids if sid]))
+    sub_slots_map = {}
+    
+    for sub_id in unique_sub_ids:
+        sub_assignments = db.query(CourseAssignment).filter(
+            CourseAssignment.faculty_id == sub_id,
+            CourseAssignment.is_active == True
+        ).all()
+        sub_assign_ids = [a.id for a in sub_assignments]
+        
+        slots = db.query(TimetableSlot).filter(
+            TimetableSlot.course_assignment_id.in_(sub_assign_ids)
+        ).all()
+        
+        found_slots = []
+        current_date = end_date + timedelta(days=1)
+        
+        for _ in range(30):
+            day_str = WEEKDAY_MAP.get(current_date.weekday())
+            day_slots = [s for s in slots if (s.day.value.lower() if hasattr(s.day, 'value') else str(s.day).lower()) == day_str]
+            day_slots.sort(key=lambda s: s.start_time if s.start_time else datetime.min.time())
+            
+            for ds in day_slots:
+                start_str = ds.start_time.strftime('%I:%M %p') if ds.start_time else ""
+                end_str = ds.end_time.strftime('%I:%M %p') if ds.end_time else ""
+                found_slots.append({
+                    "compensation_date": current_date.strftime("%Y-%m-%d"),
+                    "compensation_period": f"{start_str} - {end_str}" if start_str and end_str else ""
+                })
+            current_date += timedelta(days=1)
+            
+        sub_slots_map[sub_id] = found_slots
+
+    results = []
+    sub_occurrence_counters = {}
+    
+    for sub_id in req.substitute_ids:
+        if not sub_id:
+            results.append({
+                "substitute_faculty_id": None,
+                "compensation_date": None,
+                "compensation_period": None
+            })
+            continue
+            
+        idx = sub_occurrence_counters.get(sub_id, 0)
+        sub_occurrence_counters[sub_id] = idx + 1
+        
+        sub_slots = sub_slots_map.get(sub_id, [])
+        if idx < len(sub_slots):
+            slot_info = sub_slots[idx]
+            results.append({
+                "substitute_faculty_id": sub_id,
+                "compensation_date": slot_info["compensation_date"],
+                "compensation_period": slot_info["compensation_period"]
+            })
+        else:
+            results.append({
+                "substitute_faculty_id": sub_id,
+                "compensation_date": None,
+                "compensation_period": None
+            })
+            
+    return results
 
 @router.get("/balances", response_model=FacultyLeaveBalanceResponse)
 def get_leave_balances(
@@ -306,6 +463,89 @@ def create_leave_request(
     if not request.arrangements or len(request.arrangements) == 0:
         raise HTTPException(status_code=400, detail="At least one substitute arrangement must be provided")
 
+    # CHECK LEAVE BALANCE BEFORE CREATING REQUEST
+    import datetime
+    today = datetime.date.today()
+    academic_year = "2023-2024"
+    
+    balance = db.query(FacultyLeaveBalance).filter(
+        FacultyLeaveBalance.faculty_id == faculty.id,
+        FacultyLeaveBalance.academic_year == academic_year
+    ).first()
+    
+    if not balance:
+        balance = FacultyLeaveBalance(faculty_id=faculty.id, academic_year=academic_year)
+        db.add(balance)
+        db.commit()
+        db.refresh(balance)
+    
+    leave_type_lower = request.leave_type.lower()
+    
+    # Check Casual Leave (1 per month)
+    if "casual" in leave_type_lower:
+        start_of_month = datetime.date(today.year, today.month, 1)
+        if today.month == 12:
+            end_of_month = datetime.date(today.year + 1, 1, 1)
+        else:
+            end_of_month = datetime.date(today.year, today.month + 1, 1)
+        
+        monthly_casual_reqs = db.query(FacultyLeaveRequest).filter(
+            FacultyLeaveRequest.faculty_id == faculty.id,
+            FacultyLeaveRequest.leave_type == "Casual Leave",
+            FacultyLeaveRequest.status.in_([LeaveStatus.APPROVED, LeaveStatus.PENDING_SUBSTITUTE, LeaveStatus.PENDING_HOD, LeaveStatus.PENDING_DEAN, LeaveStatus.PENDING_OM]),
+            FacultyLeaveRequest.from_date >= start_of_month,
+            FacultyLeaveRequest.from_date < end_of_month
+        ).all()
+        casual_used_this_month = sum(r.duration_days for r in monthly_casual_reqs)
+        
+        if casual_used_this_month + duration > 1:
+            raise HTTPException(status_code=400, detail=f"Insufficient Casual Leave balance. You have already used {casual_used_this_month} day(s) this month. Only 1 day per month is allowed.")
+    
+    # Check Restricted Leave (1 per semester)
+    elif "restricted" in leave_type_lower or "rh" in leave_type_lower:
+        if today.month <= 6:
+            start_of_sem = datetime.date(today.year, 1, 1)
+            end_of_sem = datetime.date(today.year, 7, 1)
+        else:
+            start_of_sem = datetime.date(today.year, 7, 1)
+            end_of_sem = datetime.date(today.year + 1, 1, 1)
+        
+        sem_restricted_reqs = db.query(FacultyLeaveRequest).filter(
+            FacultyLeaveRequest.faculty_id == faculty.id,
+            FacultyLeaveRequest.leave_type == "Restricted Leave",
+            FacultyLeaveRequest.status.in_([LeaveStatus.APPROVED, LeaveStatus.PENDING_SUBSTITUTE, LeaveStatus.PENDING_HOD, LeaveStatus.PENDING_DEAN, LeaveStatus.PENDING_OM]),
+            FacultyLeaveRequest.from_date >= start_of_sem,
+            FacultyLeaveRequest.from_date < end_of_sem
+        ).all()
+        restricted_used_this_sem = sum(r.duration_days for r in sem_restricted_reqs)
+        
+        if restricted_used_this_sem + duration > 1:
+            raise HTTPException(status_code=400, detail=f"Insufficient Restricted Leave balance. You have already used {restricted_used_this_sem} day(s) this semester. Only 1 day per semester is allowed.")
+    
+    # Check Earned Leave (accrued monthly)
+    elif "earned" in leave_type_lower:
+        months_elapsed = today.month - 6 + 1 if today.month >= 6 else today.month + 7
+        earned_available = months_elapsed - balance.earned_leaves_used
+        
+        if duration > earned_available:
+            raise HTTPException(status_code=400, detail=f"Insufficient Earned Leave balance. You have {earned_available} day(s) available (accrued: {months_elapsed}, used: {balance.earned_leaves_used}).")
+    
+    # Check other leave types
+    elif "vacation" in leave_type_lower:
+        vacation_available = balance.vacation_leaves_total - balance.vacation_leaves_used
+        if duration > vacation_available:
+            raise HTTPException(status_code=400, detail=f"Insufficient Vacation Leave balance. Available: {vacation_available} days.")
+    
+    elif "compensation" in leave_type_lower:
+        comp_available = balance.compensation_leaves_total - balance.compensation_leaves_used
+        if duration > comp_available:
+            raise HTTPException(status_code=400, detail=f"Insufficient Compensation Leave balance. Available: {comp_available} days.")
+    
+    elif "sick" in leave_type_lower or "medical" in leave_type_lower:
+        sick_available = balance.sick_leaves_total - balance.sick_leaves_used
+        if duration > sick_available:
+            raise HTTPException(status_code=400, detail=f"Insufficient Sick Leave balance. Available: {sick_available} days.")
+
     # Create the request with PENDING_SUBSTITUTE status
     # It will only move to PENDING_HOD after all substitutes accept
     leave_req = FacultyLeaveRequest(
@@ -329,6 +569,9 @@ def create_leave_request(
             subject=arr.subject,
             class_section=arr.class_section,
             period=arr.period,
+            day=arr.day,
+            compensation_date=arr.compensation_date,
+            compensation_period=arr.compensation_period,
             status=ArrangementStatus.PENDING
         )
         db.add(duty)
@@ -410,6 +653,9 @@ def update_leave_request(
             subject=arr.subject,
             class_section=arr.class_section,
             period=arr.period,
+            day=arr.day,
+            compensation_date=arr.compensation_date,
+            compensation_period=arr.compensation_period,
             status=ArrangementStatus.PENDING
         )
         db.add(duty)
@@ -548,6 +794,9 @@ def get_substitute_requests(
                     "subject": arr.subject,
                     "class_section": arr.class_section,
                     "period": arr.period,
+                    "day": arr.day,
+                    "compensation_date": arr.compensation_date,
+                    "compensation_period": arr.compensation_period,
                     "status": arr.status,
                     "substitute_faculty_name": f"{sub.first_name} {sub.last_name}" if sub else "Unknown",
                     "created_at": arr.created_at,

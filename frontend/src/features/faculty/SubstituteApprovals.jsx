@@ -90,6 +90,11 @@ export const SubstituteApprovals = () => {
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">Subject & Class</p>
                       <p className="text-sm font-bold text-gray-800">{arr.subject} — {arr.class_section}</p>
                       <p className="text-xs text-gray-500 mt-1 flex items-center"><Clock className="w-3.5 h-3.5 mr-1"/> Period: {arr.period}</p>
+                      {arr.compensation_date && (
+                        <p className="text-xs text-indigo-600 font-semibold mt-1 flex items-center">
+                          🔄 Compensated on {new Date(arr.compensation_date).toLocaleDateString()} during Period: {arr.compensation_period}
+                        </p>
+                      )}
                     </div>
                     {arr.status?.toLowerCase() === 'pending' ? (
                       <div className="flex space-x-2 w-full sm:w-auto">

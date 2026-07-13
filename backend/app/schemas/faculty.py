@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 
 class FacultyBase(BaseModel):
@@ -13,6 +13,19 @@ class FacultyBase(BaseModel):
     specialization: Optional[str] = None
     gender: Optional[str] = None
     joining_date: Optional[date] = None
+    
+    # New Fields
+    pan_card: Optional[str] = None
+    aadhar_number: Optional[str] = None
+    accommodation: Optional[str] = None
+    transportation: Optional[str] = None
+    bus_number: Optional[str] = None
+    mother_name: Optional[str] = None
+    father_name: Optional[str] = None
+    
+    emergency_contacts: Optional[List[Dict[str, Any]]] = None
+    academic_history: Optional[Dict[str, Any]] = None
+    past_experience: Optional[List[Dict[str, Any]]] = None
 
 class FacultyCreate(FacultyBase):
     # Initial password for the user account
@@ -28,6 +41,19 @@ class FacultyUpdate(BaseModel):
     designation: Optional[str] = None
     specialization: Optional[str] = None
     gender: Optional[str] = None
+    
+    pan_card: Optional[str] = None
+    aadhar_number: Optional[str] = None
+    accommodation: Optional[str] = None
+    transportation: Optional[str] = None
+    bus_number: Optional[str] = None
+    mother_name: Optional[str] = None
+    father_name: Optional[str] = None
+    
+    emergency_contacts: Optional[List[Dict[str, Any]]] = None
+    academic_history: Optional[Dict[str, Any]] = None
+    past_experience: Optional[List[Dict[str, Any]]] = None
+    
     is_active: Optional[bool] = None
 
 class FacultyResponse(FacultyBase):
@@ -51,7 +77,6 @@ class SimpleSection(BaseModel):
     id: int
     name: str
     year: int
-    batch: str
 
 class CourseAssignmentFacultyResponse(BaseModel):
     id: int

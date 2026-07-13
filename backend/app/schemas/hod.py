@@ -6,12 +6,10 @@ from datetime import datetime
 class SectionCreate(BaseModel):
     name: str           # A, B, C
     year: int           # 1, 2, 3, 4
-    batch: str          # "2023-2027"
 
 class SectionUpdate(BaseModel):
     name: Optional[str] = None
     year: Optional[int] = None
-    batch: Optional[str] = None
     class_advisor_id: Optional[int] = None
 
 class BasicFacultyResponse(BaseModel):
@@ -25,7 +23,6 @@ class SectionResponse(BaseModel):
     department_id: int
     name: str
     year: int
-    batch: str
     class_advisor_id: Optional[int] = None
     class_advisor: Optional[BasicFacultyResponse] = None
     is_active: bool

@@ -65,6 +65,7 @@ const ROLE_NAV_LINKS = {
   ],
   authority: [
     { name: 'Dashboard', path: '/authority', icon: LayoutDashboard },
+    { name: 'Faculty Directory', path: '/authority/faculty', icon: Users },
     { name: 'Analytics', path: '/authority/analytics', icon: BookOpen },
     { name: 'Discipline', path: '/authority/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/authority/latetracker', icon: Clock },
@@ -202,6 +203,7 @@ export default function DashboardLayout() {
   }, []);
 
   const handleBellClick = () => {
+    setIsUserMenuOpen(false); // close profile menu first
     setIsNotificationsOpen(prev => !prev);
     if (!isNotificationsOpen && notifications.length > 0) {
       const newestTime = new Date(notifications[0].created_at).getTime();
@@ -220,6 +222,12 @@ export default function DashboardLayout() {
   
   if (user.role === 'authority') {
     const title = user.title ? user.title.toLowerCase().trim() : '';
+    
+    // Filter Faculty menu - only for Dean, Principal, and OM
+    if (title !== 'dean' && title !== 'principal' && title !== 'office manager') {
+      navLinks = navLinks.filter(link => link.name !== 'Faculty Directory');
+    }
+    
     if (title !== 'office manager') {
       navLinks = navLinks.filter(link => link.name !== 'Gate Pass Approvals');
     }
@@ -234,6 +242,16 @@ export default function DashboardLayout() {
         name: 'Faculty Leaves',
         path: '/hr/leaves',
         icon: Calendar
+      });
+      navLinks.push({
+        name: 'Gatepass Tracking',
+        path: '/hr/gatepass',
+        icon: Clock
+      });
+      navLinks.push({
+        name: 'Faculty Directory',
+        path: '/hr/faculty',
+        icon: Users
       });
     }
     if (title === 'dean') {
@@ -283,14 +301,14 @@ export default function DashboardLayout() {
       {/* Mobile Backdrop */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-gray-900/50 z-40 lg:hidden transition-opacity backdrop-blur-sm"
+          className="fixed inset-0 bg-gray-900/50 z-[104] lg:hidden transition-opacity backdrop-blur-sm"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside 
-        className={`fixed inset-y-0 left-0 w-[280px] bg-white border-r border-gray-200 flex flex-col z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-auto lg:flex-shrink-0 ${
+        className={`fixed inset-y-0 left-0 w-[280px] bg-white border-r border-gray-200 flex flex-col z-[105] transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-auto lg:flex-shrink-0 ${
           isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >
@@ -304,12 +322,6 @@ export default function DashboardLayout() {
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1 ml-1.5">
             {user.role} Portal
           </p>
-          <button 
-            className="absolute right-4 top-1/2 -translate-y-1/2 lg:hidden text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100"
-            onClick={() => setIsMobileMenuOpen(false)}
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
         
         <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
@@ -431,7 +443,7 @@ export default function DashboardLayout() {
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         
         {/* Top Header */}
-        <header className="h-[72px] bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-8 z-10 flex-shrink-0">
+        <header className="h-[72px] bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-8 z-[100] flex-shrink-0 relative">
           <div className="flex items-center space-x-3">
             <button 
               className="lg:hidden p-2 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors relative"
@@ -469,7 +481,13 @@ export default function DashboardLayout() {
               </button>
               
               {isNotificationsOpen && (
-                <div className="fixed bottom-auto left-1 right-1 top-20 sm:absolute sm:left-auto sm:right-0 sm:top-14 sm:w-80 bg-white rounded-[20px] shadow-[0_4px_20px_rgb(0,0,0,0.08)] border border-gray-100 z-50 overflow-hidden transform sm:origin-top-right transition-all">
+                <>
+                  {/* Mobile backdrop */}
+                  <div
+                    className="fixed inset-0 z-[98] sm:hidden"
+                    onClick={() => setIsNotificationsOpen(false)}
+                  />
+                  <div className="fixed left-2 right-2 top-[72px] sm:absolute sm:left-auto sm:right-0 sm:top-14 sm:w-80 bg-white rounded-[20px] shadow-[0_4px_20px_rgb(0,0,0,0.15)] border border-gray-100 z-[99] overflow-hidden sm:origin-top-right">
                   <div className="px-3 sm:px-5 py-2.5 sm:py-3 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center gap-1">
                     <h3 className="text-xs sm:text-sm font-bold text-gray-900 truncate">Notifications</h3>
                     <span className="text-[8px] sm:text-[9px] bg-primary-50 text-primary-600 px-1.5 sm:px-2 py-0.5 rounded-full font-bold uppercase tracking-wide whitespace-nowrap flex-shrink-0">
@@ -535,12 +553,16 @@ export default function DashboardLayout() {
                     </button>
                   </div>
                 </div>
+                </>
               )}
             </div>
             
             <div className="relative flex items-center pl-6 border-l border-gray-200" ref={userMenuRef}>
               <button
-                onClick={() => setIsUserMenuOpen(prev => !prev)}
+                onClick={() => setIsUserMenuOpen(prev => {
+                  if (!prev) setIsNotificationsOpen(false); // close notifications when opening profile
+                  return !prev;
+                })}
                 className="flex items-center gap-3 cursor-pointer group focus:outline-none"
               >
                 <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white font-bold text-sm shadow-md group-hover:scale-105 transition-transform">
@@ -557,35 +579,42 @@ export default function DashboardLayout() {
 
               {/* Dropdown */}
               {userMenuVisible && (
-                <div
-                  className={`absolute right-0 top-full mt-2 w-48 bg-white dark:bg-[#1c1c1e]/90 dark:backdrop-blur-xl rounded-2xl shadow-xl border border-gray-100 py-2 z-50 transition-all duration-150 origin-top-right ${
-                    isUserMenuOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-1'
-                  }`}
-                >
-                  <div className="px-4 py-2 border-b border-gray-100 mb-1">
-                    <p className="text-xs font-bold text-gray-900 truncate">{user.email}</p>
-                    <p className="text-xs text-gray-400 capitalize">{user.role}</p>
+                <>
+                  {/* Mobile backdrop - closes menu when tapping outside */}
+                  <div
+                    className="fixed inset-0 z-[98] sm:hidden"
+                    onClick={() => setIsUserMenuOpen(false)}
+                  />
+                  <div
+                    className={`fixed right-2 top-[72px] w-52 sm:absolute sm:right-0 sm:top-full sm:mt-2 bg-white dark:bg-[#1c1c1e]/90 dark:backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-100 py-2 z-[99] transition-all duration-150 origin-top-right ${
+                      isUserMenuOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
+                    }`}
+                  >
+                    <div className="px-4 py-2 border-b border-gray-100 mb-1">
+                      <p className="text-xs font-bold text-gray-900 truncate">{user.email}</p>
+                      <p className="text-xs text-gray-400 capitalize">{user.role}</p>
+                    </div>
+                    <button
+                      onClick={() => { setIsUserMenuOpen(false); navigate(`/${user.role}/profile`); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-900 hover:bg-gray-50 dark:hover:bg-gray-100/50 transition-colors rounded-xl"
+                    >
+                      <User className="w-4 h-4 text-gray-400 dark:text-gray-500" /> Profile
+                    </button>
+                    <button
+                      onClick={() => { setIsUserMenuOpen(false); logout(); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors rounded-xl"
+                    >
+                      <LogOut className="w-4 h-4" /> Logout
+                    </button>
                   </div>
-                  <button
-                    onClick={() => { setIsUserMenuOpen(false); navigate(`/${user.role}/profile`); }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-900 hover:bg-gray-50 dark:hover:bg-gray-100/50 transition-colors rounded-xl"
-                  >
-                    <User className="w-4 h-4 text-gray-400 dark:text-gray-500" /> Profile
-                  </button>
-                  <button
-                    onClick={() => { setIsUserMenuOpen(false); logout(); }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors rounded-xl"
-                  >
-                    <LogOut className="w-4 h-4" /> Logout
-                  </button>
-                </div>
+                </>
               )}
             </div>
           </div>
         </header>
 
         {/* Scrollable Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8 relative">
+        <main className={`flex-1 overflow-y-auto p-4 sm:p-8 relative ${isUserMenuOpen ? 'pointer-events-none sm:pointer-events-auto' : ''}`}>
           <div className="max-w-[1200px] mx-auto pb-12">
             <Outlet />
           </div>

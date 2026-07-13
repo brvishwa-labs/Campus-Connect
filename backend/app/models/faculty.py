@@ -44,14 +44,29 @@ class Faculty(Base):
     state = Column(String(100), nullable=True)
     pincode = Column(String(10), nullable=True)
 
-    # --- Professional Details ---
+    # --- Parent / Guardian Details ---
+    mother_name = Column(String(150), nullable=True)
+    father_name = Column(String(150), nullable=True)
+
+    # --- Transportation & Accommodation ---
+    accommodation = Column(String(50), nullable=True)     # Hostel / Day Scholar
+    transportation = Column(String(50), nullable=True)    # OWN / BUS
+    bus_number = Column(String(50), nullable=True)
+
+    # --- Professional & Academic Details ---
     employee_id = Column(String(50), unique=True, nullable=False)
     designation = Column(String(100), nullable=True)      # Asst. Prof / Assoc. Prof / Prof
     qualification = Column(String(200), nullable=True)    # M.Tech, Ph.D, etc.
     specialization = Column(String(200), nullable=True)
     experience_years = Column(Integer, nullable=True)
     date_of_joining = Column(Date, nullable=True)
-    employment_type = Column(String(50), nullable=True)   # Permanent / Contract / Visiting
+    pan_card = Column(String(50), nullable=True)
+    aadhar_number = Column(String(12), nullable=True)
+    
+    from sqlalchemy.dialects.postgresql import JSON
+    emergency_contacts = Column(JSON, nullable=True)
+    academic_history = Column(JSON, nullable=True)
+    past_experience = Column(JSON, nullable=True)
 
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
