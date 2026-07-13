@@ -275,9 +275,9 @@ def get_tracking(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Dean and OM can see all tracking
-    if current_user.role != UserRole.AUTHORITY:
-        raise HTTPException(status_code=403, detail="Only authorities can view global tracking")
+    # Dean, OM, and HOD can see all tracking
+    if current_user.role not in [UserRole.AUTHORITY, UserRole.HOD]:
+        raise HTTPException(status_code=403, detail="Only authorities and HODs can view global tracking")
         
     return db.query(FacultyGatePass).options(
         joinedload(FacultyGatePass.faculty).joinedload(Faculty.department),

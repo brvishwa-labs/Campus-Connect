@@ -65,7 +65,7 @@ const ROLE_NAV_LINKS = {
   ],
   authority: [
     { name: 'Dashboard', path: '/authority', icon: LayoutDashboard },
-    { name: 'Faculty', path: '/authority/faculty', icon: Users },
+    { name: 'Faculty Directory', path: '/authority/faculty', icon: Users },
     { name: 'Analytics', path: '/authority/analytics', icon: BookOpen },
     { name: 'Discipline', path: '/authority/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/authority/latetracker', icon: Clock },
@@ -225,7 +225,7 @@ export default function DashboardLayout() {
     
     // Filter Faculty menu - only for Dean, Principal, and OM
     if (title !== 'dean' && title !== 'principal' && title !== 'office manager') {
-      navLinks = navLinks.filter(link => link.name !== 'Faculty');
+      navLinks = navLinks.filter(link => link.name !== 'Faculty Directory');
     }
     
     if (title !== 'office manager') {
@@ -247,6 +247,11 @@ export default function DashboardLayout() {
         name: 'Gatepass Tracking',
         path: '/hr/gatepass',
         icon: Clock
+      });
+      navLinks.push({
+        name: 'Faculty Directory',
+        path: '/hr/faculty',
+        icon: Users
       });
     }
     if (title === 'dean') {
