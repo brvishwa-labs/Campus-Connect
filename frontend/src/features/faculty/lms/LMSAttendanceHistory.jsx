@@ -2,10 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { FileText, ArrowLeft, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { useHolidays } from '../../../hooks/useHolidays';
+
 
 export const LMSAttendanceHistory = () => {
   const { assignmentId } = useParams();
+  const { isHoliday, getHolidayName } = useHolidays();
   
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -157,20 +161,28 @@ export const LMSAttendanceHistory = () => {
                 const today = isToday(day);
                 const selected = isSelected(day);
                 const recorded = hasHistory(day);
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const holiday = isHoliday(dateStr);
+                const holidayLabel = getHolidayName(dateStr);
 
                 return (
                   <button
                     key={day}
                     onClick={() => handleDateClick(day)}
+                    title={holiday ? holidayLabel || 'Holiday' : undefined}
                     className={`
                       w-10 h-10 mx-auto rounded-full flex items-center justify-center text-sm font-semibold transition-all relative
-                      ${selected ? 'bg-indigo-600 text-white dark:text-gray-900 shadow-md shadow-indigo-200 dark:shadow-none scale-110 z-10' : 'text-gray-700 hover:bg-gray-100'}
+                      ${selected ? 'bg-indigo-600 text-white dark:text-gray-900 shadow-md shadow-indigo-200 dark:shadow-none scale-110 z-10' : holiday ? 'text-red-500' : 'text-gray-700 hover:bg-gray-100'}
                       ${today && !selected ? 'ring-2 ring-indigo-200 dark:ring-indigo-700 text-indigo-700 dark:text-indigo-400 font-bold' : ''}
                     `}
                   >
                     {day}
-                    {/* Dot indicator if there's history on this day */}
-                    {recorded && !selected && (
+                    {/* Red dot: holiday */}
+                    {holiday && !selected && (
+                      <span className="absolute bottom-1 w-1.5 h-1.5 bg-red-400 rounded-full" />
+                    )}
+                    {/* Green dot: has attendance history */}
+                    {recorded && !selected && !holiday && (
                       <span className="absolute bottom-1 w-1.5 h-1.5 bg-green-500 rounded-full"></span>
                     )}
                     {recorded && selected && (
@@ -179,6 +191,7 @@ export const LMSAttendanceHistory = () => {
                   </button>
                 );
               })}
+
             </div>
           </div>
         </div>

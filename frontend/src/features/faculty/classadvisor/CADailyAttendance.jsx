@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { CalendarDays, Save, CheckCircle2, AlertCircle, Users, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react';
+import { CalendarDays, Save, CheckCircle2, AlertCircle, Users, ChevronLeft, ChevronRight, MessageCircle, CalendarOff } from 'lucide-react';
+
 
 const CustomDatePicker = ({ selectedDate, onChange, maxDate }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -106,15 +107,21 @@ export const CADailyAttendance = () => {
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [attendanceLocked, setAttendanceLocked] = useState(false);
+  const [isHoliday, setIsHoliday] = useState(false);
+  const [holidayName, setHolidayName] = useState(null);
+
 
   const fetchSettings = useCallback(async () => {
     try {
       const res = await axios.get('/api/class-advisor/attendance-settings');
       setAttendanceLocked(res.data.attendance_closed);
+      setIsHoliday(res.data.is_holiday || false);
+      setHolidayName(res.data.holiday_name || null);
     } catch (err) {
       console.error('Failed to fetch settings', err);
     }
   }, []);
+
 
   useEffect(() => {
     fetchSettings();
@@ -169,7 +176,8 @@ export const CADailyAttendance = () => {
   };
 
   const isToday = selectedDate === today;
-  const canEdit = isToday && !attendanceLocked;
+  const canEdit = isToday && !attendanceLocked && !isHoliday;
+
   const presentCount = students.filter(s => s.status === 'present').length;
   const absentCount  = students.filter(s => s.status === 'absent').length;
   const unmarked     = students.filter(s => !s.status).length;
@@ -216,6 +224,12 @@ export const CADailyAttendance = () => {
               Locked by HOD
             </span>
           )}
+          {isHoliday && (
+            <span className="px-3 py-1.5 bg-orange-50 text-orange-700 text-xs font-bold rounded-lg border border-orange-200 flex items-center gap-1.5">
+              <CalendarOff className="w-3.5 h-3.5" />
+              {holidayName || 'Holiday'} — No Attendance
+            </span>
+          )}
           {!isToday && !attendanceLocked && (
             <span className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs font-semibold rounded-lg border border-amber-200">
               Read Only Mode
@@ -227,6 +241,7 @@ export const CADailyAttendance = () => {
             maxDate={today} 
           />
         </div>
+
       </div>
 
 

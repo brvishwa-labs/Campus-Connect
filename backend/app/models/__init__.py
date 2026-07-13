@@ -29,7 +29,7 @@ from app.models.academic import (
 from app.models.mentorship import MentoringMeeting, MeetingStatus, AdvisingLog
 
 # Operations
-from app.models.attendance import Attendance, AttendanceStatus
+from app.models.attendance import Attendance, AttendanceStatus, Holiday
 from app.models.leave import (
     FacultyLeaveRequest, FacultyDutyArrangement, FacultyLeaveBalance,
     StudentLeaveRequest, StudentLeaveStatus,
@@ -56,7 +56,7 @@ __all__ = [
     "Enrollment",
     "MentorAssignment",
     "MentoringMeeting", "MeetingStatus", "AdvisingLog",
-    "Attendance", "AttendanceStatus",
+    "Attendance", "AttendanceStatus", "Holiday",
     "FacultyLeaveRequest", "FacultyDutyArrangement", "FacultyLeaveBalance",
     "StudentLeaveRequest", "StudentLeaveStatus",
     "LeaveStatus", "ArrangementStatus",

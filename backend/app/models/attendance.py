@@ -68,3 +68,24 @@ class FacultyAttendance(Base):
     faculty = relationship("Faculty")
     leave_request = relationship("FacultyLeaveRequest")
 
+
+# ──────────────────────────────────────────────────
+# HOLIDAY (Admin-marked college holidays)
+# ──────────────────────────────────────────────────
+class Holiday(Base):
+    """
+    Stores admin-marked college holidays.
+    Sundays are computed at runtime and NOT stored here.
+    Each date can have only one holiday entry (unique constraint on date).
+    """
+    __tablename__ = "holidays"
+
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(Date, nullable=False, unique=True, index=True)
+    name = Column(String(200), nullable=False)          # e.g. "Diwali", "Republic Day"
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    created_by = relationship("User")
+
