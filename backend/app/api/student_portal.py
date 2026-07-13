@@ -969,6 +969,7 @@ def hod_action(
 
 @router.get("/my-class")
 def get_my_class_info(
+    date: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -1030,37 +1031,127 @@ def get_my_class_info(
         TimetableSlot.course_assignment_id.in_(assignment_ids)
     ).order_by(TimetableSlot.day, TimetableSlot.start_time).all()
 
+    import datetime
+    if date:
+        try:
+            today = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        except Exception:
+            today = datetime.date.today()
+    else:
+        today = datetime.date.today()
+    DAY_MAP = {
+        "MON": "Monday",
+        "TUE": "Tuesday",
+        "WED": "Wednesday",
+        "THU": "Thursday",
+        "FRI": "Friday",
+        "SAT": "Saturday",
+        "SUN": "Sunday"
+    }
+    today_weekday = today.strftime("%a").upper()
+    
+    from app.models.leave import FacultyDutyArrangement, FacultyLeaveRequest, LeaveStatus, ArrangementStatus
+    from sqlalchemy.orm import joinedload
+    
     timetable = []
     for slot in slots:
         assignment = assignment_map.get(slot.course_assignment_id)
         if assignment and assignment.course:
+            day_val = (slot.day.value if hasattr(slot.day, 'value') else str(slot.day)).upper()
+            day_name = day_val.lower()
+            
             faculty_name = f"{assignment.faculty.first_name} {assignment.faculty.last_name}" if assignment.faculty else "TBD"
-            DAY_MAP = {
-                "MON": "Monday",
-                "TUE": "Tuesday",
-                "WED": "Wednesday",
-                "THU": "Thursday",
-                "FRI": "Friday",
-                "SAT": "Saturday",
-                "SUN": "Sunday"
-            }
-            day_val = slot.day.value.upper() if hasattr(slot.day, 'value') else str(slot.day).upper()
+            course_name = assignment.course.name
+            course_code = assignment.course.code
+            
+            if day_val == today_weekday:
+                slot_start_str = slot.start_time.strftime("%H:%M") if slot.start_time else ""
+                
+                # Case A: Scheduled faculty is on leave today, B substitutes
+                sub_arr = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
+                    FacultyLeaveRequest.faculty_id == assignment.faculty_id,
+                    FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+                    FacultyLeaveRequest.from_date <= today,
+                    FacultyLeaveRequest.to_date >= today,
+                    FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED
+                ).all()
+                
+                matched_sub = None
+                for sa in sub_arr:
+                    if sa.period and slot_start_str in sa.period:
+                        matched_sub = sa
+                        break
+                
+                if matched_sub:
+                    sub_fac = db.query(Faculty).filter(Faculty.id == matched_sub.substitute_faculty_id).first()
+                    if sub_fac:
+                        faculty_name = f"{sub_fac.first_name} {sub_fac.last_name}"
+                        sub_assign = db.query(CourseAssignment).options(joinedload(CourseAssignment.course)).filter(
+                            CourseAssignment.faculty_id == sub_fac.id,
+                            CourseAssignment.section_id == section.id,
+                            CourseAssignment.is_active == True
+                        ).first()
+                        if sub_assign:
+                            course_name = sub_assign.course.name
+                            course_code = sub_assign.course.code
+                        else:
+                            first_assign = db.query(CourseAssignment).options(joinedload(CourseAssignment.course)).filter(
+                                CourseAssignment.faculty_id == sub_fac.id,
+                                CourseAssignment.is_active == True
+                            ).first()
+                            if first_assign:
+                                course_name = first_assign.course.name
+                                course_code = first_assign.course.code
+                                
+                # Case B: Compensation day, A compensates B
+                comp_arr = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
+                    FacultyDutyArrangement.substitute_faculty_id == assignment.faculty_id,
+                    FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
+                    FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+                    FacultyDutyArrangement.compensation_date == today
+                ).all()
+                
+                slot_start_12h = slot.start_time.strftime("%I:%M %p") if slot.start_time else ""
+                matched_comp = None
+                for ca in comp_arr:
+                    if ca.compensation_period and (slot_start_str in ca.compensation_period or slot_start_12h in ca.compensation_period):
+                        matched_comp = ca
+                        break
+                        
+                if matched_comp:
+                    leave_fac = db.query(Faculty).filter(Faculty.id == matched_comp.leave_request.faculty_id).first()
+                    if leave_fac:
+                        faculty_name = f"{leave_fac.first_name} {leave_fac.last_name}"
+                        leave_assign = db.query(CourseAssignment).options(joinedload(CourseAssignment.course)).filter(
+                            CourseAssignment.faculty_id == leave_fac.id,
+                            CourseAssignment.section_id == section.id,
+                            CourseAssignment.is_active == True
+                        ).first()
+                        if leave_assign:
+                            course_name = leave_assign.course.name
+                            course_code = leave_assign.course.code
+                        else:
+                            course_code = matched_comp.subject
+                            from app.models.academic import Course
+                            c_model = db.query(Course).filter(Course.code == matched_comp.subject).first()
+                            course_name = c_model.name if c_model else matched_comp.subject
+            
             timetable.append({
                 "id": slot.id,
-                "day": DAY_MAP.get(day_val, day_val),
+                "day": day_name,
                 "start_time": slot.start_time.isoformat() if slot.start_time else None,
                 "end_time": slot.end_time.isoformat() if slot.end_time else None,
-                "course_name": assignment.course.name,
-                "course_code": assignment.course.code,
+                "course_name": course_name,
+                "course_code": course_code,
                 "faculty_name": faculty_name,
                 "room_number": slot.room
             })
-
+            
     return {
         "section": {
             "name": section.name,
             "year": section.year,
-            "year": section.year,
+            "batch": section.batch,
             "department": section.department.name if section.department else None,
         },
         "advisor": advisor_info,

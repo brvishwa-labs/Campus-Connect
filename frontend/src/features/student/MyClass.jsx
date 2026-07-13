@@ -165,6 +165,7 @@ const StaffModal = ({ staff, role, onClose }) => {
 export default function MyClass() {
   const { user } = useAuth();
   const [classInfo, setClassInfo]     = useState(null);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
   const [selectedStaff, setSelectedStaff] = useState(null); // { staff, role }
@@ -172,7 +173,10 @@ export default function MyClass() {
   useEffect(() => {
     const fetchClassInfo = async () => {
       try {
-        const response = await axios.get('/api/student-portal/my-class');
+        setLoading(true);
+        const response = await axios.get('/api/student-portal/my-class', {
+          params: { date: selectedDate }
+        });
         setClassInfo(response.data);
         setError('');
       } catch (err) {
@@ -186,7 +190,7 @@ export default function MyClass() {
       }
     };
     fetchClassInfo();
-  }, []);
+  }, [selectedDate]);
 
   if (loading) {
     return (
@@ -284,9 +288,23 @@ export default function MyClass() {
 
       {/* ── Timetable ── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
-          <Calendar className="w-5 h-5 text-gray-400" />
-          <h2 className="text-lg font-bold text-gray-900">Class Timetable</h2>
+        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Calendar className="w-5 h-5 text-indigo-500" />
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Class Timetable</h2>
+              <p className="text-xs text-gray-500 font-medium">Temporary substitutions apply for the selected date</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 border border-gray-200 rounded-xl shadow-sm">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">View Date:</span>
+            <input 
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="text-sm font-semibold text-slate-800 focus:outline-none bg-transparent cursor-pointer"
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto">

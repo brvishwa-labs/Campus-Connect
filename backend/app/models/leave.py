@@ -62,6 +62,9 @@ class FacultyDutyArrangement(Base):
     subject = Column(String(100), nullable=False)
     class_section = Column(String(50), nullable=False)
     period = Column(String(50), nullable=False)
+    day = Column(String(10), nullable=True)
+    compensation_date = Column(Date, nullable=True)
+    compensation_period = Column(String(50), nullable=True)
     
     status = Column(SQLEnum(ArrangementStatus, values_callable=lambda obj: [e.value for e in obj]), default=ArrangementStatus.PENDING)
 

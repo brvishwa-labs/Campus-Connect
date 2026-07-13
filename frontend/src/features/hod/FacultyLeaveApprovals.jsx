@@ -81,6 +81,11 @@ const LeaveCard = ({ req, onAction, acting }) => {
                 <div>
                   <span className="font-semibold text-gray-800">{arr.substitute_faculty_name}</span>
                   <span className="text-gray-500 ml-1.5">â€” {arr.subject} Â· {arr.class_section} Â· {arr.period}</span>
+                  {arr.compensation_date && (
+                    <div className="text-[10px] text-indigo-600 font-semibold mt-0.5">
+                      🔄 Compensated on {new Date(arr.compensation_date).toLocaleDateString()} during Period: {arr.compensation_period}
+                    </div>
+                  )}
                   <span className={`ml-2 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
                     arr.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
                     arr.status === 'rejected' ? 'bg-red-100 text-red-700' :

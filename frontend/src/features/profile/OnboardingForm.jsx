@@ -130,7 +130,22 @@ export default function OnboardingForm({ profile, onComplete }) {
       specialization: profile.specialization || '',
       experience_years: profile.experience_years || '',
       date_of_joining: profile.date_of_joining || '',
-      employment_type: profile.employment_type || 'Permanent'
+      pan_card: profile.pan_card || '',
+      aadhar_number: profile.aadhar_number || '',
+      accommodation: profile.accommodation || '',
+      transportation: profile.transportation || '',
+      bus_number: profile.bus_number || '',
+      mother_name: profile.mother_name || '',
+      father_name: profile.father_name || '',
+      emergency_contacts: profile.emergency_contacts?.length > 0 ? profile.emergency_contacts : [{ name: '', relation: '', number: '' }],
+      academic_history: profile.academic_history || { 
+        tenth: { school: '', board: '', percentage: '' }, 
+        twelfth: { school: '', board: '', percentage: '' }, 
+        ug: { degree: '', university: '', percentage: '' }, 
+        pg: { degree: '', university: '', percentage: '' }, 
+        phd: { university: '', specialization: '', year: '' } 
+      },
+      past_experience: profile.past_experience?.length > 0 ? profile.past_experience : []
     })
   });
 
@@ -139,6 +154,73 @@ export default function OnboardingForm({ profile, onComplete }) {
 
   const handleChange = (e) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleEmergencyContactChange = (index, field, value) => {
+    setForm(prev => {
+      const newContacts = [...prev.emergency_contacts];
+      newContacts[index] = { ...newContacts[index], [field]: value };
+      return { ...prev, emergency_contacts: newContacts };
+    });
+  };
+
+  const addEmergencyContact = () => {
+    setForm(prev => ({
+      ...prev,
+      emergency_contacts: [...prev.emergency_contacts, { name: '', relation: '', number: '' }]
+    }));
+  };
+
+  const removeEmergencyContact = (index) => {
+    setForm(prev => ({
+      ...prev,
+      emergency_contacts: prev.emergency_contacts.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleAcademicHistoryChange = (level, field, value) => {
+    setForm(prev => ({
+      ...prev,
+      academic_history: { 
+        ...prev.academic_history, 
+        [level]: { ...prev.academic_history[level], [field]: value } 
+      }
+    }));
+  };
+
+  const calculateTotalExperience = (experiences) => {
+    let totalYears = 0;
+    experiences.forEach(exp => {
+      if (exp.from_year && exp.to_year) {
+        const diff = parseInt(exp.to_year) - parseInt(exp.from_year);
+        if (diff > 0) totalYears += diff;
+      }
+    });
+    return totalYears;
+  };
+
+  const handlePastExperienceChange = (index, field, value) => {
+    setForm(prev => {
+      const newExp = [...prev.past_experience];
+      newExp[index] = { ...newExp[index], [field]: value };
+      const newTotal = calculateTotalExperience(newExp);
+      return { ...prev, past_experience: newExp, experience_years: newTotal };
+    });
+  };
+
+  const addPastExperience = () => {
+    setForm(prev => ({
+      ...prev,
+      past_experience: [...prev.past_experience, { institution: '', from_year: '', to_year: '' }]
+    }));
+  };
+
+  const removePastExperience = (index) => {
+    setForm(prev => {
+      const newExp = prev.past_experience.filter((_, i) => i !== index);
+      const newTotal = calculateTotalExperience(newExp);
+      return { ...prev, past_experience: newExp, experience_years: newTotal };
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -193,6 +275,17 @@ export default function OnboardingForm({ profile, onComplete }) {
               )}
             </>
           )}
+          {!isStudent && (
+            <>
+              <Input form={form} onChange={handleChange} label="PAN Card" name="pan_card" required />
+              <Input form={form} onChange={handleChange} label="Aadhar Number" name="aadhar_number" required />
+              <Select form={form} onChange={handleChange} label="Accommodation" name="accommodation" required options={['Hostel', 'Day Scholar']} />
+              <Select form={form} onChange={handleChange} label="Transportation" name="transportation" required options={['OWN', 'BUS']} />
+              {form.transportation === 'BUS' && (
+                <Input form={form} onChange={handleChange} label="Bus Number" name="bus_number" required />
+              )}
+            </>
+          )}
         </Section>
 
         <Section title="Address Details" icon={MapPin}>
@@ -230,14 +323,129 @@ export default function OnboardingForm({ profile, onComplete }) {
         )}
 
         {!isStudent && (
-          <Section title="Professional Details" icon={Briefcase}>
-            <Input form={form} onChange={handleChange} label="Designation" name="designation" required />
-            <Input form={form} onChange={handleChange} label="Qualification" name="qualification" required />
-            <Input form={form} onChange={handleChange} label="Specialization" name="specialization" />
-            <Input form={form} onChange={handleChange} label="Years of Experience" name="experience_years" type="number" required />
-            <Input form={form} onChange={handleChange} label="Date of Joining" name="date_of_joining" type="date" required />
-            <Select form={form} onChange={handleChange} label="Employment Type" name="employment_type" required options={['Permanent', 'Contract', 'Visiting']} />
-          </Section>
+          <>
+            <Section title="Parent Details" icon={Users}>
+              <Input form={form} onChange={handleChange} label="Father's Name" name="father_name" required />
+              <Input form={form} onChange={handleChange} label="Mother's Name" name="mother_name" required />
+            </Section>
+
+            <Section title="Emergency Contacts" icon={Users}>
+              <div className="col-span-full space-y-4">
+                {form.emergency_contacts.map((contact, index) => (
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Name *</label>
+                      <input type="text" value={contact.name} onChange={(e) => handleEmergencyContactChange(index, 'name', e.target.value)} required className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Relation *</label>
+                      <input type="text" value={contact.relation} onChange={(e) => handleEmergencyContactChange(index, 'relation', e.target.value)} required className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Number *</label>
+                      <input type="tel" value={contact.number} onChange={(e) => handleEmergencyContactChange(index, 'number', e.target.value.replace(/[^0-9+]/g, ''))} required className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                    </div>
+                    <div>
+                      {form.emergency_contacts.length > 1 && (
+                        <button type="button" onClick={() => removeEmergencyContact(index)} className="px-4 py-2.5 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-xl font-bold transition-colors w-full">Remove</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <button type="button" onClick={addEmergencyContact} className="px-4 py-2 text-sm text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-xl font-bold transition-colors">
+                  + Add Another Contact
+                </button>
+              </div>
+            </Section>
+
+            <Section title="Academic History" icon={GraduationCap}>
+              <div className="col-span-full space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  <h3 className="col-span-full text-xs font-bold text-gray-500 uppercase tracking-wider">10th Details *</h3>
+                  <input type="text" value={form.academic_history.tenth?.school} onChange={(e) => handleAcademicHistoryChange('tenth', 'school', e.target.value)} required placeholder="School Name" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                  <input type="text" value={form.academic_history.tenth?.board} onChange={(e) => handleAcademicHistoryChange('tenth', 'board', e.target.value)} required placeholder="Board" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                  <input type="number" value={form.academic_history.tenth?.percentage} onChange={(e) => handleAcademicHistoryChange('tenth', 'percentage', e.target.value)} required placeholder="Percentage" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  <h3 className="col-span-full text-xs font-bold text-gray-500 uppercase tracking-wider">12th Details *</h3>
+                  <input type="text" value={form.academic_history.twelfth?.school} onChange={(e) => handleAcademicHistoryChange('twelfth', 'school', e.target.value)} required placeholder="School/College Name" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                  <input type="text" value={form.academic_history.twelfth?.board} onChange={(e) => handleAcademicHistoryChange('twelfth', 'board', e.target.value)} required placeholder="Board" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                  <input type="number" value={form.academic_history.twelfth?.percentage} onChange={(e) => handleAcademicHistoryChange('twelfth', 'percentage', e.target.value)} required placeholder="Percentage" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  <h3 className="col-span-full text-xs font-bold text-gray-500 uppercase tracking-wider">UG Details *</h3>
+                  <input type="text" value={form.academic_history.ug?.degree} onChange={(e) => handleAcademicHistoryChange('ug', 'degree', e.target.value)} required placeholder="Degree (e.g. B.Tech)" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                  <input type="text" value={form.academic_history.ug?.university} onChange={(e) => handleAcademicHistoryChange('ug', 'university', e.target.value)} required placeholder="University" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                  <input type="number" value={form.academic_history.ug?.percentage} onChange={(e) => handleAcademicHistoryChange('ug', 'percentage', e.target.value)} required placeholder="Percentage/CGPA" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  <h3 className="col-span-full text-xs font-bold text-gray-500 uppercase tracking-wider">PG Details *</h3>
+                  <input type="text" value={form.academic_history.pg?.degree} onChange={(e) => handleAcademicHistoryChange('pg', 'degree', e.target.value)} required placeholder="Degree (e.g. M.Tech)" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                  <input type="text" value={form.academic_history.pg?.university} onChange={(e) => handleAcademicHistoryChange('pg', 'university', e.target.value)} required placeholder="University" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                  <input type="number" value={form.academic_history.pg?.percentage} onChange={(e) => handleAcademicHistoryChange('pg', 'percentage', e.target.value)} required placeholder="Percentage/CGPA" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  <h3 className="col-span-full text-xs font-bold text-gray-500 uppercase tracking-wider">PhD Details (Optional)</h3>
+                  <input type="text" value={form.academic_history.phd?.specialization} onChange={(e) => handleAcademicHistoryChange('phd', 'specialization', e.target.value)} placeholder="Specialization" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                  <input type="text" value={form.academic_history.phd?.university} onChange={(e) => handleAcademicHistoryChange('phd', 'university', e.target.value)} placeholder="University" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                  <input type="text" value={form.academic_history.phd?.year} onChange={(e) => handleAcademicHistoryChange('phd', 'year', e.target.value)} placeholder="Year of Completion" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                </div>
+              </div>
+            </Section>
+
+            <Section title="Past Experience" icon={Briefcase}>
+              <div className="col-span-full space-y-4">
+                {form.past_experience.map((exp, index) => {
+                  const calculatedExp = (exp.from_year && exp.to_year) ? (parseInt(exp.to_year) - parseInt(exp.from_year)) : 0;
+                  return (
+                    <div key={index} className="flex flex-col md:flex-row gap-4 items-end bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <div className="flex-1 w-full md:min-w-[200px]">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Institution *</label>
+                        <input type="text" value={exp.institution} onChange={(e) => handlePastExperienceChange(index, 'institution', e.target.value)} required className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                      </div>
+                      <div className="w-full md:w-32">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">From Year *</label>
+                        <input type="number" value={exp.from_year} onChange={(e) => handlePastExperienceChange(index, 'from_year', e.target.value)} required placeholder="e.g. 2018" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                      </div>
+                      <div className="w-full md:w-32">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">To Year *</label>
+                        <input type="number" value={exp.to_year} onChange={(e) => handlePastExperienceChange(index, 'to_year', e.target.value)} required placeholder="e.g. 2022" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                      </div>
+                      <div className="w-full md:w-32 flex flex-col justify-end">
+                        <div className="text-sm font-bold text-primary-600 text-center mb-2">{Math.max(0, calculatedExp)} Years</div>
+                        <button type="button" onClick={() => removePastExperience(index)} className="px-4 py-2.5 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-xl font-bold transition-colors w-full">Remove</button>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-2">
+                  <button type="button" onClick={addPastExperience} className="px-4 py-2 text-sm text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-xl font-bold transition-colors w-full sm:w-auto">
+                    + Add Experience
+                  </button>
+                  {form.past_experience.length > 0 && (
+                    <div className="text-sm font-bold text-gray-700 bg-gray-100 px-4 py-2 rounded-xl w-full sm:w-auto text-center">
+                      Total Experience: <span className="text-primary-600 text-lg">{form.experience_years || 0} Years</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Section>
+
+            <Section title="Professional Details" icon={Briefcase}>
+              <Input form={form} onChange={handleChange} label="Designation" name="designation" required />
+              <Input form={form} onChange={handleChange} label="Qualification" name="qualification" required />
+              <Input form={form} onChange={handleChange} label="Specialization" name="specialization" />
+              <Input form={form} onChange={handleChange} label="Date of Joining" name="date_of_joining" type="date" required />
+              <div className="flex flex-col justify-end">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Total Experience (Years)</label>
+                <input type="number" value={form.experience_years || 0} readOnly className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 cursor-not-allowed outline-none" />
+              </div>
+            </Section>
+          </>
         )}
 
         <div className="flex justify-end pt-4">

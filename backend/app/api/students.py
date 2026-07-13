@@ -134,6 +134,8 @@ def promote_students(
         if s.section_id and s.current_semester:
             sections_to_archive.add((s.section_id, s.current_semester))
 
+    from app.models.lms import TimetableSlot
+
     # Archive the course assignments
     archived_assignments_count = 0
     for section_id, sem in sections_to_archive:
@@ -144,6 +146,8 @@ def promote_students(
         ).all()
         for a in assignments:
             a.is_active = False
+            # Clear associated timetable slots so they don't appear in the new semester's timetable
+            db.query(TimetableSlot).filter(TimetableSlot.course_assignment_id == a.id).delete()
             archived_assignments_count += 1
 
     promoted_count = 0

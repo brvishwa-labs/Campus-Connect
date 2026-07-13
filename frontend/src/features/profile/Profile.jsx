@@ -315,21 +315,88 @@ const GenericProfile = ({ profile, onUpdate }) => {
         <InfoRow label="Date of Birth" value={profile.date_of_birth} />
         {isFacultyOrHod ? <EditableRow label="Blood Group" value={profile.blood_group} field="blood_group" onSave={handleSave} /> : <InfoRow label="Blood Group" value={profile.blood_group} />}
         <InfoRow label="Religion"     value={profile.religion} />
-        {isFacultyOrHod ? <EditableRow label="Personal Email" value={profile.personal_email} field="personal_email" onSave={handleSave} /> : <InfoRow label="Personal Email" value={profile.personal_email} />}
-        {isFacultyOrHod ? <EditableRow label="Alt. Phone" value={profile.alternate_phone} field="alternate_phone" onSave={handleSave} /> : <InfoRow label="Alt. Phone" value={profile.alternate_phone} />}
+        <InfoRow label="Nationality"  value={profile.nationality} />
+        {isFacultyOrHod && <EditableRow label="Personal Email" value={profile.personal_email} field="personal_email" onSave={handleSave} />}
+        {isFacultyOrHod && <InfoRow label="PAN Card" value={profile.pan_card} />}
+        {isFacultyOrHod && <InfoRow label="Aadhar Number" value={profile.aadhar_number} />}
       </SectionCard>
 
       {(role === 'faculty' || role === 'hod') && (
-        <SectionCard title="Professional Details" icon={Briefcase}>
-          <InfoRow label="Department"     value={profile.department_name ? `${profile.department_name} (${profile.department_code})` : null} />
-          <InfoRow label="Employee ID"    value={profile.employee_id} />
-          <InfoRow label="Designation"    value={profile.designation} />
-          <InfoRow label="Qualification"  value={profile.qualification} />
-          <InfoRow label="Specialization" value={profile.specialization} />
-          <InfoRow label="Experience"     value={profile.experience_years ? `${profile.experience_years} years` : null} />
-          <InfoRow label="Date of Joining" value={profile.date_of_joining} />
-          <InfoRow label="Employment Type" value={profile.employment_type} />
-        </SectionCard>
+        <>
+          <SectionCard title="Accommodation & Transport" icon={MapPin}>
+            <InfoRow label="Accommodation" value={profile.accommodation} />
+            <InfoRow label="Transportation" value={profile.transportation} />
+            {profile.transportation === 'BUS' && <InfoRow label="Bus Number" value={profile.bus_number} />}
+          </SectionCard>
+
+          <SectionCard title="Parent Details" icon={Users}>
+            <InfoRow label="Father's Name" value={profile.father_name} />
+            <InfoRow label="Mother's Name" value={profile.mother_name} />
+          </SectionCard>
+
+          <SectionCard title="Emergency Contacts" icon={Users}>
+            {profile.emergency_contacts && profile.emergency_contacts.length > 0 ? (
+              <div className="col-span-full space-y-3">
+                {profile.emergency_contacts.map((c, i) => (
+                  <div key={i} className="bg-gray-50 rounded-xl p-3 border border-gray-100 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{c.name}</p>
+                      <p className="text-xs text-gray-500">{c.relation}</p>
+                    </div>
+                    <div className="font-medium text-sm text-gray-800">{c.number}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">No emergency contacts added.</p>
+            )}
+          </SectionCard>
+
+          <SectionCard title="Academic History" icon={GraduationCap}>
+            {profile.academic_history ? (
+              <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InfoRow label="10th Details" value={profile.academic_history.tenth?.school ? `${profile.academic_history.tenth.school}, ${profile.academic_history.tenth.board} (${profile.academic_history.tenth.percentage}%)` : null} />
+                <InfoRow label="12th Details" value={profile.academic_history.twelfth?.school ? `${profile.academic_history.twelfth.school}, ${profile.academic_history.twelfth.board} (${profile.academic_history.twelfth.percentage}%)` : null} />
+                <InfoRow label="UG Details" value={profile.academic_history.ug?.degree ? `${profile.academic_history.ug.degree}, ${profile.academic_history.ug.university} (${profile.academic_history.ug.percentage}%)` : null} />
+                <InfoRow label="PG Details" value={profile.academic_history.pg?.degree ? `${profile.academic_history.pg.degree}, ${profile.academic_history.pg.university} (${profile.academic_history.pg.percentage}%)` : null} />
+                <InfoRow label="PhD Details" value={profile.academic_history.phd?.specialization ? `${profile.academic_history.phd.specialization}, ${profile.academic_history.phd.university} (${profile.academic_history.phd.year})` : 'Not Provided'} />
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">Academic history not provided.</p>
+            )}
+          </SectionCard>
+
+          <SectionCard title="Past Experience" icon={Briefcase}>
+            {profile.past_experience && profile.past_experience.length > 0 ? (
+              <div className="col-span-full space-y-3">
+                {profile.past_experience.map((exp, i) => {
+                  const calculatedExp = (exp.from_year && exp.to_year) ? (parseInt(exp.to_year) - parseInt(exp.from_year)) : 0;
+                  return (
+                    <div key={i} className="bg-gray-50 rounded-xl p-3 border border-gray-100 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">{exp.institution}</p>
+                        <p className="text-xs text-gray-500">{exp.from_year} - {exp.to_year}</p>
+                      </div>
+                      <div className="font-medium text-sm text-primary-600 px-3 py-1 bg-primary-50 rounded-lg">{Math.max(0, calculatedExp)} Years</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">No past experience added.</p>
+            )}
+          </SectionCard>
+
+          <SectionCard title="Professional Details" icon={Briefcase}>
+            <InfoRow label="Department"     value={profile.department_name ? `${profile.department_name} (${profile.department_code})` : null} />
+            <InfoRow label="Employee ID"    value={profile.employee_id} />
+            <InfoRow label="Designation"    value={profile.designation} />
+            <InfoRow label="Qualification"  value={profile.qualification} />
+            <InfoRow label="Specialization" value={profile.specialization} />
+            <InfoRow label="Total Experience" value={profile.experience_years ? `${profile.experience_years} years` : null} />
+            <InfoRow label="Date of Joining" value={profile.date_of_joining} />
+          </SectionCard>
+        </>
       )}
 
       {role === 'authority' && (
