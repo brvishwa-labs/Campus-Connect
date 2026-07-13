@@ -3,8 +3,189 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { 
   ArrowLeft, Save, Plus, Trash2, ClipboardList, CheckCircle2, 
-  AlertTriangle, Calendar, BookOpen, Clock, FileText, Settings, Users
+  AlertTriangle, Calendar, BookOpen, Clock, FileText, Settings, Users,
+  ChevronDown
 } from 'lucide-react';
+
+const COLOR_THEMES = {
+  orange: {
+    borderFocus: "border-orange-500 ring-2 ring-orange-100/50",
+    tag: "bg-orange-50 text-orange-700 border-orange-200/50",
+    chevronActive: "text-orange-500",
+    optionSelected: "bg-orange-50/60 text-orange-900",
+    checkboxOn: "bg-orange-600 border-orange-600",
+  },
+  blue: {
+    borderFocus: "border-blue-500 ring-2 ring-blue-100/50",
+    tag: "bg-blue-50 text-blue-700 border-blue-200/50",
+    chevronActive: "text-blue-500",
+    optionSelected: "bg-blue-50/60 text-blue-900",
+    checkboxOn: "bg-blue-600 border-blue-600",
+  },
+  emerald: {
+    borderFocus: "border-emerald-500 ring-2 ring-emerald-100/50",
+    tag: "bg-emerald-50 text-emerald-700 border-emerald-200/50",
+    chevronActive: "text-emerald-500",
+    optionSelected: "bg-emerald-50/60 text-emerald-900",
+    checkboxOn: "bg-emerald-600 border-emerald-600",
+  },
+  violet: {
+    borderFocus: "border-violet-500 ring-2 ring-violet-100/50",
+    tag: "bg-violet-50 text-violet-700 border-violet-200/50",
+    chevronActive: "text-violet-500",
+    optionSelected: "bg-violet-50/60 text-violet-900",
+    checkboxOn: "bg-violet-600 border-violet-600",
+  },
+};
+
+const DropdownSelectInput = ({ value, onChange, options, isMulti = false, placeholder = "Select...", onBlur, color = "orange" }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value || "");
+  const containerRef = React.useRef(null);
+  const inputRef = React.useRef(null);
+  const theme = COLOR_THEMES[color] || COLOR_THEMES.orange;
+
+  // Sync state with parent value
+  useEffect(() => {
+    setInputValue(value || "");
+  }, [value]);
+
+  // Focus input when opened
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  // Handle outside click to close dropdown and fire onBlur
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        if (isOpen) {
+          setIsOpen(false);
+          if (onBlur) {
+            onBlur();
+          }
+        }
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [isOpen, onBlur]);
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setInputValue(val);
+    onChange(val);
+  };
+
+  const handleOptionToggle = (option) => {
+    if (isMulti) {
+      let currentValues = inputValue
+        .split(",")
+        .map(v => v.trim())
+        .filter(v => v !== "");
+      
+      if (currentValues.includes(option)) {
+        currentValues = currentValues.filter(v => v !== option);
+      } else {
+        currentValues.push(option);
+      }
+      
+      const newVal = currentValues.join(", ");
+      setInputValue(newVal);
+      onChange(newVal);
+    } else {
+      setInputValue(option);
+      onChange(option);
+      setIsOpen(false);
+      if (onBlur) {
+        setTimeout(() => onBlur(), 0);
+      }
+    }
+  };
+
+  const activeValues = inputValue.split(",").map(v => v.trim()).filter(Boolean);
+
+  return (
+    <div ref={containerRef} className="relative w-full text-left">
+      <div 
+        onClick={() => setIsOpen(true)}
+        className={`flex items-center min-h-[34px] w-full border rounded-xl bg-white shadow-sm transition-all duration-200 cursor-pointer ${
+          isOpen 
+            ? theme.borderFocus
+            : "border-gray-200 hover:border-gray-300"
+        }`}
+      >
+        <div className="flex-1 flex flex-wrap gap-1 p-1.5 overflow-hidden">
+          {(!isOpen && activeValues.length > 0) ? (
+            activeValues.map((val) => (
+              <span 
+                key={val}
+                className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${theme.tag}`}
+              >
+                {val}
+              </span>
+            ))
+          ) : (
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={handleInputChange}
+              placeholder={placeholder}
+              className="w-full bg-transparent border-0 p-0 px-1 text-xs font-semibold text-gray-800 placeholder-gray-400 focus:ring-0 focus:outline-none"
+            />
+          )}
+        </div>
+        <div className="flex items-center pr-2 pl-1">
+          <ChevronDown 
+            className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${
+              isOpen ? `transform rotate-180 ${theme.chevronActive}` : ""
+            }`} 
+          />
+        </div>
+      </div>
+      
+      {isOpen && (
+        <div className="absolute left-0 z-50 mt-1 min-w-[140px] bg-white/95 backdrop-blur-sm border border-gray-200/80 rounded-xl shadow-xl max-h-48 overflow-y-auto py-1">
+          {options.map((opt) => {
+            const isSelected = isMulti 
+              ? activeValues.includes(opt)
+              : inputValue.trim() === opt;
+            
+            return (
+              <div
+                key={opt}
+                onClick={() => handleOptionToggle(opt)}
+                className={`flex items-center justify-between px-3 py-1.5 text-xs font-semibold cursor-pointer select-none transition-colors duration-150 ${
+                  isSelected 
+                    ? `${theme.optionSelected} font-bold` 
+                    : "text-gray-700 hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-all duration-150 ${
+                    isSelected 
+                      ? `${theme.checkboxOn} text-white` 
+                      : "border-gray-300 bg-white"
+                  }`}>
+                    {isSelected && (
+                      <svg className="w-2 h-2 fill-current" viewBox="0 0 20 20">
+                        <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
+                      </svg>
+                    )}
+                  </div>
+                  <span>{opt}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const LMSSyllabus = () => {
   const { assignmentId } = useParams();
@@ -130,6 +311,8 @@ export const LMSSyllabus = () => {
         unit: lastRow ? lastRow.unit : "1",
         topic: "",
         cognitive_level: "K1",
+        co: "CO1",
+        po: "PO1",
         mode_of_delivery: "BB",
         actual_date: null,
         reason_for_deviation: "",
@@ -316,12 +499,14 @@ export const LMSSyllabus = () => {
               <thead>
                 <tr className="bg-gray-100 border-b border-gray-300 text-xs font-bold text-gray-700 uppercase">
                   <th className="py-2.5 px-3 w-16 text-center border-r border-gray-300">S.No.</th>
-                  <th className="py-2.5 px-3 w-40 border-r border-gray-300">Proposed Date</th>
-                  <th className="py-2.5 px-3 w-32 border-r border-gray-300">Hour / Period</th>
-                  <th className="py-2.5 px-3 w-28 border-r border-gray-300">Unit</th>
+                  <th className="py-2.5 px-3 w-36 border-r border-gray-300">Proposed Date</th>
+                  <th className="py-2.5 px-3 w-28 border-r border-gray-300">Hour/Period</th>
+                  <th className="py-2.5 px-3 w-20 border-r border-gray-300">Unit</th>
                   <th className="py-2.5 px-4 border-r border-gray-300">Topic(s)</th>
-                  <th className="py-2.5 px-3 w-28 border-r border-gray-300">COs</th>
-                  <th className="py-2.5 px-3 w-44 border-r border-gray-300">Mode of Delivery</th>
+                  <th className="py-2.5 px-3 w-32 border-r border-gray-300">Blooms Level</th>
+                  <th className="py-2.5 px-3 w-32 border-r border-gray-300">COs</th>
+                  <th className="py-2.5 px-3 w-36 border-r border-gray-300">PO</th>
+                  <th className="py-2.5 px-3 w-36 border-r border-gray-300">Mode of Delivery</th>
                   <th className="py-2.5 px-2 w-12 text-center"></th>
                 </tr>
               </thead>
@@ -384,19 +569,40 @@ export const LMSSyllabus = () => {
                       />
                     </td>
 
+                    {/* Blooms Level (cognitive_level) */}
+                    <td className="py-2 px-3 border-r border-gray-200">
+                      <DropdownSelectInput
+                        value={t.cognitive_level}
+                        onChange={(val) => handleRowChange(t.sequence_no, 'cognitive_level', val)}
+                        options={["K1", "K2", "K3", "K4", "K5", "K6"]}
+                        isMulti={true}
+                        placeholder="Blooms Level"
+                        color="blue"
+                      />
+                    </td>
+
                     {/* COs */}
                     <td className="py-2 px-3 border-r border-gray-200">
-                      <select
-                        value={t.cognitive_level}
-                        onChange={(e) => handleRowChange(t.sequence_no, 'cognitive_level', e.target.value)}
-                        className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-orange-500 focus:outline-none bg-white"
-                      >
-                        <option value="K1">K1</option>
-                        <option value="K2">K2</option>
-                        <option value="K3">K3</option>
-                        <option value="K4">K4</option>
-                        <option value="K5">K5</option>
-                      </select>
+                      <DropdownSelectInput
+                        value={t.co}
+                        onChange={(val) => handleRowChange(t.sequence_no, 'co', val)}
+                        options={["CO1", "CO2", "CO3", "CO4", "CO5"]}
+                        isMulti={true}
+                        placeholder="COs"
+                        color="emerald"
+                      />
+                    </td>
+
+                    {/* PO */}
+                    <td className="py-2 px-3 border-r border-gray-200">
+                      <DropdownSelectInput
+                        value={t.po}
+                        onChange={(val) => handleRowChange(t.sequence_no, 'po', val)}
+                        options={["PO1", "PO2", "PO3", "PO4", "PO5", "PO6"]}
+                        isMulti={true}
+                        placeholder="POs"
+                        color="violet"
+                      />
                     </td>
 
                     {/* Mode of Delivery */}
@@ -499,18 +705,37 @@ export const LMSSyllabus = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">COs</label>
-                    <select
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Blooms Level</label>
+                    <DropdownSelectInput
                       value={t.cognitive_level}
-                      onChange={(e) => handleRowChange(t.sequence_no, 'cognitive_level', e.target.value)}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg font-semibold focus:ring-1 focus:ring-orange-500 focus:outline-none bg-white"
-                    >
-                      <option value="K1">K1</option>
-                      <option value="K2">K2</option>
-                      <option value="K3">K3</option>
-                      <option value="K4">K4</option>
-                      <option value="K5">K5</option>
-                    </select>
+                      onChange={(val) => handleRowChange(t.sequence_no, 'cognitive_level', val)}
+                      options={["K1", "K2", "K3", "K4", "K5", "K6"]}
+                      isMulti={true}
+                      placeholder="Blooms Level"
+                      color="blue"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">COs</label>
+                    <DropdownSelectInput
+                      value={t.co}
+                      onChange={(val) => handleRowChange(t.sequence_no, 'co', val)}
+                      options={["CO1", "CO2", "CO3", "CO4", "CO5"]}
+                      isMulti={true}
+                      placeholder="COs"
+                      color="emerald"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">PO</label>
+                    <DropdownSelectInput
+                      value={t.po}
+                      onChange={(val) => handleRowChange(t.sequence_no, 'po', val)}
+                      options={["PO1", "PO2", "PO3", "PO4", "PO5", "PO6"]}
+                      isMulti={true}
+                      placeholder="POs"
+                      color="violet"
+                    />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Mode of Delivery</label>
@@ -590,9 +815,11 @@ export const LMSSyllabus = () => {
                   <th className="py-2.5 px-3 w-16 text-center border-r border-gray-300">S.No.</th>
                   <th className="py-2.5 px-3 w-28 border-r border-gray-300">Proposed Date</th>
                   <th className="py-2.5 px-3 w-28 text-center border-r border-gray-300">Hour / Period</th>
-                  <th className="py-2.5 px-2 w-16 text-center border-r border-gray-300">Unit</th>
+                  <th className="py-2.5 px-2 w-16 border-r border-gray-300">Unit</th>
                   <th className="py-2.5 px-4 border-r border-gray-300">Topic(s)</th>
-                  <th className="py-2.5 px-2 w-16 text-center border-r border-gray-300">COs</th>
+                  <th className="py-2.5 px-3 w-32 border-r border-gray-300">Blooms Level</th>
+                  <th className="py-2.5 px-3 w-32 border-r border-gray-300">COs</th>
+                  <th className="py-2.5 px-3 w-36 border-r border-gray-300">PO</th>
                   <th className="py-2.5 px-3 w-36 border-r border-gray-300">Mode of Delivery</th>
                   <th className="py-2.5 px-3 w-32 border-r border-gray-300">Actual Date Covered</th>
                   <th className="py-2.5 px-4">Reason for Deviation (if any)</th>
@@ -637,9 +864,43 @@ export const LMSSyllabus = () => {
                         {t.topic}
                       </td>
 
+                      {/* Blooms Level (cognitive_level) */}
+                      <td className="py-2 px-3 border-r border-gray-200">
+                        <DropdownSelectInput
+                          value={t.cognitive_level}
+                          onChange={(val) => handleRowChange(t.sequence_no, 'cognitive_level', val)}
+                          onBlur={() => savePlanToBackend(topics)}
+                          options={["K1", "K2", "K3", "K4", "K5", "K6"]}
+                          isMulti={true}
+                          placeholder="Blooms Level"
+                          color="blue"
+                        />
+                      </td>
+
                       {/* COs */}
-                      <td className="py-2.5 px-2 text-center border-r border-gray-200 font-bold text-gray-600">
-                        {t.cognitive_level}
+                      <td className="py-2 px-3 border-r border-gray-200">
+                        <DropdownSelectInput
+                          value={t.co}
+                          onChange={(val) => handleRowChange(t.sequence_no, 'co', val)}
+                          onBlur={() => savePlanToBackend(topics)}
+                          options={["CO1", "CO2", "CO3", "CO4", "CO5"]}
+                          isMulti={true}
+                          placeholder="COs"
+                          color="emerald"
+                        />
+                      </td>
+
+                      {/* PO */}
+                      <td className="py-2 px-3 border-r border-gray-200">
+                        <DropdownSelectInput
+                          value={t.po}
+                          onChange={(val) => handleRowChange(t.sequence_no, 'po', val)}
+                          onBlur={() => savePlanToBackend(topics)}
+                          options={["PO1", "PO2", "PO3", "PO4", "PO5", "PO6"]}
+                          isMulti={true}
+                          placeholder="POs"
+                          color="violet"
+                        />
                       </td>
 
                       {/* Mode of Delivery */}
@@ -723,12 +984,53 @@ export const LMSSyllabus = () => {
                     <div className="grid grid-cols-2 gap-2 pt-2 text-[10px] text-gray-500 font-medium">
                       <p>Proposed: {t.proposed_date ? new Date(t.proposed_date).toLocaleDateString() : 'N/A'}</p>
                       <p>Hour/Period: {t.hours === 1 ? "1st Hour" : t.hours === 2 ? "2nd Hour" : t.hours === 3 ? "3rd Hour" : t.hours === 4 ? "4th Hour" : t.hours === 5 ? "5th Hour" : t.hours === 6 ? "6th Hour" : t.hours === 7 ? "7th Hour" : t.hours === 8 ? "8th Hour" : `${t.hours} Hour`}</p>
-                      <p>COs: {t.cognitive_level}</p>
+                      <p>Blooms: {t.cognitive_level || 'N/A'}</p>
+                      <p>COs: {t.co || 'N/A'}</p>
+                      <p>PO: {t.po || 'N/A'}</p>
                       <p>Mode: {t.mode_of_delivery}</p>
                     </div>
                   </div>
 
                   <div className="space-y-2.5">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Blooms Level</label>
+                      <DropdownSelectInput
+                        value={t.cognitive_level}
+                        onChange={(val) => handleRowChange(t.sequence_no, 'cognitive_level', val)}
+                        onBlur={() => savePlanToBackend(topics)}
+                        options={["K1", "K2", "K3", "K4", "K5", "K6"]}
+                        isMulti={true}
+                        placeholder="Blooms Level"
+                        color="blue"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">COs</label>
+                      <DropdownSelectInput
+                        value={t.co}
+                        onChange={(val) => handleRowChange(t.sequence_no, 'co', val)}
+                        onBlur={() => savePlanToBackend(topics)}
+                        options={["CO1", "CO2", "CO3", "CO4", "CO5"]}
+                        isMulti={true}
+                        placeholder="COs"
+                        color="emerald"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">PO</label>
+                      <DropdownSelectInput
+                        value={t.po}
+                        onChange={(val) => handleRowChange(t.sequence_no, 'po', val)}
+                        onBlur={() => savePlanToBackend(topics)}
+                        options={["PO1", "PO2", "PO3", "PO4", "PO5", "PO6"]}
+                        isMulti={true}
+                        placeholder="POs"
+                        color="violet"
+                      />
+                    </div>
+
                     <div>
                       <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Actual Date Covered</label>
                       <input
