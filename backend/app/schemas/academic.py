@@ -17,6 +17,14 @@ class CourseBase(BaseModel):
     credits: int = 3
     course_type: CourseTypeEnum = CourseTypeEnum.theory
     semester: Optional[int] = None
+    syllabus: Optional[str] = None
+    objectives: Optional[str] = None
+    outcomes: Optional[str] = None
+    textbooks: Optional[str] = None
+    references: Optional[str] = None
+    prerequisites: Optional[str] = None
+    co_po_mapping: Optional[str] = None
+    co_k_levels: Optional[str] = None
 
 class CourseCreate(CourseBase):
     pass
@@ -29,6 +37,14 @@ class CourseUpdate(BaseModel):
     credits: Optional[int] = None
     course_type: Optional[CourseTypeEnum] = None
     semester: Optional[int] = None
+    syllabus: Optional[str] = None
+    objectives: Optional[str] = None
+    outcomes: Optional[str] = None
+    textbooks: Optional[str] = None
+    references: Optional[str] = None
+    prerequisites: Optional[str] = None
+    co_po_mapping: Optional[str] = None
+    co_k_levels: Optional[str] = None
     is_active: Optional[bool] = None
 
 class CourseResponse(CourseBase):
