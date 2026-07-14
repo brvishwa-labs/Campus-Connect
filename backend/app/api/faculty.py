@@ -3058,3 +3058,192 @@ def trigger_daily_faculty_attendance(
     
     return {"status": "success", "message": f"Successfully processed attendance for {target_date or 'today'}"}
 
+
+# ════════════════════════════════════════════════════════════════════════════
+# LAB MARKS  —  /api/faculty/courses/{assignment_id}/lab-marks
+# ════════════════════════════════════════════════════════════════════════════
+
+def _att_pct_to_marks(pct):
+    """Convert attendance % to marks out of 10 (Anna University standard)."""
+    if pct is None:
+        return 0
+    if pct >= 90:
+        return 10
+    if pct >= 85:
+        return 8
+    if pct >= 80:
+        return 6
+    if pct >= 75:
+        return 4
+    return 0
+
+
+@router.get("/courses/{assignment_id}/lab-marks")
+def get_lab_marks(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Return the full lab-marks roster for a course assignment.
+    Each row includes stored marks + computed avg_ia, att_pct, att_marks, total.
+    """
+    if current_user.role not in ["faculty", "hod"]:
+        raise HTTPException(status_code=403, detail="Only faculty can access this")
+
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not faculty:
+        raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+    from app.models.academic import CourseAssignment
+    from app.models.grade import LabMark
+
+    assignment = db.query(CourseAssignment).options(
+        joinedload(CourseAssignment.course),
+        joinedload(CourseAssignment.section),
+    ).filter(CourseAssignment.id == assignment_id).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Course assignment not found")
+    if assignment.faculty_id != faculty.id:
+        raise HTTPException(status_code=403, detail="Not your course assignment")
+
+    # All enrolled students for this course
+    students = db.query(Student).filter(
+        Student.section_id == assignment.section_id,
+        Student.is_active == True
+    ).order_by(Student.register_number).all()
+
+    # Existing lab mark rows keyed by student_id
+    existing_marks = {
+        lm.student_id: lm
+        for lm in db.query(LabMark).filter(
+            LabMark.course_assignment_id == assignment_id
+        ).all()
+    }
+
+    roster = []
+    for student in students:
+        lm = existing_marks.get(student.id)
+
+        # Attendance % for this student in this specific course
+        total_classes = db.query(Attendance).filter(
+            Attendance.student_id == student.id,
+            Attendance.course_id == assignment.course_id,
+        ).count()
+
+        attended = db.query(Attendance).filter(
+            Attendance.student_id == student.id,
+            Attendance.course_id == assignment.course_id,
+            Attendance.status.in_([
+                AttendanceStatus.PRESENT,
+                AttendanceStatus.ON_DUTY,
+                AttendanceStatus.LATE,
+            ]),
+        ).count()
+
+        att_pct = round(attended / total_classes * 100, 1) if total_classes > 0 else None
+        att_marks = _att_pct_to_marks(att_pct)
+
+        # Computed fields
+        ia1    = float(lm.ia1_marks)    if lm and lm.ia1_marks    is not None else None
+        ia2    = float(lm.ia2_marks)    if lm and lm.ia2_marks    is not None else None
+        avg_ia = round((ia1 + ia2) / 2, 2) if (ia1 is not None and ia2 is not None) else None
+        record = float(lm.record_marks) if lm and lm.record_marks is not None else None
+        viva   = float(lm.viva_marks)   if lm and lm.viva_marks   is not None else None
+
+        total = None
+        if record is not None and avg_ia is not None and viva is not None:
+            total = round(record + avg_ia + viva + att_marks, 2)
+
+        roster.append({
+            "student_id":      student.id,
+            "register_number": student.register_number,
+            "first_name":      student.first_name,
+            "last_name":       student.last_name,
+            "record_marks":    record,
+            "ia1_marks":       ia1,
+            "ia2_marks":       ia2,
+            "viva_marks":      viva,
+            "avg_ia":          avg_ia,
+            "att_pct":         att_pct,
+            "att_marks":       att_marks,
+            "total":           total,
+            "is_published":    lm.is_published if lm else False,
+        })
+
+    return {
+        "assignment_id": assignment_id,
+        "course_code":   assignment.course.code,
+        "course_name":   assignment.course.name,
+        "section":       (
+            f"{assignment.section.year} Year {assignment.section.name}"
+            if assignment.section else "N/A"
+        ),
+        "roster": roster,
+    }
+
+
+class LabMarkEntry(BaseModel):
+    student_id:   int
+    record_marks: Optional[float] = None
+    ia1_marks:    Optional[float] = None
+    ia2_marks:    Optional[float] = None
+    viva_marks:   Optional[float] = None
+
+
+class LabMarkSaveRequest(BaseModel):
+    entries: List[LabMarkEntry]
+
+
+@router.post("/courses/{assignment_id}/lab-marks")
+def save_lab_marks(
+    assignment_id: int,
+    payload: LabMarkSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Bulk upsert lab marks (draft). Does NOT change is_published."""
+    if current_user.role not in ["faculty", "hod"]:
+        raise HTTPException(status_code=403, detail="Only faculty can access this")
+
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not faculty:
+        raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+    from app.models.academic import CourseAssignment
+    from app.models.grade import LabMark
+
+    assignment = db.query(CourseAssignment).filter(CourseAssignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Course assignment not found")
+    if assignment.faculty_id != faculty.id:
+        raise HTTPException(status_code=403, detail="Not your course assignment")
+
+    existing = {
+        lm.student_id: lm
+        for lm in db.query(LabMark).filter(LabMark.course_assignment_id == assignment_id).all()
+    }
+
+    for entry in payload.entries:
+        lm = existing.get(entry.student_id)
+        if lm:
+            lm.record_marks = entry.record_marks
+            lm.ia1_marks    = entry.ia1_marks
+            lm.ia2_marks    = entry.ia2_marks
+            lm.viva_marks   = entry.viva_marks
+            lm.graded_by_id = faculty.id
+        else:
+            db.add(LabMark(
+                course_assignment_id=assignment_id,
+                student_id=entry.student_id,
+                record_marks=entry.record_marks,
+                ia1_marks=entry.ia1_marks,
+                ia2_marks=entry.ia2_marks,
+                viva_marks=entry.viva_marks,
+                graded_by_id=faculty.id,
+                is_published=False,
+            ))
+
+    db.commit()
+    return {"status": "saved", "count": len(payload.entries)}

@@ -34,6 +34,8 @@ export const LMSDashboard = () => {
     );
   }
 
+  const isLab = courseDetails?.course?.course_type === 'lab';
+
   const features = [
     {
       title: 'Resources',
@@ -42,7 +44,8 @@ export const LMSDashboard = () => {
       bg: 'bg-blue-50',
       border: 'border-blue-100',
       hover: 'hover:border-blue-300 hover:shadow-blue-100',
-      path: `/faculty/courses/${assignmentId}/lms/resources`
+      path: `/faculty/courses/${assignmentId}/lms/resources`,
+      excludeForLab: true,
     },
     {
       title: 'Assignments',
@@ -51,7 +54,8 @@ export const LMSDashboard = () => {
       bg: 'bg-purple-50',
       border: 'border-purple-100',
       hover: 'hover:border-purple-300 hover:shadow-purple-100',
-      path: `/faculty/courses/${assignmentId}/lms/assignments`
+      path: `/faculty/courses/${assignmentId}/lms/assignments`,
+      excludeForLab: true,
     },
     {
       title: 'Announcements',
@@ -60,7 +64,7 @@ export const LMSDashboard = () => {
       bg: 'bg-red-50',
       border: 'border-red-100',
       hover: 'hover:border-red-300 hover:shadow-red-100',
-      path: `/faculty/courses/${assignmentId}/lms/announcements`
+      path: `/faculty/courses/${assignmentId}/lms/announcements`,
     },
     {
       title: 'Lesson Plan',
@@ -69,7 +73,8 @@ export const LMSDashboard = () => {
       bg: 'bg-orange-50',
       border: 'border-orange-100',
       hover: 'hover:border-orange-300 hover:shadow-orange-100',
-      path: `/faculty/courses/${assignmentId}/lms/syllabus`
+      path: `/faculty/courses/${assignmentId}/lms/syllabus`,
+      excludeForLab: true,
     },
     {
       title: 'Attendance',
@@ -78,7 +83,7 @@ export const LMSDashboard = () => {
       bg: 'bg-green-50',
       border: 'border-green-100',
       hover: 'hover:border-green-300 hover:shadow-green-100',
-      path: `/faculty/courses/${assignmentId}/lms/attendance`
+      path: `/faculty/courses/${assignmentId}/lms/attendance`,
     },
     {
       title: 'Att. History',
@@ -87,7 +92,7 @@ export const LMSDashboard = () => {
       bg: 'bg-indigo-50',
       border: 'border-indigo-100',
       hover: 'hover:border-indigo-300 hover:shadow-indigo-100',
-      path: `/faculty/courses/${assignmentId}/lms/attendance-history`
+      path: `/faculty/courses/${assignmentId}/lms/attendance-history`,
     },
     {
       title: 'Grade Book',
@@ -96,7 +101,8 @@ export const LMSDashboard = () => {
       bg: 'bg-teal-50',
       border: 'border-teal-100',
       hover: 'hover:border-teal-300 hover:shadow-teal-100',
-      path: `/faculty/courses/${assignmentId}/lms/gradebook`
+      path: `/faculty/courses/${assignmentId}/lms/gradebook`,
+      excludeForLab: true,
     },
     {
       title: 'Seminars',
@@ -105,7 +111,8 @@ export const LMSDashboard = () => {
       bg: 'bg-pink-50',
       border: 'border-pink-100',
       hover: 'hover:border-pink-300 hover:shadow-pink-100',
-      path: `/faculty/courses/${assignmentId}/lms/seminars`
+      path: `/faculty/courses/${assignmentId}/lms/seminars`,
+      excludeForLab: true,
     },
     {
       title: 'Timetable',
@@ -123,7 +130,8 @@ export const LMSDashboard = () => {
       bg: 'bg-indigo-50',
       border: 'border-indigo-100',
       hover: 'hover:border-indigo-300 hover:shadow-indigo-100',
-      path: `/faculty/courses/${assignmentId}/lms/co-po-mapping`
+      path: `/faculty/courses/${assignmentId}/lms/co-po-mapping`,
+      excludeForLab: true,
     },
     {
       title: 'Generate Logbook Report',
@@ -132,9 +140,26 @@ export const LMSDashboard = () => {
       bg: 'bg-slate-50',
       border: 'border-slate-100',
       hover: 'hover:border-slate-300 hover:shadow-slate-100',
-      path: `/faculty/courses/${assignmentId}/lms/logbook-report`
-    }
+      path: `/faculty/courses/${assignmentId}/lms/logbook-report`,
+      excludeForLab: true,
+    },
+    // ── Lab-only card ─────────────────────────────────────────────────────
+    {
+      title: 'Lab Mark Entry',
+      description: 'Enter Record, IA-1, IA-2, and Viva marks. Auto-computes Average IA, Attendance marks, and Total out of 60.',
+      icon: <ClipboardList className="w-8 h-8 text-emerald-600" />,
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-100',
+      hover: 'hover:border-emerald-300 hover:shadow-emerald-100',
+      path: `/faculty/courses/${assignmentId}/lms/lab-marks`,
+      labOnly: true,
+    },
   ];
+
+  const visibleFeatures = features.filter(f => {
+    if (isLab) return !f.excludeForLab;        // hide theory-only cards
+    return !f.labOnly;                          // hide lab-only card for non-lab
+  });
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 p-4 md:p-6 lg:p-8">
@@ -183,7 +208,7 @@ export const LMSDashboard = () => {
 
       {/* Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {features.map((feature, idx) => (
+        {visibleFeatures.map((feature, idx) => (
           <Link
             key={idx}
             to={feature.path}
