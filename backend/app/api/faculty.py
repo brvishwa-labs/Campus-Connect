@@ -3026,7 +3026,7 @@ def get_my_attendance(
                 "id": r.id,
                 "date": r.date.strftime("%Y-%m-%d"),
                 "status": r.status.value,
-                "leave_type": r.leave_request.leave_type.value if r.leave_request else None
+                "leave_type": getattr(r.leave_request.leave_type, "value", r.leave_request.leave_type) if r.leave_request else None
             } for r in records
         ]
     }

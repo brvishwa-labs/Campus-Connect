@@ -12,17 +12,24 @@ from app.models.department import Department
 from app.models.discipline import DisciplineRecord, IncidentCategory
 from app.schemas.discipline import (
     DisciplineCreate, DisciplineUpdate, DisciplineResponse, 
-    DisciplineAnalytics, CategoryCount, TrendPoint
+    DisciplineAnalytics, CategoryCount, TrendPoint, DepartmentCount, MentorCount, StudentCount
 )
 
 router = APIRouter()
 
 def _serialize_record(record: DisciplineRecord) -> dict:
     reporter_name = record.reported_by.email if record.reported_by else None
-    if record.reported_by and record.reported_by.faculty_profile:
-        reporter_name = f"{record.reported_by.faculty_profile.first_name} {record.reported_by.faculty_profile.last_name}"
-    elif record.reported_by and record.reported_by.role == 'admin':
-        reporter_name = 'Admin'
+    if record.reported_by:
+        if record.reported_by.faculty_profile:
+            reporter_name = f"{record.reported_by.faculty_profile.first_name} {record.reported_by.faculty_profile.last_name}"
+        elif record.reported_by.authority_profile:
+            reporter_name = f"{record.reported_by.authority_profile.first_name} {record.reported_by.authority_profile.last_name}"
+        elif record.reported_by.role == 'admin':
+            reporter_name = 'Admin'
+
+    mentor_name = "Unassigned"
+    if record.student and record.student.mentor_assignment and record.student.mentor_assignment.mentor:
+        mentor_name = f"{record.student.mentor_assignment.mentor.first_name} {record.student.mentor_assignment.mentor.last_name}"
 
     return {
         "id": record.id,
@@ -38,6 +45,7 @@ def _serialize_record(record: DisciplineRecord) -> dict:
         "updated_at": record.updated_at,
         "student_name": f"{record.student.first_name} {record.student.last_name}" if record.student else None,
         "student_register_number": record.student.register_number if record.student else None,
+        "student_mentor": mentor_name,
         "reporter_name": reporter_name,
         "reporter_role": record.reported_by.role if record.reported_by else None
     }
@@ -226,8 +234,79 @@ def get_analytics(
         count = q_trend.count()
         trends.append(TrendPoint(period=target_date.strftime("%b %d"), count=count))
 
+    # Department Distribution (Only for Authority/Admin)
+    dept_distribution = None
+    if current_user.role in ["authority", "admin"] and not department_id:
+        from app.models.department import Department
+        dept_dist = db.query(
+            Department.code, 
+            func.count(DisciplineRecord.id)
+        ).join(Student, Student.department_id == Department.id)\
+         .join(DisciplineRecord, DisciplineRecord.student_id == Student.id)\
+         .group_by(Department.code).all()
+        
+        dept_distribution = [DepartmentCount(department=str(c[0]), count=c[1]) for c in dept_dist]
+
+    # Mentor Distribution (For Authority/Admin and HOD)
+    mentor_distribution = None
+    if current_user.role in ["authority", "admin", "hod"]:
+        from app.models.academic import MentorAssignment
+        from app.models.faculty import Faculty
+        
+        mentor_query = db.query(
+            Faculty.first_name, Faculty.last_name,
+            func.count(DisciplineRecord.id)
+        ).select_from(DisciplineRecord)\
+         .join(Student, DisciplineRecord.student_id == Student.id)\
+         .join(MentorAssignment, MentorAssignment.student_id == Student.id)\
+         .join(Faculty, MentorAssignment.mentor_id == Faculty.id)
+        
+        if current_user.role == "hod" and current_user.faculty_profile and current_user.faculty_profile.department_id:
+            mentor_query = mentor_query.filter(Student.department_id == current_user.faculty_profile.department_id)
+        elif department_id:
+            mentor_query = mentor_query.filter(Student.department_id == department_id)
+            
+        mentor_dist_data = mentor_query.group_by(Faculty.id).all()
+        mentor_distribution = [MentorCount(mentor=f"{c[0]} {c[1]}", count=c[2]) for c in mentor_dist_data]
+        mentor_distribution.sort(key=lambda x: x.count, reverse=True)
+
+    # Student Distribution (For Authority/Admin and HOD)
+    student_distribution = None
+    if current_user.role in ["authority", "admin", "hod"]:
+        from app.models.academic import MentorAssignment
+        from app.models.faculty import Faculty
+        
+        student_query = db.query(
+            Student.first_name, Student.last_name, Student.register_number,
+            Faculty.first_name, Faculty.last_name,
+            func.count(DisciplineRecord.id)
+        ).select_from(DisciplineRecord)\
+         .join(Student, DisciplineRecord.student_id == Student.id)\
+         .outerjoin(MentorAssignment, MentorAssignment.student_id == Student.id)\
+         .outerjoin(Faculty, MentorAssignment.mentor_id == Faculty.id)
+        
+        if current_user.role == "hod" and current_user.faculty_profile and current_user.faculty_profile.department_id:
+            student_query = student_query.filter(Student.department_id == current_user.faculty_profile.department_id)
+        elif department_id:
+            student_query = student_query.filter(Student.department_id == department_id)
+            
+        student_dist_data = student_query.group_by(Student.id, Faculty.id).all()
+        student_distribution = [
+            StudentCount(
+                student_name=f"{c[0]} {c[1]}", 
+                register_number=c[2],
+                mentor=f"{c[3]} {c[4]}" if c[3] else "Unassigned", 
+                count=c[5]
+            ) 
+            for c in student_dist_data
+        ]
+        student_distribution.sort(key=lambda x: x.count, reverse=True)
+
     return DisciplineAnalytics(
         total_incidents=total,
         category_distribution=categories,
-        recent_trend=trends
+        recent_trend=trends,
+        department_distribution=dept_distribution,
+        mentor_distribution=mentor_distribution,
+        student_distribution=student_distribution
     )
