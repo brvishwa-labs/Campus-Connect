@@ -106,7 +106,7 @@ export const FacultyAssignment = () => {
       setLoading(true);
       const [aRes, fRes, cRes, sRes] = await Promise.all([
         axios.get('/api/hod/assignments'),
-        axios.get('/api/hod/faculty'),
+        axios.get('/api/hod/faculty/all'),
         axios.get('/api/hod/courses'),
         axios.get('/api/hod/sections'),
       ]);

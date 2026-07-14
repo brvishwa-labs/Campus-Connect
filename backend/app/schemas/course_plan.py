@@ -12,6 +12,8 @@ class CoursePlanTopicBase(BaseModel):
     co: Optional[str] = None
     po: Optional[str] = None
     mode_of_delivery: str
+    experiment_name: Optional[str] = None
+    resources: Optional[str] = None
     actual_date: Optional[date] = None
     reason_for_deviation: Optional[str] = None
     is_signed: bool
