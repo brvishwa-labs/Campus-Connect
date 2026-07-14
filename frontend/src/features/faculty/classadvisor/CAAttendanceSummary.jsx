@@ -103,8 +103,25 @@ export const CAAttendanceSummary = () => {
         console.error('Failed to load logo', e);
       }
 
-      const res = await axios.get(`/api/class-advisor/attendance-report?start_date=${startDate}&end_date=${endDate}`);
+      // Fetch attendance data, department info, and program outcomes in parallel
+      const [res, classInfoRes, poRes] = await Promise.all([
+        axios.get(`/api/class-advisor/attendance-report?start_date=${startDate}&end_date=${endDate}`),
+        axios.get('/api/class-advisor/my-class').catch(() => null),
+        axios.get('/api/departments/program-outcomes').catch(() => null),
+      ]);
       const reportData = res.data;
+
+      // Extract department metadata (graceful fallback)
+      let deptMeta = null;
+      if (classInfoRes?.data?.department_id) {
+        try {
+          const deptRes = await axios.get(`/api/departments/${classInfoRes.data.department_id}`);
+          deptMeta = deptRes.data;
+        } catch (e) {
+          console.warn('Could not load department metadata for PDF', e);
+        }
+      }
+      const poOutcomes = poRes?.data?.outcomes || null;
 
       // Deterministically generate all dates for the range
       const dates = [];
@@ -149,50 +166,101 @@ export const CAAttendanceSummary = () => {
         const doc = new jsPDF({ orientation: dates.length > 7 ? 'landscape' : 'portrait' });
         
         const pageWidth = doc.internal.pageSize.getWidth();
-        let tableStartY = 20;
+        const margin = 14;
+        let cursorY = 10;
         let logoTargetWidth = 0;
         let logoTargetHeight = 0;
 
+        // ── Logo ────────────────────────────────────────────────────────────
         if (logoData) {
-          // Span the width with 14mm margins
-          logoTargetWidth = pageWidth - 28;
+          logoTargetWidth = pageWidth - margin * 2;
           logoTargetHeight = (logoData.height / logoData.width) * logoTargetWidth;
-          
-          // Cap height in case it's a square logo, preventing it from taking up too much vertical space
           if (logoTargetHeight > 40) {
             logoTargetHeight = 40;
             logoTargetWidth = (logoData.width / logoData.height) * logoTargetHeight;
           }
-          
-          // 10mm top margin + logo height + 12mm gap for the title + 5mm gap before table
-          tableStartY = 10 + logoTargetHeight + 17;
-        } else {
-          tableStartY = 30;
+          const xPos = (pageWidth - logoTargetWidth) / 2;
+          doc.addImage(logoData.data, 'PNG', xPos, cursorY, logoTargetWidth, logoTargetHeight);
+          cursorY += logoTargetHeight + 6;
         }
+
+        // ── Report title ────────────────────────────────────────────────────
+        doc.setFontSize(13);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(30);
+        doc.text(reportTitle, pageWidth / 2, cursorY, { align: 'center' });
+        cursorY += 8;
+
+        // ── Department metadata section (Vision / Mission / PEOs / PSOs / POs) ──
+        const metaSections = [];
+        if (deptMeta?.vision)   metaSections.push({ label: 'Department Vision',                         text: deptMeta.vision });
+        if (deptMeta?.mission)  metaSections.push({ label: 'Department Mission',                        text: deptMeta.mission });
+        if (deptMeta?.peos)     metaSections.push({ label: 'Programme Educational Objectives (PEOs)',   text: deptMeta.peos });
+        if (deptMeta?.psos)     metaSections.push({ label: 'Programme Specific Outcomes (PSOs)',        text: deptMeta.psos });
+        if (poOutcomes)         metaSections.push({ label: 'Program Outcomes (POs)',                    text: poOutcomes });
+
+        if (metaSections.length > 0) {
+          // Section header bar
+          doc.setFillColor(240, 242, 255);
+          doc.setDrawColor(210, 214, 255);
+          doc.roundedRect(margin, cursorY, pageWidth - margin * 2, 7, 1.5, 1.5, 'FD');
+          doc.setFontSize(8);
+          doc.setFont(undefined, 'bold');
+          doc.setTextColor(79, 70, 229);
+          doc.text('DEPARTMENT INFORMATION', margin + 3, cursorY + 4.8);
+          cursorY += 10;
+
+          metaSections.forEach(({ label, text }) => {
+            // Check remaining page space
+            const pageHeight = doc.internal.pageSize.getHeight();
+            if (cursorY > pageHeight - 30) {
+              doc.addPage();
+              cursorY = 14;
+            }
+
+            // Label
+            doc.setFontSize(7.5);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(60, 60, 80);
+            doc.text(label + ':', margin, cursorY);
+            cursorY += 4;
+
+            // Text (wrapped)
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(80, 80, 100);
+            const lines = doc.splitTextToSize(text, pageWidth - margin * 2 - 4);
+            // Guard against very long text overflowing the page
+            lines.slice(0, 40).forEach(line => {
+              if (cursorY > pageHeight - 20) {
+                doc.addPage();
+                cursorY = 14;
+              }
+              doc.text(line, margin + 2, cursorY);
+              cursorY += 3.8;
+            });
+            cursorY += 3; // gap between sections
+          });
+
+          // Separator before attendance table
+          doc.setDrawColor(200, 200, 220);
+          doc.setLineWidth(0.3);
+          doc.line(margin, cursorY, pageWidth - margin, cursorY);
+          cursorY += 5;
+        }
+
+        // ── Attendance Table ─────────────────────────────────────────────────
+        const tableStartY = cursorY;
 
         autoTable(doc, {
           head: [headers],
           body: rows,
           startY: tableStartY,
-          margin: { top: tableStartY },
+          margin: { top: tableStartY, left: margin, right: margin },
           theme: 'grid',
           styles: { fontSize: 7, cellPadding: 1, halign: 'center' },
           columnStyles: { 0: { halign: 'left', cellWidth: 'auto' }, 1: { halign: 'left', cellWidth: 'auto' } },
           headStyles: { fillColor: [79, 70, 229], halign: 'center' },
-          didDrawPage: function (data) {
-            if (logoData) {
-              const xPos = (pageWidth - logoTargetWidth) / 2;
-              doc.addImage(logoData.data, 'PNG', xPos, 10, logoTargetWidth, logoTargetHeight);
-              
-              doc.setFontSize(14);
-              doc.setTextColor(40);
-              doc.text(reportTitle, pageWidth / 2, 10 + logoTargetHeight + 10, { align: 'center' });
-            } else {
-              doc.setFontSize(14);
-              doc.setTextColor(40);
-              doc.text(reportTitle, pageWidth / 2, 20, { align: 'center' });
-            }
-          }
         });
         doc.save(`Attendance_Report_${startDate}_to_${endDate}.pdf`);
       }

@@ -1,6 +1,99 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { BookOpen, Plus, Search, X, Edit2, Trash2, ChevronLeft, ChevronRight, Building2, Folder, Calendar, Layers, GraduationCap } from 'lucide-react';
+import { BookOpen, Plus, Search, X, Edit2, Trash2, ChevronLeft, ChevronRight, Building2, Folder, Calendar, Layers, GraduationCap, Grid3x3 } from 'lucide-react';
+
+// ── CO-PO/PSO Mapping Helpers ───────────────────────────────────────
+const CO_PO_VALUE_BADGE = {
+  'N': 'bg-gray-100 text-gray-600 border border-gray-200',
+  'L': 'bg-blue-100 text-blue-700 border border-blue-200',
+  'M': 'bg-amber-100 text-amber-700 border border-amber-200',
+  'H': 'bg-green-100 text-green-700 border border-green-200',
+};
+
+const getCoPOConfig = (courseType) => ({
+  coCount: courseType === 'lab' ? 6 : 10,
+  psoCount: courseType === 'lab' ? 2 : 3,
+});
+
+const parseMappingJSON = (raw) => {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try { return JSON.parse(raw); } catch { return {}; }
+};
+
+/** View-only CO-PO/PSO mapping table (admin view). */
+const CoPOViewTable = ({ mapping, courseType }) => {
+  const { coCount, psoCount } = getCoPOConfig(courseType);
+  const coRows  = Array.from({ length: coCount },  (_, i) => `CO-${i + 1}`);
+  const poColumns  = Array.from({ length: 12 }, (_, i) => `PO-${i + 1}`);
+  const psoColumns = Array.from({ length: psoCount }, (_, i) => `PSO-${i + 1}`);
+  const allCols = [...poColumns, ...psoColumns];
+
+  return (
+    <div className="overflow-x-auto border border-gray-200 rounded-xl">
+      <table className="text-[11px] border-collapse" style={{ minWidth: '640px' }}>
+        <thead>
+          {/* Group header row */}
+          <tr>
+            <th
+              className="sticky left-0 z-20 bg-gray-50 border border-gray-200 px-3 py-2 text-gray-500"
+              rowSpan={2}
+            />
+            <th
+              colSpan={12}
+              className="bg-indigo-50 text-indigo-800 font-bold px-3 py-2 border border-gray-200 text-center"
+            >
+              Programme Outcomes (POs)
+            </th>
+            <th
+              colSpan={psoCount}
+              className="bg-purple-50 text-purple-800 font-bold px-3 py-2 border border-gray-200 text-center"
+            >
+              Programme Specific Outcomes (PSOs)
+            </th>
+          </tr>
+          {/* Column index row */}
+          <tr>
+            {poColumns.map(po => (
+              <th key={po} className="bg-indigo-50/60 text-indigo-700 font-semibold px-1.5 py-1.5 border border-gray-200 text-center whitespace-nowrap" style={{ minWidth: '42px' }}>
+                {po}
+              </th>
+            ))}
+            {psoColumns.map(pso => (
+              <th key={pso} className="bg-purple-50/60 text-purple-700 font-semibold px-1.5 py-1.5 border border-gray-200 text-center whitespace-nowrap" style={{ minWidth: '52px' }}>
+                {pso}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {coRows.map(co => (
+            <tr key={co} className="hover:bg-gray-50/50">
+              <td className="sticky left-0 z-10 bg-white border border-gray-200 px-3 py-1.5 font-bold text-gray-700 whitespace-nowrap">
+                {co}
+              </td>
+              {allCols.map(col => {
+                const val = mapping?.[co]?.[col] || '';
+                return (
+                  <td key={col} className="border border-gray-200 px-1 py-1 text-center">
+                    {val ? (
+                      <span className={`inline-flex items-center justify-center w-6 h-5 rounded text-[11px] font-bold ${CO_PO_VALUE_BADGE[val] || ''}`}>
+                        {val}
+                      </span>
+                    ) : (
+                      <span className="text-gray-200">–</span>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+// ── End CO-PO helpers ───────────────────────────────────────────────
 
 export const Courses = () => {
   const [courses, setCourses] = useState([]);
@@ -25,7 +118,14 @@ export const Courses = () => {
     short_name: '',
     credits: 3,
     course_type: 'theory',
-    semester: 1
+    semester: 1,
+    syllabus: '',
+    objectives: '',
+    outcomes: '',
+    textbooks: '',
+    references: '',
+    prerequisites: '',
+    co_po_mapping: {}
   });
   const [formError, setFormError] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
@@ -65,7 +165,14 @@ export const Courses = () => {
         short_name: course.short_name || '',
         credits: course.credits,
         course_type: course.course_type,
-        semester: course.semester || 1
+        semester: course.semester || 1,
+        syllabus: course.syllabus || '',
+        objectives: course.objectives || '',
+        outcomes: course.outcomes || '',
+        textbooks: course.textbooks || '',
+        references: course.references || '',
+        prerequisites: course.prerequisites || '',
+        co_po_mapping: parseMappingJSON(course.co_po_mapping)
       });
     } else {
       setEditingId(null);
@@ -76,7 +183,14 @@ export const Courses = () => {
         short_name: '',
         credits: 3,
         course_type: 'theory',
-        semester: selectedSemester ? selectedSemester : 1
+        semester: selectedSemester ? selectedSemester : 1,
+        syllabus: '',
+        objectives: '',
+        outcomes: '',
+        textbooks: '',
+        references: '',
+        prerequisites: '',
+        co_po_mapping: {}
       });
     }
     setFormError(null);
@@ -98,7 +212,9 @@ export const Courses = () => {
         ...formData,
         department_id: parseInt(formData.department_id),
         credits: parseInt(formData.credits),
-        semester: parseInt(formData.semester)
+        semester: parseInt(formData.semester),
+        // Serialize mapping object back to JSON string for DB storage
+        co_po_mapping: JSON.stringify(formData.co_po_mapping || {})
       };
 
       if (editingId) {
@@ -381,7 +497,7 @@ export const Courses = () => {
       {/* Add / Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-5xl overflow-hidden transform transition-all max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
               <h3 className="text-lg font-bold text-gray-900">{editingId ? 'Edit Course' : `Add Course to ${selectedDept.code}`}</h3>
               <button 
@@ -492,6 +608,100 @@ export const Courses = () => {
                       className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none"
                     />
                   </div>
+                </div>
+
+                {formData.course_type === 'lab' && (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Prerequisites</label>
+                    <textarea 
+                      rows={3}
+                      placeholder="Enter prerequisites for this practical course..."
+                      value={formData.prerequisites}
+                      onChange={(e) => setFormData({...formData, prerequisites: e.target.value})}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Objectives</label>
+                  <textarea 
+                    rows={3}
+                    placeholder="Enter course objectives..."
+                    value={formData.objectives}
+                    onChange={(e) => setFormData({...formData, objectives: e.target.value})}
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Outcomes (COs)</label>
+                  <textarea 
+                    rows={3}
+                    placeholder="Enter course outcomes (COs)..."
+                    value={formData.outcomes}
+                    onChange={(e) => setFormData({...formData, outcomes: e.target.value})}
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Syllabus</label>
+                  <textarea 
+                    rows={4}
+                    placeholder="Enter the syllabus topics and details for this course..."
+                    value={formData.syllabus}
+                    onChange={(e) => setFormData({...formData, syllabus: e.target.value})}
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Textbooks</label>
+                  <textarea 
+                    rows={3}
+                    placeholder="Enter textbooks details..."
+                    value={formData.textbooks}
+                    onChange={(e) => setFormData({...formData, textbooks: e.target.value})}
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">References</label>
+                  <textarea 
+                    rows={3}
+                    placeholder="Enter reference books and online links..."
+                    value={formData.references}
+                    onChange={(e) => setFormData({...formData, references: e.target.value})}
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
+                  />
+                </div>
+
+                {/* ── CO–PO/PSO Mapping Section (view-only for admin) ── */}
+                <div className="border-t border-gray-100 pt-5">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-7 h-7 bg-indigo-50 rounded-lg flex items-center justify-center">
+                      <Grid3x3 className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">CO–PO/PSO Mapping</label>
+                    <span className="text-[10px] bg-amber-50 text-amber-600 font-bold px-2 py-0.5 rounded-full border border-amber-100 tracking-wide">View Only · Editable by Assigned Faculty</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mb-3 ml-10">This mapping is set by the assigned faculty member in their LMS dashboard.</p>
+                  <div className="flex flex-wrap gap-3 text-[10px] font-bold mb-3 ml-10">
+                    {['H – High', 'M – Medium', 'L – Low', 'N – No Contribution'].map((label, i) => (
+                      <span key={i} className={`px-2 py-0.5 rounded-full border ${
+                        i === 0 ? 'bg-green-50 text-green-700 border-green-200' :
+                        i === 1 ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                        i === 2 ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                        'bg-gray-50 text-gray-600 border-gray-200'
+                      }`}>{label}</span>
+                    ))}
+                  </div>
+                  <CoPOViewTable
+                    mapping={formData.co_po_mapping}
+                    courseType={formData.course_type}
+                  />
                 </div>
               </form>
             </div>

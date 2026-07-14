@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import { FileText, BookOpen, Layers, Settings, Users, ArrowLeft, ClipboardList, Calendar } from 'lucide-react';
+import { FileText, BookOpen, Layers, Settings, Users, ArrowLeft, ClipboardList, Calendar, Grid3x3, Printer } from 'lucide-react';
 
 export const LMSDashboard = () => {
   const { assignmentId } = useParams();
@@ -115,6 +115,24 @@ export const LMSDashboard = () => {
       border: 'border-pink-100',
       hover: 'hover:border-pink-300 hover:shadow-pink-100',
       path: `/faculty/courses/${assignmentId}/lms/timetable`
+    },
+    {
+      title: 'POs mapping with COs',
+      description: 'Define and manage CO\u2013PO/PSO contribution levels (N/L/M/H) for this course.',
+      icon: <Grid3x3 className="w-8 h-8 text-indigo-600" />,
+      bg: 'bg-indigo-50',
+      border: 'border-indigo-100',
+      hover: 'hover:border-indigo-300 hover:shadow-indigo-100',
+      path: `/faculty/courses/${assignmentId}/lms/co-po-mapping`
+    },
+    {
+      title: 'Generate Logbook Report',
+      description: 'Generate and print the complete logbook report for this course.',
+      icon: <Printer className="w-8 h-8 text-slate-600" />,
+      bg: 'bg-slate-50',
+      border: 'border-slate-100',
+      hover: 'hover:border-slate-300 hover:shadow-slate-100',
+      path: `/faculty/courses/${assignmentId}/lms/logbook-report`
     }
   ];
 
