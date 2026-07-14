@@ -106,6 +106,10 @@ const ProtectedRoute = ({ children, allowedRole }) => {
   }
   
   if (allowedRole && user.role !== allowedRole) {
+    // HODs act as faculty for their own courses
+    if (allowedRole === 'faculty' && user.role === 'hod') {
+      return children;
+    }
     // Redirect to their actual role's dashboard if they try to access another
     return <Navigate to={`/${user.role}`} replace />;
   }

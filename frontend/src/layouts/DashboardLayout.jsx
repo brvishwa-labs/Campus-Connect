@@ -26,6 +26,7 @@ const ROLE_NAV_LINKS = {
     { name: 'Faculty', path: '/hod/faculty', icon: Users },
     { name: 'Students', path: '/hod/students', icon: GraduationCap },
     { name: 'Sections', path: '/hod/sections', icon: Settings },
+    { name: 'My Courses', path: '/faculty/courses', icon: BookOpen },
     { name: 'Timetable', path: '/hod/timetable', icon: Calendar },
     { name: 'Course Assignment', path: '/hod/assignments', icon: BookOpen },
     { name: 'Mentor Assignment', path: '/hod/mentors', icon: Users },
