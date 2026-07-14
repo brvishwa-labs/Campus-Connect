@@ -253,7 +253,7 @@ const DeanDashboard = () => {
                 {greeting.text}, {user?.name || 'Dr. Dean'}
               </h1>
               <p className="text-white/80 text-[#ffffff]/80 text-xs font-bold tracking-wide">
-                Ph.D., M.E., B.Tech.
+                {user?.qualification || ''}
               </p>
               <div className="pt-2">
                 <p className="text-white/90 text-[#ffffff]/90 text-xs font-bold uppercase tracking-widest text-indigo-200">

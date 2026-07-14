@@ -33,7 +33,6 @@ const ROLE_NAV_LINKS = {
     { name: 'Attendance', path: '/hod/attendance', icon: ClipboardList },
     { name: 'Results', path: '/hod/results', icon: BarChart2 },
     { name: 'Announcements', path: '/hod/announcements', icon: Bell },
-    { name: 'Reports', path: '/hod/reports', icon: Home },
     { name: 'Leave Approvals', path: '/hod/leave', icon: Calendar },
     { name: 'Discipline', path: '/hod/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/hod/latetracker', icon: Clock },

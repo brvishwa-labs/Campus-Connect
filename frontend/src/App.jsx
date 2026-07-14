@@ -30,7 +30,6 @@ import { Timetable } from './features/hod/Timetable';
 import { Announcements } from './features/hod/Announcements';
 import { AdvancedAttendanceMonitor } from './features/hod/AdvancedAttendanceMonitor';
 import { ResultsMonitor } from './features/hod/ResultsMonitor';
-import { Reports } from './features/hod/Reports';
 import { Discipline as AdminDiscipline } from './features/admin/Discipline';
 import { Discipline as HodDiscipline } from './features/hod/Discipline';
 import { Discipline as AuthorityDiscipline } from './features/authority/Discipline';
@@ -236,11 +235,6 @@ function AppRoutes() {
         <Route path="/hod/results" element={
           <ProtectedRoute allowedRole="hod">
             <ResultsMonitor />
-          </ProtectedRoute>
-        } />
-        <Route path="/hod/reports" element={
-          <ProtectedRoute allowedRole="hod">
-            <Reports />
           </ProtectedRoute>
         } />
         <Route path="/hod/discipline" element={
