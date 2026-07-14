@@ -432,7 +432,8 @@ def get_dean_dashboard_stats(
     from datetime import timedelta
     from app.models.academic import Course, Enrollment
     from app.models.attendance import Attendance, FacultyAttendance
-    from app.models.grade import Grade
+    from app.models.grade import Grade, GRADE_PASS_MARKS
+    from app.models.retest import RetestMark
     from app.models.lms import Announcement
     from app.models.gatepass import GatePass, GatePassStatus
     from app.models.leave import FacultyLeaveRequest    
@@ -554,37 +555,100 @@ def get_dean_dashboard_stats(
     overall_attendance_percent = round((global_present / global_total * 100), 2) if global_total > 0 else 0
     
     # 3. ACADEMIC PERFORMANCE
-    # Overall pass percentage (students with passing grades)
-    total_grades = db.query(Grade).count()
-    passing_grades = db.query(Grade).filter(
-        Grade.marks_obtained >= 50
-    ).count()
-    overall_pass_percent = round((passing_grades / total_grades * 100), 2) if total_grades > 0 else 0
-    
-    # Pass percentage by department
     performance_by_dept = []
+    
+    global_total_grades = 0
+    global_passing_grades = 0
+    
     for dept in departments:
+        dept_data = {
+            "department_name": dept.name,
+            "department_code": dept.code,
+            "pass_percent": 0.0,
+            "years": []
+        }
+        
         dept_students = db.query(Student).filter(
             Student.department_id == dept.id,
             Student.is_active == True
         ).all()
-        student_ids = [s.id for s in dept_students]
         
+        years = {}
+        for s in dept_students:
+            y = s.current_year
+            if not y:
+                continue
+            if y not in years:
+                years[y] = {"year": y, "pass": 0, "total": 0, "sections": {}}
+                
+            sec = s.section.name if s.section else "Unknown"
+            if sec not in years[y]["sections"]:
+                years[y]["sections"][sec] = {"section_name": sec, "pass": 0, "total": 0}
+                
+        student_ids = [s.id for s in dept_students]
         if student_ids:
-            dept_grades = db.query(Grade).filter(Grade.student_id.in_(student_ids)).count()
-            dept_passing = db.query(Grade).filter(
+            # Pre-fetch grades and retests for efficiency
+            grades = db.query(Grade).filter(
                 Grade.student_id.in_(student_ids),
-                Grade.marks_obtained >= 50
-            ).count()
-            dept_pass_percent = round((dept_passing / dept_grades * 100), 2) if dept_grades > 0 else 0
-        else:
-            dept_pass_percent = 0
+                Grade.marks_obtained.isnot(None)
+            ).all()
             
-        performance_by_dept.append({
-            "department_name": dept.name,
-            "department_code": dept.code,
-            "pass_percent": dept_pass_percent
-        })
+            grade_ids = [g.id for g in grades]
+            retests = db.query(RetestMark).filter(RetestMark.grade_id.in_(grade_ids)).all() if grade_ids else []
+            retest_map = {r.grade_id: r.marks_obtained for r in retests}
+            
+            student_map = {s.id: {"year": s.current_year, "section": s.section.name if s.section else "Unknown"} for s in dept_students}
+            
+            dept_total = 0
+            dept_pass = 0
+            
+            for g in grades:
+                y = student_map[g.student_id]["year"]
+                sec = student_map[g.student_id]["section"]
+                
+                if not y:
+                    continue
+                    
+                threshold = GRADE_PASS_MARKS.get(g.grade_type, 50)
+                
+                # Check retest first
+                mark = g.marks_obtained
+                if g.id in retest_map and retest_map[g.id] is not None:
+                    mark = retest_map[g.id]
+                    
+                is_pass = 1 if mark is not None and mark >= threshold else 0
+                
+                dept_total += 1
+                dept_pass += is_pass
+                years[y]["total"] += 1
+                years[y]["pass"] += is_pass
+                years[y]["sections"][sec]["total"] += 1
+                years[y]["sections"][sec]["pass"] += is_pass
+                
+            global_total_grades += dept_total
+            global_passing_grades += dept_pass
+            
+            dept_data["pass_percent"] = round((dept_pass / dept_total * 100), 2) if dept_total > 0 else 0
+            
+            for y_key, y_data in years.items():
+                year_obj = {
+                    "year": y_key,
+                    "pass_percent": round((y_data["pass"] / y_data["total"] * 100), 2) if y_data["total"] > 0 else 0,
+                    "sections": []
+                }
+                for sec_key, sec_data in y_data["sections"].items():
+                    year_obj["sections"].append({
+                        "section_name": sec_key,
+                        "pass_percent": round((sec_data["pass"] / sec_data["total"] * 100), 2) if sec_data["total"] > 0 else 0
+                    })
+                year_obj["sections"].sort(key=lambda x: x["section_name"])
+                dept_data["years"].append(year_obj)
+                
+            dept_data["years"].sort(key=lambda x: x["year"])
+            
+        performance_by_dept.append(dept_data)
+        
+    overall_pass_percent = round((global_passing_grades / global_total_grades * 100), 2) if global_total_grades > 0 else 0
     
     # 4. PENDING REQUESTS
     # Faculty leave requests pending Dean approval
@@ -650,41 +714,47 @@ def get_dean_dashboard_stats(
     thirty_days_ago = today_date - timedelta(days=30)
     
     late_entries = db.query(LateRecord).filter(
-        LateRecord.date >= thirty_days_ago
+        LateRecord.date >= thirty_days_ago,
+        LateRecord.date <= today_date
     ).all()
-    
-    late_trend_dict = defaultdict(int)
-    for entry in late_entries:
-        date_str = entry.date.isoformat()
-        late_trend_dict[date_str] += 1
-        
-    # Ensure all 30 days are present in the list, even if count is 0
-    late_trend = []
-    for i in range(31):
-        d = (thirty_days_ago + timedelta(days=i)).isoformat()
-        late_trend.append({"date": d, "count": late_trend_dict.get(d, 0)})
         
     # 7. STUDENT DEMOGRAPHICS
-    hostel_count = db.query(Student).filter(Student.is_active == True, Student.accommodation == "Hostel").count()
-    day_scholar_count = db.query(Student).filter(Student.is_active == True, Student.accommodation == "Day Scholar").count()
-    
-    college_bus_count = db.query(Student).filter(Student.is_active == True, Student.transportation == "BUS").count()
-    own_transport_count = db.query(Student).filter(Student.is_active == True, Student.transportation == "OWN").count()
-    
-    demographics = {
-        "accommodation": [
-            {"name": "Hostel", "value": hostel_count},
-            {"name": "Day Scholar", "value": day_scholar_count}
-        ],
-        "transportation": [
-            {"name": "College Bus", "value": college_bus_count},
-            {"name": "Own Transport", "value": own_transport_count}
-        ]
-    }
-    
-    # 8. MONTHLY ATTENDANCE TREND
     all_active_students = db.query(Student).filter(Student.is_active == True).all()
     student_map = {s.id: s for s in all_active_students}
+    
+    demographics_raw = {"ALL": {"hostel": 0, "day_scholar": 0, "bus": 0, "own": 0}}
+    for dept in departments:
+        demographics_raw[dept.code] = {"hostel": 0, "day_scholar": 0, "bus": 0, "own": 0}
+        
+    for s in all_active_students:
+        if s.accommodation == "Hostel":
+            demographics_raw["ALL"]["hostel"] += 1
+            if s.department: demographics_raw[s.department.code]["hostel"] += 1
+        elif s.accommodation == "Day Scholar":
+            demographics_raw["ALL"]["day_scholar"] += 1
+            if s.department: demographics_raw[s.department.code]["day_scholar"] += 1
+            
+        if s.transportation == "BUS":
+            demographics_raw["ALL"]["bus"] += 1
+            if s.department: demographics_raw[s.department.code]["bus"] += 1
+        elif s.transportation == "OWN":
+            demographics_raw["ALL"]["own"] += 1
+            if s.department: demographics_raw[s.department.code]["own"] += 1
+            
+    demographics = {}
+    for key, data in demographics_raw.items():
+        demographics[key] = {
+            "accommodation": [
+                {"name": "Hostel", "value": data["hostel"]},
+                {"name": "Day Scholar", "value": data["day_scholar"]}
+            ],
+            "transportation": [
+                {"name": "College Bus", "value": data["bus"]},
+                {"name": "Own Transport", "value": data["own"]}
+            ]
+        }
+        
+    # 8. MONTHLY ATTENDANCE TREND
     
     all_active_faculty = db.query(Faculty).filter(Faculty.is_active == True).all()
     faculty_map = {f.id: f for f in all_active_faculty}
@@ -701,21 +771,31 @@ def get_dean_dashboard_stats(
     ).all()
     
     monthly_attendance_trend = {"ALL": []}
+    late_trend = {"ALL": []}
     for dept in departments:
         monthly_attendance_trend[dept.code] = []
+        late_trend[dept.code] = []
         
     for i in range(31):
         d_date = thirty_days_ago + timedelta(days=i)
         d_str = d_date.isoformat()
         
-        stats_for_day = {"ALL": {"boys_total": 0, "boys_present": 0, "girls_total": 0, "girls_present": 0, "faculty_total": len(all_active_faculty), "faculty_absent": 0}}
+        stats_for_day = {"ALL": {"boys_total": 0, "boys_present": 0, "girls_total": 0, "girls_present": 0, "boys_late": 0, "girls_late": 0, "faculty_total": len(all_active_faculty), "faculty_absent": 0}}
         for dept in departments:
-            stats_for_day[dept.code] = {"boys_total": 0, "boys_present": 0, "girls_total": 0, "girls_present": 0, "faculty_total": sum(1 for f in all_active_faculty if f.department_id == dept.id), "faculty_absent": 0}
+            stats_for_day[dept.code] = {"boys_total": 0, "boys_present": 0, "girls_total": 0, "girls_present": 0, "boys_late": 0, "girls_late": 0, "faculty_total": sum(1 for f in all_active_faculty if f.department_id == dept.id), "faculty_absent": 0}
             
         for s in all_active_students:
-            stats_for_day["ALL"]["boys_total" if s.gender == "M" else "girls_total"] += 1
-            if s.department:
-                stats_for_day[s.department.code]["boys_total" if s.gender == "M" else "girls_total"] += 1
+            is_boy = s.gender and s.gender.strip().lower() in ['m', 'male', 'boy']
+            is_girl = s.gender and s.gender.strip().lower() in ['f', 'female', 'girl']
+            
+            if is_boy:
+                stats_for_day["ALL"]["boys_total"] += 1
+                if s.department:
+                    stats_for_day[s.department.code]["boys_total"] += 1
+            elif is_girl:
+                stats_for_day["ALL"]["girls_total"] += 1
+                if s.department:
+                    stats_for_day[s.department.code]["girls_total"] += 1
                 
         seen_student_attendance = set()
         for att in student_attendance_records:
@@ -724,11 +804,36 @@ def get_dean_dashboard_stats(
                     seen_student_attendance.add((att.student_id, d_date))
                     s = student_map.get(att.student_id)
                     if s:
-                        stats_for_day["ALL"]["boys_present" if s.gender == "M" else "girls_present"] += 1
-                        if s.department:
-                            stats_for_day[s.department.code]["boys_present" if s.gender == "M" else "girls_present"] += 1
+                        is_boy = s.gender and s.gender.strip().lower() in ['m', 'male', 'boy']
+                        is_girl = s.gender and s.gender.strip().lower() in ['f', 'female', 'girl']
+                        
+                        if is_boy:
+                            stats_for_day["ALL"]["boys_present"] += 1
+                            if s.department:
+                                stats_for_day[s.department.code]["boys_present"] += 1
+                        elif is_girl:
+                            stats_for_day["ALL"]["girls_present"] += 1
+                            if s.department:
+                                stats_for_day[s.department.code]["girls_present"] += 1
                             
         seen_faculty_absent = set()
+        
+        for entry in late_entries:
+            if entry.date == d_date:
+                s = student_map.get(entry.student_id)
+                if s:
+                    is_boy = s.gender and s.gender.strip().lower() in ['m', 'male', 'boy']
+                    is_girl = s.gender and s.gender.strip().lower() in ['f', 'female', 'girl']
+                    
+                    if is_boy:
+                        stats_for_day["ALL"]["boys_late"] += 1
+                        if s.department:
+                            stats_for_day[s.department.code]["boys_late"] += 1
+                    elif is_girl:
+                        stats_for_day["ALL"]["girls_late"] += 1
+                        if s.department:
+                            stats_for_day[s.department.code]["girls_late"] += 1
+                            
         for leave in faculty_leave_records:
             if leave.from_date <= d_date <= leave.to_date:
                 if (leave.faculty_id, d_date) not in seen_faculty_absent:
@@ -749,7 +854,17 @@ def get_dean_dashboard_stats(
                 "date": d_str,
                 "boys_percent": boys_pct,
                 "girls_percent": girls_pct,
+                "boys_present": st["boys_present"],
+                "girls_present": st["girls_present"],
+                "boys_total": st["boys_total"],
+                "girls_total": st["girls_total"],
                 "faculty_present_percent": fac_pct
+            })
+            
+            late_trend[key].append({
+                "date": d_str,
+                "boys_late": st["boys_late"],
+                "girls_late": st["girls_late"]
             })
     
     return {

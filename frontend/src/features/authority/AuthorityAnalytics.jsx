@@ -20,6 +20,18 @@ const AuthorityAnalytics = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedDept, setSelectedDept] = useState("ALL");
+  const [selectedYear, setSelectedYear] = useState("ALL");
+  const [selectedSection, setSelectedSection] = useState("ALL");
+
+  // Reset dependent dropdowns when parent changes
+  useEffect(() => {
+    setSelectedYear("ALL");
+    setSelectedSection("ALL");
+  }, [selectedDept]);
+
+  useEffect(() => {
+    setSelectedSection("ALL");
+  }, [selectedYear]);
 
   const fetchDashboardStats = async () => {
     setError(null);
@@ -127,21 +139,41 @@ const AuthorityAnalytics = () => {
                     tickLine={false} 
                     tick={{ fontSize: 10, fill: '#6b7280' }} 
                     dy={10}
+                    interval={1}
                     tickFormatter={(str) => {
                       const date = new Date(str);
                       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     }}
-                    minTickGap={20}
                   />
-                  <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dx={-10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dx={-10} />
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                   <RechartsTooltip 
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
-                    labelFormatter={(label) => new Date(label).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-lg">
+                            <p className="text-gray-600 font-medium mb-2">{new Date(label).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                            {payload.map((entry, index) => {
+                               const isBoys = entry.name.includes("Boys");
+                               const pct = isBoys ? entry.payload.boys_percent : entry.payload.girls_percent;
+                               const total = isBoys ? entry.payload.boys_total : entry.payload.girls_total;
+                               return (
+                                 <div key={index} className="flex items-center gap-2 mb-1 text-sm">
+                                    <span style={{color: entry.color}}>●</span>
+                                    <span className="font-semibold" style={{color: entry.color}}>{entry.name}:</span>
+                                    <span className="text-gray-700">{entry.value} / {total} present ({pct}%)</span>
+                                 </div>
+                               );
+                            })}
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
                   />
                   <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                  <Area type="monotone" dataKey="boys_percent" name="Boys (%)" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorBoys)" />
-                  <Area type="monotone" dataKey="girls_percent" name="Girls (%)" stroke="#ec4899" strokeWidth={3} fillOpacity={1} fill="url(#colorGirls)" />
+                  <Area type="monotone" dataKey="boys_present" name="Boys" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorBoys)" activeDot={{ r: 5 }} />
+                  <Area type="monotone" dataKey="girls_present" name="Girls" stroke="#ec4899" strokeWidth={3} fillOpacity={1} fill="url(#colorGirls)" activeDot={{ r: 5 }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -196,32 +228,110 @@ const AuthorityAnalytics = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Academic Performance (Radar/Bar Chart) */}
-        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-gray-100 p-6">
-          <h4 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <Award className="w-4 h-4 text-yellow-500" />
-            Academic Performance Matrix
-          </h4>
-          <p className="text-[12px] text-gray-500 mb-4">Pass percentage distribution across departments</p>
+        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-gray-100 p-6 flex flex-col">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+            <div>
+              <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                <Award className="w-4 h-4 text-yellow-500" />
+                Academic Performance Matrix
+              </h4>
+              <p className="text-[12px] text-gray-500">Pass percentage distribution</p>
+            </div>
+            
+            {/* Drill Down Filters */}
+            <div className="flex items-center gap-2">
+              {selectedDept !== "ALL" && (
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-md focus:ring-primary-500 focus:border-primary-500 p-1.5"
+                >
+                  <option value="ALL">All Years</option>
+                  {(stats?.academic_performance || [])
+                    .find(d => d.department_code === selectedDept)?.years.map(y => (
+                      <option key={y.year} value={y.year}>Year {y.year}</option>
+                  ))}
+                </select>
+              )}
+              {selectedDept !== "ALL" && selectedYear !== "ALL" && (
+                <select
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  className="bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-md focus:ring-primary-500 focus:border-primary-500 p-1.5"
+                >
+                  <option value="ALL">All Sections</option>
+                  {(stats?.academic_performance || [])
+                    .find(d => d.department_code === selectedDept)
+                    ?.years.find(y => y.year.toString() === selectedYear)
+                    ?.sections.map(s => (
+                      <option key={s.section_name} value={s.section_name}>Section {s.section_name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+          
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
-              {selectedDept === "ALL" ? (
-                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={stats?.academic_performance || []}>
-                  <PolarGrid stroke="#e5e7eb" />
-                  <PolarAngleAxis dataKey="department_code" tick={{ fill: '#6b7280', fontSize: 12 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#9ca3af', fontSize: 10 }} />
-                  <Radar name="Pass %" dataKey="pass_percent" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.5} />
-                  <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                </RadarChart>
-              ) : (
-                <RechartsBarChart data={(stats?.academic_performance || []).filter(d => d.department_code === selectedDept)} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                  <XAxis dataKey="department_code" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
-                  <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dx={-10} />
-                  <RechartsTooltip cursor={{ fill: '#f3f4f6' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                  <Bar dataKey="pass_percent" name="Pass %" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={60} />
-                </RechartsBarChart>
-              )}
+              {(() => {
+                if (selectedDept === "ALL") {
+                  // Level 1: All Departments Radar Chart
+                  return (
+                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={stats?.academic_performance || []}>
+                      <PolarGrid stroke="#e5e7eb" />
+                      <PolarAngleAxis dataKey="department_code" tick={{ fill: '#6b7280', fontSize: 12 }} />
+                      <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#9ca3af', fontSize: 10 }} />
+                      <Radar name="Pass %" dataKey="pass_percent" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.5} />
+                      <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                    </RadarChart>
+                  );
+                } else if (selectedYear === "ALL") {
+                  // Level 2: Years within a Department
+                  const deptData = (stats?.academic_performance || []).find(d => d.department_code === selectedDept);
+                  const yearData = deptData?.years?.map(y => ({ name: `Year ${y.year}`, pass_percent: y.pass_percent })) || [];
+                  return (
+                    <RechartsBarChart data={yearData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
+                      <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dx={-10} />
+                      <RechartsTooltip cursor={{ fill: '#f3f4f6' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                      <Bar dataKey="pass_percent" name="Pass %" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                    </RechartsBarChart>
+                  );
+                } else if (selectedSection === "ALL") {
+                  // Level 3: Sections within a Year
+                  const deptData = (stats?.academic_performance || []).find(d => d.department_code === selectedDept);
+                  const yearData = deptData?.years?.find(y => y.year.toString() === selectedYear);
+                  const sectionData = yearData?.sections?.map(s => ({ name: `Section ${s.section_name}`, pass_percent: s.pass_percent })) || [];
+                  return (
+                    <RechartsBarChart data={sectionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
+                      <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dx={-10} />
+                      <RechartsTooltip cursor={{ fill: '#f3f4f6' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                      <Bar dataKey="pass_percent" name="Pass %" fill="#ec4899" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                    </RechartsBarChart>
+                  );
+                } else {
+                  // Level 4: Specific Section
+                  const deptData = (stats?.academic_performance || []).find(d => d.department_code === selectedDept);
+                  const yearData = deptData?.years?.find(y => y.year.toString() === selectedYear);
+                  const sectionData = yearData?.sections?.find(s => s.section_name === selectedSection);
+                  const singleData = sectionData ? [{ name: `Sec ${sectionData.section_name}`, pass_percent: sectionData.pass_percent }] : [];
+                  return (
+                    <RechartsBarChart data={singleData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
+                      <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dx={-10} />
+                      <RechartsTooltip cursor={{ fill: '#f3f4f6' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                      <Bar dataKey="pass_percent" name="Pass %" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                    </RechartsBarChart>
+                  );
+                }
+              })()}
             </ResponsiveContainer>
           </div>
         </div>
@@ -235,20 +345,52 @@ const AuthorityAnalytics = () => {
           <p className="text-[12px] text-gray-500 mb-4">Tracking campus punctuality over the last month</p>
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stats?.late_trend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={stats?.late_trend?.[selectedDept] || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorBoysLate" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorGirlsLate" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#ec4899" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                 <XAxis 
                   dataKey="date" 
-                  tickFormatter={(tick) => new Date(tick).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} 
-                  axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6b7280' }} dy={10} minTickGap={20}
+                  tickFormatter={(str) => {
+                    const date = new Date(str);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  }}
+                  axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6b7280' }} dy={10} interval={1}
                 />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dx={-10} />
                 <RechartsTooltip 
-                  labelFormatter={(label) => new Date(label).toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric' })}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-lg">
+                          <p className="text-gray-600 font-medium mb-2">{new Date(label).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                          {payload.map((entry, index) => {
+                             return (
+                               <div key={index} className="flex items-center gap-2 mb-1 text-sm">
+                                  <span style={{color: entry.color}}>●</span>
+                                  <span className="font-semibold" style={{color: entry.color}}>{entry.name}:</span>
+                                  <span className="text-gray-700">{entry.value} late</span>
+                               </div>
+                             );
+                          })}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
-                <Line type="monotone" dataKey="count" name="Late Arrivals" stroke="#ef4444" strokeWidth={3} dot={{ r: 3, fill: '#ef4444' }} activeDot={{ r: 6 }} />
-              </LineChart>
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                <Area type="monotone" dataKey="boys_late" name="Boys" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorBoysLate)" activeDot={{ r: 5 }} />
+                <Area type="monotone" dataKey="girls_late" name="Girls" stroke="#ec4899" strokeWidth={3} fillOpacity={1} fill="url(#colorGirlsLate)" activeDot={{ r: 5 }} />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
@@ -277,7 +419,7 @@ const AuthorityAnalytics = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={stats?.demographics?.accommodation || []}
+                    data={stats?.demographics?.[selectedDept]?.accommodation || []}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -286,7 +428,7 @@ const AuthorityAnalytics = () => {
                     dataKey="value"
                     labelLine={false}
                   >
-                    {(stats?.demographics?.accommodation || []).map((entry, index) => (
+                    {(stats?.demographics?.[selectedDept]?.accommodation || []).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -307,7 +449,7 @@ const AuthorityAnalytics = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={stats?.demographics?.transportation || []}
+                    data={stats?.demographics?.[selectedDept]?.transportation || []}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -316,7 +458,7 @@ const AuthorityAnalytics = () => {
                     dataKey="value"
                     labelLine={false}
                   >
-                    {(stats?.demographics?.transportation || []).map((entry, index) => (
+                    {(stats?.demographics?.[selectedDept]?.transportation || []).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />
                     ))}
                   </Pie>
