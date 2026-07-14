@@ -380,3 +380,54 @@ def mark_sector_viewed(
             
     db.commit()
     return {"message": "Success"}
+
+
+@router.get("/student/new-grades-by-subject")
+def get_new_grades_by_subject(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get list of subjects that have new grades published since last view.
+    This is for showing detailed notifications to students.
+    """
+    if current_user.role != UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="Only students can access this")
+    
+    student = db.query(Student).filter(Student.user_id == current_user.id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+    
+    from app.models.grade import Grade
+    from app.models.academic import Course
+    
+    # Get last viewed time for marks page
+    last_viewed = get_last_viewed_time(db, current_user.id, "/student/marks")
+    
+    # Get new grades grouped by course
+    new_grades = db.query(
+        Grade.course_id,
+        Course.course_code,
+        Course.course_name,
+        func.count(Grade.id).label('count')
+    ).join(
+        Course, Grade.course_id == Course.id
+    ).filter(
+        Grade.student_id == student.id,
+        Grade.is_published == True,
+        Grade.created_at > last_viewed
+    ).group_by(
+        Grade.course_id,
+        Course.course_code,
+        Course.course_name
+    ).all()
+    
+    return [
+        {
+            "course_id": grade.course_id,
+            "course_code": grade.course_code,
+            "course_name": grade.course_name,
+            "new_grades_count": grade.count
+        }
+        for grade in new_grades
+    ]
