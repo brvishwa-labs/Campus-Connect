@@ -7,6 +7,7 @@ Any new model file must be imported in this module.
 
 # Core
 from app.models.user import User, UserRole
+from app.models.user_activity import UserPageView
 from app.models.department import Department
 from app.models.faculty import Faculty
 from app.models.student import Student
@@ -42,6 +43,7 @@ from app.models.messaging import Conversation, Message
 
 __all__ = [
     "User", "UserRole",
+    "UserPageView",
     "Department",
     "Faculty",
     "Student",

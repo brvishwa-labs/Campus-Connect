@@ -109,3 +109,72 @@ def delete_authority(
 
     db.commit()
     return None
+
+
+# ── Faculty Management (Dean, Principal, OM) ──────────────
+
+from app.models.faculty import Faculty
+from app.models.department import Department
+
+@router.get("/faculty")
+def get_all_faculty(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get all faculty across all departments (for Dean, Principal, OM)"""
+    # Check if user has authority role
+    if current_user.role != "authority":
+        raise HTTPException(status_code=403, detail="Access restricted to authorities")
+    
+    # Fetch all faculty with their department info
+    faculty = db.query(Faculty).join(Department, Faculty.department_id == Department.id, isouter=True).all()
+    
+    return [
+        {
+            "id": f.id,
+            "first_name": f.first_name,
+            "last_name": f.last_name,
+            "employee_id": f.employee_id,
+            "designation": f.designation,
+            "college_email": f.college_email,
+            "phone": f.phone,
+            "department_name": f.department.name if f.department else "N/A",
+        }
+        for f in faculty
+    ]
+
+
+@router.get("/faculty/{faculty_id}/profile")
+def get_faculty_profile(
+    faculty_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get detailed profile of any faculty member (for Dean, Principal, OM)"""
+    # Check if user has authority role
+    if current_user.role != "authority":
+        raise HTTPException(status_code=403, detail="Access restricted to authorities")
+    
+    faculty = db.query(Faculty).filter(Faculty.id == faculty_id).first()
+    
+    if not faculty:
+        raise HTTPException(status_code=404, detail="Faculty not found")
+    
+    department = db.query(Department).filter(Department.id == faculty.department_id).first()
+    
+    return {
+        "id": faculty.id,
+        "first_name": faculty.first_name,
+        "last_name": faculty.last_name,
+        "employee_id": faculty.employee_id,
+        "designation": faculty.designation,
+        "department_name": department.name if department else "N/A",
+        "college_email": faculty.college_email,
+        "personal_email": faculty.personal_email,
+        "phone": faculty.phone,
+        "gender": faculty.gender,
+        "date_of_birth": faculty.date_of_birth.isoformat() if faculty.date_of_birth else None,
+        "blood_group": faculty.blood_group,
+        "highest_qualification": faculty.qualification,
+        "date_of_joining": faculty.date_of_joining.isoformat() if faculty.date_of_joining else None,
+    }

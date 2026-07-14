@@ -115,7 +115,31 @@ export default function DashboardLayout() {
       const res = await axios.get('/api/notifications/badge-counts', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setBadgeCounts(res.data);
+      let counts = { ...res.data };
+
+      if (user.role === 'faculty' || user.role === 'hod') {
+        try {
+          const subRes = await axios.get('/api/leave/substitute-requests', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const pendingSubs = subRes.data.filter(req => req.arrangements.some(a => a.status?.toLowerCase() === 'pending'));
+          const subCount = pendingSubs.length;
+          
+          if (subCount > 0) {
+            counts['/faculty/leave/substitutes'] = subCount;
+            const pendingIds = pendingSubs.map(req => req.id).sort().join(',');
+            const lastViewed = localStorage.getItem(`viewed_subs_${user.id}`);
+            if (lastViewed !== pendingIds) {
+              counts['/faculty/leave'] = (counts['/faculty/leave'] || 0) + 1;
+              counts['/faculty/leave_sub_pending_ids'] = pendingIds;
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch substitute counts', err);
+        }
+      }
+
+      setBadgeCounts(counts);
     } catch (err) {
       console.error('Failed to fetch badge counts', err);
     }
@@ -136,6 +160,45 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     const markAsViewed = async () => {
+      // Define pages that need notification badge tracking
+      const trackedPages = [
+        '/faculty/gatepass',
+        '/faculty/late-entry',
+        '/faculty/mentorship',
+        '/faculty/class-advisor/leave',
+        '/faculty/leave',
+        '/hod/leave',
+        '/hod/gatepass',
+        '/hod/faculty-gatepass',
+        '/hod/discipline',
+        '/hod/latetracker',
+        '/authority/leave',
+        '/authority/gatepass',
+        '/authority/faculty-gatepass',
+        '/authority/discipline',
+        '/authority/latetracker',
+        '/dean/messaging',
+        '/student/messaging',
+        '/student/marks',
+        '/student/announcements',
+        '/student/late-entry',
+      ];
+
+      // Check if current page is tracked
+      if (trackedPages.includes(location.pathname)) {
+        try {
+          const token = localStorage.getItem('token');
+          await axios.put(`/api/notifications/mark-page-viewed?page_path=${encodeURIComponent(location.pathname)}`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          // Refetch badge counts to update UI
+          fetchBadgeCounts();
+        } catch (err) {
+          console.error('Failed to mark page as viewed', err);
+        }
+      }
+
+      // Legacy sector-based tracking for backward compatibility
       let sector = null;
       if (location.pathname === '/faculty/gatepass') sector = 'gatepass';
       else if (location.pathname === '/faculty/late-entry') sector = 'late-entry';
@@ -150,7 +213,6 @@ export default function DashboardLayout() {
           await axios.put(`/api/notifications/mark-viewed?sector=${sector}`, {}, {
             headers: { Authorization: `Bearer ${token}` }
           });
-          fetchBadgeCounts();
         } catch (err) {
           console.error('Failed to mark sector as viewed', err);
         }
@@ -165,20 +227,45 @@ export default function DashboardLayout() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [hasUnread, setHasUnread] = useState(false);
+  const [lastReadAnnouncementTime, setLastReadAnnouncementTime] = useState(() => {
+    if (!user?.id) return null;
+    const raw = localStorage.getItem(`last_read_announcement_${user.id}`);
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  });
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const raw = localStorage.getItem(`last_read_announcement_${user.id}`);
+    const parsed = Number(raw);
+    setLastReadAnnouncementTime(Number.isFinite(parsed) ? parsed : null);
+  }, [user?.id]);
 
   const fetchNotifications = async () => {
     try {
       const res = await axios.get('/api/announcements?limit=10');
-      setNotifications(res.data);
-      const lastRead = localStorage.getItem(`last_read_announcement_${user.id}`);
-      if (res.data.length > 0) {
-        const newestTime = new Date(res.data[0].created_at).getTime();
-        setHasUnread(!lastRead || newestTime > parseInt(lastRead, 10));
-      } else {
+      const fetchedNotifications = Array.isArray(res.data) ? res.data : [];
+      setNotifications(fetchedNotifications);
+
+      if (fetchedNotifications.length === 0) {
         setHasUnread(false);
+        return;
       }
+
+      const readTime = lastReadAnnouncementTime ?? null;
+      if (readTime === null) {
+        setHasUnread(fetchedNotifications.length > 0);
+        return;
+      }
+
+      const hasNewAnnouncement = fetchedNotifications.some((notif) => {
+        const createdAt = new Date(notif.created_at).getTime();
+        return Number.isFinite(createdAt) && createdAt > readTime;
+      });
+
+      setHasUnread(hasNewAnnouncement);
     } catch (err) {
       console.error('Failed to fetch notifications', err);
     }
@@ -203,10 +290,18 @@ export default function DashboardLayout() {
   }, []);
 
   const handleBellClick = () => {
-    setIsNotificationsOpen(prev => !prev);
-    if (!isNotificationsOpen && notifications.length > 0) {
-      const newestTime = new Date(notifications[0].created_at).getTime();
-      localStorage.setItem(`last_read_announcement_${user.id}`, newestTime.toString());
+    const nextOpenState = !isNotificationsOpen;
+    setIsNotificationsOpen(nextOpenState);
+
+    if (nextOpenState && notifications.length > 0) {
+      const newestTime = notifications.reduce((latest, notif) => {
+        const createdAt = new Date(notif.created_at).getTime();
+        return Number.isFinite(createdAt) && createdAt > latest ? createdAt : latest;
+      }, 0);
+
+      const safeTime = Number.isFinite(newestTime) ? newestTime : Date.now();
+      localStorage.setItem(`last_read_announcement_${user.id}`, safeTime.toString());
+      setLastReadAnnouncementTime(safeTime);
       setHasUnread(false);
     }
   };
@@ -339,9 +434,7 @@ export default function DashboardLayout() {
                   <span className="text-[15px]">{link.name}</span>
                 </div>
                 {badgeCounts[link.path] > 0 && (
-                  <span className="bg-red-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center shadow-sm">
-                    {badgeCounts[link.path]}
-                  </span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm animate-pulse"></span>
                 )}
               </Link>
             );
@@ -366,9 +459,7 @@ export default function DashboardLayout() {
                       </div>
                       <div className="flex items-center space-x-2">
                         {caTotalBadge > 0 && !isCAOpen && (
-                          <span className="bg-indigo-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center shadow-sm">
-                            {caTotalBadge}
-                          </span>
+                          <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm animate-pulse"></span>
                         )}
                         {isCAOpen
                           ? <ChevronDown className="w-4 h-4 text-gray-400" />
@@ -398,9 +489,7 @@ export default function DashboardLayout() {
                                 <span>{sublink.name}</span>
                               </div>
                               {badgeCounts[sublink.path] > 0 && (
-                                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
-                                  {badgeCounts[sublink.path]}
-                                </span>
+                                <span className="w-2 h-2 rounded-full bg-red-500 shadow-sm animate-pulse"></span>
                               )}
                             </Link>
                           );
@@ -446,9 +535,7 @@ export default function DashboardLayout() {
             >
               <Menu className="w-6 h-6" />
               {totalBadgeCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 bg-red-500 text-white text-[9px] font-bold h-4 w-4 rounded-full flex items-center justify-center border border-white">
-                  {totalBadgeCount}
-                </span>
+                <span className="absolute top-2 right-2 bg-red-500 w-2.5 h-2.5 rounded-full border border-white animate-pulse"></span>
               )}
             </button>
             <div className="hidden sm:flex items-center text-gray-700 font-bold text-[14px] bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
@@ -499,20 +586,31 @@ export default function DashboardLayout() {
                           General: "bg-gray-50 text-gray-600 border-gray-100"
                         };
                         const badgeClass = categoryColors[notif.category] || categoryColors.General;
+                        const notifTime = new Date(notif.created_at).getTime();
+                        const isUnreadItem = Number.isFinite(notifTime) && (lastReadAnnouncementTime === null || notifTime > lastReadAnnouncementTime);
                         
                         return (
                           <div 
                             key={notif.id}
                             onClick={() => {
+                              const latestTime = Math.max(lastReadAnnouncementTime || 0, notifTime);
+                              localStorage.setItem(`last_read_announcement_${user.id}`, latestTime.toString());
+                              setLastReadAnnouncementTime(latestTime);
+                              setHasUnread(false);
                               setIsNotificationsOpen(false);
                               navigate(`/${user.role}/announcements?id=${notif.id}`);
                             }}
-                            className="px-3 sm:px-4 py-2.5 sm:py-3 hover:bg-gray-50 cursor-pointer transition-colors text-left border-b border-gray-50 last:border-b-0"
+                            className={`px-3 sm:px-4 py-2.5 sm:py-3 hover:bg-gray-50 cursor-pointer transition-colors text-left border-b border-gray-50 last:border-b-0 ${isUnreadItem ? 'bg-red-50/60' : ''}`}
                           >
                             <div className="flex justify-between items-start gap-1 mb-0.5">
-                              <span className="font-semibold text-gray-900 text-[10px] sm:text-xs line-clamp-2 flex-1">
-                                {notif.title}
-                              </span>
+                              <div className="flex items-start gap-1.5 flex-1 min-w-0">
+                                {isUnreadItem && (
+                                  <span className="mt-1 h-2 w-2 rounded-full bg-red-500 shrink-0" />
+                                )}
+                                <span className="font-semibold text-gray-900 text-[10px] sm:text-xs line-clamp-2 flex-1">
+                                  {notif.title}
+                                </span>
+                              </div>
                               <span className={`text-[7px] sm:text-[8px] font-bold uppercase px-1 sm:px-1.5 py-0.5 rounded border ${badgeClass} shrink-0 whitespace-nowrap`}>
                                 {notif.category}
                               </span>
@@ -594,7 +692,7 @@ export default function DashboardLayout() {
         {/* Scrollable Page Content */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-8 relative">
           <div className="max-w-[1200px] mx-auto pb-12">
-            <Outlet />
+            <Outlet context={{ badgeCounts, fetchBadgeCounts }} />
           </div>
         </main>
       </div>
