@@ -21,6 +21,7 @@ export const LMSAttendance = () => {
   const [selectedTopicId, setSelectedTopicId] = useState('');
   const [planTopics, setPlanTopics] = useState([]);
   const [planLoading, setPlanLoading] = useState(true);
+  const [isLab, setIsLab] = useState(false);
 
   useEffect(() => {
     axios.get(`/api/faculty/courses/${assignmentId}/attendance-slots`)
@@ -34,6 +35,14 @@ export const LMSAttendance = () => {
       })
       .catch(() => setError('Failed to load attendance data'))
       .finally(() => setLoading(false));
+
+    // Detect if this is a lab course
+    axios.get('/api/faculty/me/courses')
+      .then(r => {
+        const course = r.data.find(c => c.id.toString() === assignmentId);
+        if (course?.course?.course_type === 'lab') setIsLab(true);
+      })
+      .catch(() => {});
   }, [assignmentId]);
 
   // Fetch course plan topics for unit/topic dropdowns
@@ -254,10 +263,10 @@ export const LMSAttendance = () => {
           {/* Lesson Plan Topic Selector */}
           {hasSlotToday && canMark && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-              {/* Unit Selector */}
+              {/* Unit / Experiment Selector */}
               <div>
                 <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wider">
-                  <Layers className="w-3.5 h-3.5" /> Select Unit
+                  <Layers className="w-3.5 h-3.5" /> {isLab ? 'Select Experiment' : 'Select Unit'}
                 </label>
                 <select
                   value={selectedUnit}
@@ -265,17 +274,17 @@ export const LMSAttendance = () => {
                   disabled={planLoading || units.length === 0}
                   className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-xl text-sm font-semibold text-gray-800 focus:ring-2 focus:ring-green-400 focus:border-green-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <option value="">{planLoading ? 'Loading plan…' : units.length === 0 ? 'No plan found' : 'Select Unit'}</option>
+                  <option value="">{planLoading ? 'Loading plan…' : units.length === 0 ? 'No plan found' : isLab ? 'Select Experiment' : 'Select Unit'}</option>
                   {units.map(u => (
-                    <option key={u} value={u}>Unit {u}</option>
+                    <option key={u} value={u}>{isLab ? `Exp ${u}` : `Unit ${u}`}</option>
                   ))}
                 </select>
               </div>
 
-              {/* Topic Selector */}
+              {/* Topic / Experiment Name Selector */}
               <div>
                 <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wider">
-                  <BookOpen className="w-3.5 h-3.5" /> Select Topic to Cover
+                  <BookOpen className="w-3.5 h-3.5" /> {isLab ? 'Select Experiment Name' : 'Select Topic to Cover'}
                 </label>
                 <select
                   value={selectedTopicId}
@@ -283,10 +292,13 @@ export const LMSAttendance = () => {
                   disabled={!selectedUnit || filteredTopics.length === 0}
                   className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-xl text-sm font-semibold text-gray-800 focus:ring-2 focus:ring-green-400 focus:border-green-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <option value="">Select Topic</option>
+                  <option value="">{isLab ? 'Select Experiment Name' : 'Select Topic'}</option>
                   {filteredTopics.map(t => (
                     <option key={t.id} value={t.id}>
-                      {t.topic.length > 80 ? t.topic.substring(0, 80) + '…' : t.topic}
+                      {isLab
+                        ? (t.experiment_name || t.topic || `Experiment ${t.sequence_no}`).substring(0, 80)
+                        : (t.topic.length > 80 ? t.topic.substring(0, 80) + '…' : t.topic)
+                      }
                       {t.is_signed ? ' ✓' : ''}
                     </option>
                   ))}
@@ -302,10 +314,10 @@ export const LMSAttendance = () => {
             return (
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm mt-3">
                 <p className="font-bold text-green-800 mb-1 flex items-center gap-1.5">
-                  📘 Unit {topic.unit} · S.No {topic.sequence_no}
+                  {isLab ? '🔬' : '📘'} {isLab ? `Exp ${topic.unit}` : `Unit ${topic.unit}`} · S.No {topic.sequence_no}
                   {topic.is_signed && <span className="ml-2 text-xs bg-green-200 text-green-700 px-2 py-0.5 rounded-full">Already Covered</span>}
                 </p>
-                <p className="text-green-700">{topic.topic}</p>
+                <p className="text-green-700">{isLab ? (topic.experiment_name || topic.topic || 'Unnamed Experiment') : topic.topic}</p>
                 {topic.proposed_date && (
                   <p className="text-xs text-green-600 mt-1.5">
                     Proposed Date: {topic.proposed_date} &nbsp;·&nbsp; Delivery Mode: {topic.mode_of_delivery} &nbsp;·&nbsp; Cognitive Level: {topic.cognitive_level}
@@ -394,14 +406,14 @@ export const LMSAttendance = () => {
             {saved && (
               <div className="flex flex-col items-end gap-1.5">
                 <span className="text-sm font-semibold text-green-600 bg-green-50 px-3 py-1 rounded-lg">
-                  ✓ Saved Successfully{selectedTopicId ? ' — Lesson Plan Updated' : ''}
+                  ✓ Saved Successfully{selectedTopicId ? (isLab ? ' — Schedule Updated' : ' — Lesson Plan Updated') : ''}
                 </span>
                 <Link
                   to={`/faculty/courses/${assignmentId}/lms/syllabus`}
                   state={{ mode: 'record' }}
                   className="text-xs font-bold text-primary-600 hover:text-primary-700 underline"
                 >
-                  Verify Lesson Plan Coverage Record →
+                  {isLab ? 'Verify Practical Schedule Coverage Record →' : 'Verify Lesson Plan Coverage Record →'}
                 </Link>
               </div>
             )}

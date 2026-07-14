@@ -115,7 +115,34 @@ def hod_faculty(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    # Get all faculty from all departments (not just current HOD's department)
+    # Only return faculty belonging to the HOD's own department
+    department, _ = get_hod_department(current_user, db)
+    faculty = db.query(Faculty).filter(Faculty.department_id == department.id).all()
+    return [
+        {
+            "id": f.id,
+            "first_name": f.first_name,
+            "last_name": f.last_name,
+            "employee_id": f.employee_id,
+            "designation": f.designation,
+            "college_email": f.college_email,
+            "phone": f.phone,
+        }
+        for f in faculty
+    ]
+
+
+# ── All Faculty (for Course Assignment — no dept filter) ──
+
+@router.get("/faculty/all")
+def hod_faculty_all(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    # Returns ALL faculty across all departments.
+    # Used only by Course Assignment so HODs can assign any faculty to a course.
+    if current_user.role != "hod":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access restricted to HODs")
     faculty = db.query(Faculty).all()
     return [
         {

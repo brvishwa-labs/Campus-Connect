@@ -51,6 +51,9 @@ import StudentCourseDetail from './features/student/StudentCourseDetail';
 import StudentMarks from './features/student/StudentMarks';
 import TodaySchedule from './features/student/TodaySchedule';
 import { LMSGradebook } from './features/faculty/lms/LMSGradebook';
+import { LMSCOPOMapping } from './features/faculty/lms/LMSCOPOMapping';
+import { LMSLogbookReport } from './features/faculty/lms/LMSLogbookReport';
+import { LMSLabMarks } from './features/faculty/lms/LMSLabMarks';
 import { Discipline as StudentDiscipline } from './features/student/Discipline';
 import { LateTrackerDashboard } from './features/latetracker/Dashboard';
 import { LateManagement } from './features/hod/LateManagement';
@@ -326,6 +329,21 @@ function AppRoutes() {
         <Route path="/faculty/courses/:assignmentId/lms/timetable" element={
           <ProtectedRoute allowedRole="faculty">
             <LMSTimetable />
+          </ProtectedRoute>
+        } />
+        <Route path="/faculty/courses/:assignmentId/lms/co-po-mapping" element={
+          <ProtectedRoute allowedRole="faculty">
+            <LMSCOPOMapping />
+          </ProtectedRoute>
+        } />
+        <Route path="/faculty/courses/:assignmentId/lms/logbook-report" element={
+          <ProtectedRoute allowedRole="faculty">
+            <LMSLogbookReport />
+          </ProtectedRoute>
+        } />
+        <Route path="/faculty/courses/:assignmentId/lms/lab-marks" element={
+          <ProtectedRoute allowedRole="faculty">
+            <LMSLabMarks />
           </ProtectedRoute>
         } />
 

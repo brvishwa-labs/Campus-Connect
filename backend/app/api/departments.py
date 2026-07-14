@@ -3,12 +3,65 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.database import get_db
-from app.models.department import Department
-from app.schemas.department import DepartmentCreate, DepartmentUpdate, DepartmentResponse
+from app.models.department import Department, ProgramOutcome
+from app.schemas.department import (
+    DepartmentCreate, DepartmentUpdate, DepartmentResponse,
+    ProgramOutcomeUpdate, ProgramOutcomeResponse
+)
 from app.core.security import get_current_active_user
 from app.models.user import User
 
 router = APIRouter()
+
+# ── Program Outcomes (must be declared BEFORE /{department_id}) ────────────
+
+@router.get("/program-outcomes", response_model=ProgramOutcomeResponse)
+def get_program_outcomes(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Retrieve the institution-wide Program Outcomes (POs).
+    Accessible to all authenticated users.
+    """
+    po = db.query(ProgramOutcome).filter(ProgramOutcome.id == 1).first()
+    if not po:
+        # Return a placeholder empty record — it will be created on first PUT
+        return ProgramOutcomeResponse(id=1, outcomes=None, updated_at=None)
+    return po
+
+
+@router.put("/program-outcomes", response_model=ProgramOutcomeResponse)
+def update_program_outcomes(
+    po_in: ProgramOutcomeUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Upsert the institution-wide Program Outcomes (POs).
+    Admin-only.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    po = db.query(ProgramOutcome).filter(ProgramOutcome.id == 1).first()
+    if po:
+        po.outcomes = po_in.outcomes
+        po.updated_by_id = current_user.id
+    else:
+        po = ProgramOutcome(
+            id=1,
+            outcomes=po_in.outcomes,
+            updated_by_id=current_user.id
+        )
+        db.add(po)
+
+    db.commit()
+    db.refresh(po)
+    return po
+
+
+# ── Departments ─────────────────────────────────────────────────────────────
 
 @router.get("/", response_model=List[DepartmentResponse])
 def get_departments(
@@ -44,7 +97,7 @@ def create_department(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Create a new department. (Admin only ideally, but we'll allow active users for now or check role).
+    Create a new department. Admin only.
     """
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
@@ -57,6 +110,9 @@ def create_department(
         name=dept_in.name,
         code=dept_in.code,
         vision=dept_in.vision,
+        mission=dept_in.mission,
+        peos=dept_in.peos,
+        psos=dept_in.psos,
         hod_id=dept_in.hod_id
     )
     db.add(department)
@@ -72,7 +128,7 @@ def update_department(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Update a department.
+    Update a department. Admin only.
     """
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
@@ -97,7 +153,7 @@ def delete_department(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Delete a department.
+    Delete a department. Admin only.
     """
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")

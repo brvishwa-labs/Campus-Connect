@@ -29,6 +29,8 @@ class CoursePlanTopic(Base):
     co = Column(String(100), nullable=True)                             # CO1, CO2, CO3, CO4, CO5
     po = Column(String(200), nullable=True)                             # PO1, PO2, PO3, PO4, PO5, PO6
     mode_of_delivery = Column(String(50), nullable=False, default="BB") # BB, PPT, or custom manually entered mode
+    experiment_name = Column(String(500), nullable=True)                # Experiment name (lab courses)
+    resources = Column(String(500), nullable=True)                     # Resources (lab courses)
     
     # Progress & Verification Columns (Work Done Note)
     actual_date = Column(Date, nullable=True)             # Actual Date of Topic Covered

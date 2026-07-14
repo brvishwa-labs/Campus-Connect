@@ -26,7 +26,7 @@ def get_students(
     Retrieve all students.
     """
     from sqlalchemy.orm import joinedload
-    students = db.query(Student).options(joinedload(Student.section)).offset(skip).limit(limit).all()
+    students = db.query(Student).filter(Student.is_alumni == False).options(joinedload(Student.section)).offset(skip).limit(limit).all()
     return [
         {
             "id": s.id,

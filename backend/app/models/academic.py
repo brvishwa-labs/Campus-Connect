@@ -6,7 +6,7 @@ These tables define the academic backbone of the system.
 """
 
 from sqlalchemy import (
-    Column, Integer, String, Date, DateTime, ForeignKey, Boolean, Enum as SQLEnum
+    Column, Integer, String, Date, DateTime, ForeignKey, Boolean, Text, Enum as SQLEnum
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -56,6 +56,14 @@ class Course(Base):
     credits = Column(Integer, nullable=False, default=3)
     course_type = Column(SQLEnum(CourseType), default=CourseType.THEORY)
     semester = Column(Integer, nullable=True)                 # Which semester this course belongs to
+    syllabus = Column(Text, nullable=True)
+    objectives = Column(Text, nullable=True)
+    outcomes = Column(Text, nullable=True)
+    textbooks = Column(Text, nullable=True)
+    references = Column(Text, nullable=True)
+    prerequisites = Column(Text, nullable=True)
+    co_po_mapping = Column(Text, nullable=True)
+    co_k_levels = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

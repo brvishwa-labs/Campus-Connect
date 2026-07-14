@@ -438,7 +438,7 @@ const AnnouncementsTab = ({ courseId }) => {
 // ─────────────────────────────────────────────────────────
 // TAB: SYLLABUS
 // ─────────────────────────────────────────────────────────
-const SyllabusTab = ({ courseId }) => {
+const SyllabusTab = ({ courseId, course }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -452,12 +452,99 @@ const SyllabusTab = ({ courseId }) => {
 
   if (loading) return <SectionLoading />;
   if (error) return <SectionError message={error} />;
-  if (!data?.length) return (
-    <EmptyState icon={BookMarked} title="Syllabus Not Available"
-      description="The syllabus hasn't been uploaded yet. Contact your faculty for details." />
-  );
 
-  return <div className="space-y-3">{data.map(item => <ResourceCard key={item.id} item={item} />)}</div>;
+  const hasCourseSyllabus = course && course.syllabus && course.syllabus.trim() !== "";
+  const isLab = course?.course_type === 'lab';
+
+  return (
+    <div className="space-y-6">
+      {isLab && course?.prerequisites && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-6">
+          <h4 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <ClipboardList className="w-5 h-5 text-indigo-500" />
+            Course Prerequisites
+          </h4>
+          <div className="text-sm text-gray-600 font-medium leading-relaxed whitespace-pre-wrap">
+            {course.prerequisites}
+          </div>
+        </div>
+      )}
+
+      {course?.objectives && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-6">
+          <h4 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <ClipboardList className="w-5 h-5 text-blue-500" />
+            Course Objectives
+          </h4>
+          <div className="text-sm text-gray-600 font-medium leading-relaxed whitespace-pre-wrap">
+            {course.objectives}
+          </div>
+        </div>
+      )}
+
+      {course?.outcomes && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-6">
+          <h4 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+            Course Outcomes (COs)
+          </h4>
+          <div className="text-sm text-gray-600 font-medium leading-relaxed whitespace-pre-wrap">
+            {course.outcomes}
+          </div>
+        </div>
+      )}
+
+      {hasCourseSyllabus && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-6">
+          <h4 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-primary-500" />
+            Course Syllabus & Curriculum
+          </h4>
+          <div className="text-sm text-gray-600 font-medium leading-relaxed whitespace-pre-wrap">
+            {course.syllabus}
+          </div>
+        </div>
+      )}
+
+      {course?.textbooks && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-6">
+          <h4 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-violet-500" />
+            Textbooks
+          </h4>
+          <div className="text-sm text-gray-600 font-medium leading-relaxed whitespace-pre-wrap">
+            {course.textbooks}
+          </div>
+        </div>
+      )}
+
+      {course?.references && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-6">
+          <h4 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <FileText className="w-5 h-5 text-amber-500" />
+            References
+          </h4>
+          <div className="text-sm text-gray-600 font-medium leading-relaxed whitespace-pre-wrap">
+            {course.references}
+          </div>
+        </div>
+      )}
+
+      {data?.length > 0 ? (
+        <div className="space-y-3">
+          {hasCourseSyllabus && (
+            <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Uploaded Syllabus Documents</h4>
+          )}
+          {data.map(item => <ResourceCard key={item.id} item={item} />)}
+        </div>
+      ) : (
+        !hasCourseSyllabus && (
+          <EmptyState icon={BookMarked} title="Syllabus Not Available"
+            description="The syllabus hasn't been uploaded yet. Contact your faculty for details." />
+        )
+      )}
+    </div>
+  );
 };
 
 // ─────────────────────────────────────────────────────────
@@ -855,7 +942,7 @@ const StudentCourseDetail = () => {
       case 'resources':     return <ResourcesTab courseId={courseId} />;
       case 'assignments':   return <AssignmentsTab courseId={courseId} />;
       case 'announcements': return <AnnouncementsTab courseId={courseId} />;
-      case 'syllabus':      return <SyllabusTab courseId={courseId} />;
+      case 'syllabus':      return <SyllabusTab courseId={courseId} course={course} />;
       case 'attendance':    return <AttendanceTab courseId={courseId} />;
       case 'seminar':       return <SeminarTab courseId={courseId} />;
       default:              return null;

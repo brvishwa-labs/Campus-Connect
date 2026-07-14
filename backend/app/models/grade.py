@@ -4,7 +4,7 @@ Campus Connect ERP — Grading & Assessment Models
 
 from sqlalchemy import (
     Column, Integer, String, DateTime, ForeignKey, Numeric, Text, Boolean,
-    Enum as SQLEnum
+    Enum as SQLEnum, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -103,3 +103,38 @@ class Seminar(Base):
     student               = relationship("Student")
 
 
+
+# ──────────────────────────────────────────────────
+# LAB MARK (Per student per course assignment)
+# Stores: Record (/30), IA-1 (/15), IA-2 (/15), Viva (/5)
+# Computed: Avg IA = (IA-1+IA-2)/2, Att marks /10, Total /60
+# ──────────────────────────────────────────────────
+class LabMark(Base):
+    __tablename__ = "lab_marks"
+
+    id                   = Column(Integer, primary_key=True, index=True)
+    course_assignment_id = Column(Integer, ForeignKey("course_assignments.id", ondelete="CASCADE"), nullable=False)
+    student_id           = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+
+    # Manual entry columns
+    record_marks         = Column(Numeric(5, 2), nullable=True)   # /30
+    ia1_marks            = Column(Numeric(5, 2), nullable=True)   # /15
+    ia2_marks            = Column(Numeric(5, 2), nullable=True)   # /15
+    viva_marks           = Column(Numeric(5, 2), nullable=True)   # /5
+
+    # Published flag — once True, students can see their marks
+    is_published         = Column(Boolean, default=False, nullable=False)
+
+    graded_by_id         = Column(Integer, ForeignKey("faculty.id"), nullable=True)
+    created_at           = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at           = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Unique: one mark row per student per course assignment
+    __table_args__ = (
+        UniqueConstraint("course_assignment_id", "student_id", name="uq_lab_mark_assignment_student"),
+    )
+
+    # Relationships
+    course_assignment    = relationship("CourseAssignment")
+    student              = relationship("Student")
+    graded_by            = relationship("Faculty")
