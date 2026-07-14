@@ -119,12 +119,21 @@ def get_leave_preparation_data(
         CourseAssignment.is_active == True
     ).all()
     
-    # Build faculty_sections mapping (include all assignments, active or not)
+    # Build faculty_sections mapping (include all assignments, active or not) and course mapping
     faculty_sections = {}
+    faculty_section_courses = {}
     for a in all_assignments:
         if a.faculty_id not in faculty_sections:
             faculty_sections[a.faculty_id] = set()
         faculty_sections[a.faculty_id].add(a.section_id)
+        
+        # Look up course code
+        course = db.query(Course).filter(Course.id == a.course_id).first()
+        if course:
+            key = (a.faculty_id, a.section_id)
+            if key not in faculty_section_courses:
+                faculty_section_courses[key] = []
+            faculty_section_courses[key].append(course.code)
     
     # Filter to only active assignments for timetable checking
     active_assignments = [a for a in all_assignments if a.is_active]
@@ -135,6 +144,7 @@ def get_leave_preparation_data(
         TimetableSlot.day.in_(day_names)
     ).all()
     
+    # Build faculty_busy_slots
     faculty_busy_slots = {}
     for s in all_slots:
         fid = assignment_to_faculty[s.course_assignment_id]
@@ -167,6 +177,11 @@ def get_leave_preparation_data(
             if not is_busy:
                 sub_info = dict(f)
                 sub_info["teaches_this_class"] = True  # All filtered faculty teach this section
+                
+                # Retrieve course code
+                courses = faculty_section_courses.get((fid, target_section_id), [])
+                sub_info["course_code"] = courses[0] if courses else ""
+                
                 item["available_substitutes"].append(sub_info)
                 
         # Sort by name if needed
@@ -199,6 +214,11 @@ def get_leave_preparation_data(
             teaches_class = sec.id in faculty_sections.get(fid, set())
             sub_info = dict(f)
             sub_info["teaches_this_class"] = teaches_class
+            
+            # Retrieve course code
+            courses = faculty_section_courses.get((fid, sec.id), [])
+            sub_info["course_code"] = courses[0] if courses else ""
+            
             # Remove department_id from response (internal use only)
             sub_info.pop("department_id", None)
             available_subs.append(sub_info)
@@ -210,7 +230,6 @@ def get_leave_preparation_data(
             "section_id": sec.id,
             "section_name": sec.name,
             "year": sec.year,
-            "year": sec.year,
             "department": dept.name if dept else "N/A",
             "class_display": f"{dept.code if dept else 'Dept'} Year-{sec.year} {sec.name}",
             "duty_type": "Class Advisor",
@@ -220,10 +239,6 @@ def get_leave_preparation_data(
     # Filter available_faculty to only include those who teach the same sections
     # Get all section IDs that the requesting faculty teaches
     my_section_ids = set()
-    for item in my_schedule:
-        if "_section_id" in item or "section_id" in item:
-            # If we still have the section_id before cleanup
-            pass
     
     # Re-fetch sections for the current faculty
     my_assignments = db.query(CourseAssignment).filter(
@@ -248,6 +263,12 @@ def get_leave_preparation_data(
             if common_sections:
                 f_copy = dict(f)
                 f_copy["teaches_same_section"] = True
+                
+                # Retrieve course code
+                first_common_section = list(common_sections)[0]
+                courses = faculty_section_courses.get((fid, first_common_section), [])
+                f_copy["course_code"] = courses[0] if courses else ""
+                
                 # Remove department_id before sending to frontend
                 f_copy.pop("department_id", None)
                 filtered_faculty_list.append(f_copy)
@@ -263,6 +284,46 @@ def get_leave_preparation_data(
         "total_periods_to_cover": len(my_schedule),
         "requires_class_advisor_substitute": len(class_advisor_duties) > 0
     }
+
+
+@router.get("/faculty/{faculty_id}/active-courses")
+def get_faculty_active_courses(
+    faculty_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Return every active course/section this faculty member currently teaches.
+    Used by the frontend to populate the Subject/Assignment dropdown once a
+    substitute faculty is selected for a duty arrangement row.
+    """
+    target_faculty = db.query(Faculty).filter(Faculty.id == faculty_id).first()
+    if not target_faculty:
+        raise HTTPException(status_code=404, detail="Faculty not found")
+
+    assignments = db.query(CourseAssignment).filter(
+        CourseAssignment.faculty_id == faculty_id,
+        CourseAssignment.is_active == True
+    ).all()
+
+    result = []
+    for a in assignments:
+        course = db.query(Course).filter(Course.id == a.course_id).first()
+        section = db.query(Section).filter(Section.id == a.section_id).first()
+        if not course or not section:
+            continue
+        department = db.query(Department).filter(Department.id == section.department_id).first()
+        result.append({
+            "assignment_id": a.id,
+            "course_id": course.id,
+            "course_code": course.code,
+            "course_name": course.name,
+            "section_id": section.id,
+            "class_section": f"{department.code if department else 'Dept'} Year-{section.year} {section.name}"
+        })
+
+    return result
+
 
 from pydantic import BaseModel
 from typing import Optional, List
