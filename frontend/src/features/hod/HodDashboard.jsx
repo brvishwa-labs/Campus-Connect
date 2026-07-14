@@ -507,7 +507,7 @@ export const HodDashboard = () => {
                 {greetingText}, {dashboard?.hod_name || 'HOD'}
               </h1>
               <p className="text-white/80 text-[#ffffff]/80 text-xs font-bold tracking-wide">
-                {dashboard?.hod_title || 'D.C.T., B.Tech., M.E., Ph.D.'}
+                {dashboard?.hod_title || ''}
               </p>
               <div className="pt-2">
                 <p className="text-white/90 text-[#ffffff]/90 text-xs font-bold uppercase tracking-widest text-indigo-200">
@@ -1042,13 +1042,12 @@ export const HodDashboard = () => {
           </span>
           Quick Actions Shortcuts
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
           <QuickAction label="Assign Faculty" icon={UserCheck} to="/hod/assignments" color="text-blue-600" bg="bg-blue-50" />
           <QuickAction label="Assign Mentor" icon={Users} to="/hod/mentors" color="text-indigo-600" bg="bg-indigo-50" />
           <QuickAction label="Manage Classes" icon={Layers} to="/hod/sections" color="text-purple-600" bg="bg-purple-50" />
           <QuickAction label="Timetable" icon={Calendar} to="/hod/timetable" color="text-emerald-600" bg="bg-emerald-50" />
           <QuickAction label="Department Announcement" icon={Megaphone} to="/hod/announcements" color="text-amber-600" bg="bg-amber-50" />
-          <QuickAction label="Reports" icon={BarChart2} to="/hod/reports" color="text-orange-600" bg="bg-orange-50" />
         </div>
       </div>
 
