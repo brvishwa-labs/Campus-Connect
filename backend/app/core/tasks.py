@@ -62,15 +62,15 @@ def process_daily_faculty_attendance(db: Session, target_date: date_type = None)
 async def faculty_attendance_job():
     """
     Background job that runs indefinitely.
-    Checks the time every minute and runs process_daily_faculty_attendance at 08:00 AM.
+    Checks the time every minute and runs process_daily_faculty_attendance at 09:00 AM.
     """
-    logger.info("Faculty Attendance Job started. Waiting for 08:00 AM daily...")
+    logger.info("Faculty Attendance Job started. Waiting for 09:00 AM daily...")
     while True:
         now = datetime.now()
         
-        # Check if it's 8:00 AM (hour=8, minute=0)
-        if now.hour == 8 and now.minute == 0:
-            logger.info("Triggering daily faculty attendance task (08:00 AM)")
+        # Check if it's 9:00 AM (hour=9, minute=0)
+        if now.hour == 9 and now.minute == 0:
+            logger.info("Triggering daily faculty attendance task (09:00 AM)")
             db = SessionLocal()
             try:
                 process_daily_faculty_attendance(db, now.date())

@@ -32,6 +32,7 @@ class DisciplineResponse(DisciplineBase):
     # We can include simple nested dicts for student/reporter info if needed
     student_name: Optional[str] = None
     student_register_number: Optional[str] = None
+    student_mentor: Optional[str] = None
     reporter_name: Optional[str] = None
     reporter_role: Optional[str] = None
 
@@ -43,6 +44,26 @@ class CategoryCount(BaseModel):
     category: str
     count: int
 
+class DepartmentCount(BaseModel):
+    department: str
+    count: int
+
+class MentorCount(BaseModel):
+    mentor: str
+    count: int
+
+class StudentCount(BaseModel):
+    student_name: str
+    register_number: str
+    mentor: str
+    count: int
+
+class StudentCount(BaseModel):
+    student_name: str
+    register_number: str
+    mentor: str
+    count: int
+
 class TrendPoint(BaseModel):
     period: str
     count: int
@@ -51,3 +72,6 @@ class DisciplineAnalytics(BaseModel):
     total_incidents: int
     category_distribution: List[CategoryCount]
     recent_trend: List[TrendPoint]
+    department_distribution: Optional[List[DepartmentCount]] = None
+    mentor_distribution: Optional[List[MentorCount]] = None
+    student_distribution: Optional[List[StudentCount]] = None

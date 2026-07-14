@@ -188,6 +188,19 @@ export const LMSAttendance = () => {
         </div>
       )}
 
+      {/* Compensation Notice */}
+      {data?.is_compensation && (
+        <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-2xl px-5 py-4">
+          <span className="text-xl mt-0.5">📋</span>
+          <div>
+            <p className="font-bold text-sm">Compensation (Make-up) Session</p>
+            <p className="text-xs mt-0.5 text-blue-700">
+              This is a scheduled make-up class to compensate for a previous leave day. The slot is borrowed from the substitute's timetable.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-6">
         {/* Course info + period status */}
         <div className="bg-gray-50 rounded-2xl border border-gray-200 p-6 space-y-4">
