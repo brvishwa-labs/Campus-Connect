@@ -115,8 +115,9 @@ def hod_faculty(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    # Get all faculty from all departments (not just current HOD's department)
-    faculty = db.query(Faculty).all()
+    # Only return faculty belonging to the HOD's own department
+    department, _ = get_hod_department(current_user, db)
+    faculty = db.query(Faculty).filter(Faculty.department_id == department.id).all()
     return [
         {
             "id": f.id,
