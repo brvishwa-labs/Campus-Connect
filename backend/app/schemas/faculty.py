@@ -71,12 +71,30 @@ class SimpleCourse(BaseModel):
     name: str
     credits: int
     course_type: str
+    department_id: Optional[int] = None
     short_name: Optional[str] = None
+    syllabus: Optional[str] = None
+    objectives: Optional[str] = None
+    outcomes: Optional[str] = None
+    textbooks: Optional[str] = None
+    references: Optional[str] = None
+    prerequisites: Optional[str] = None
+    co_po_mapping: Optional[str] = None
+    co_k_levels: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 class SimpleSection(BaseModel):
     id: int
     name: str
     year: int
+
+class SimpleFaculty(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 class CourseAssignmentFacultyResponse(BaseModel):
     id: int
@@ -88,6 +106,7 @@ class CourseAssignmentFacultyResponse(BaseModel):
     created_at: datetime
     course: Optional[SimpleCourse] = None
     section: Optional[SimpleSection] = None
+    faculty: Optional[SimpleFaculty] = None
 
     model_config = ConfigDict(from_attributes=True)
 

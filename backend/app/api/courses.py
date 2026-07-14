@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.database import get_db
-from app.models.academic import Course
+from app.models.academic import Course, CourseAssignment
 from app.models.department import Department
 from app.models.user import User
+from app.models.faculty import Faculty
 from app.schemas.academic import CourseCreate, CourseUpdate, CourseResponse
 from app.core.security import get_current_active_user
 
@@ -61,15 +62,31 @@ def update_course(
     """
     Update a course.
     """
-    if current_user.role != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can update courses")
-        
     db_course = db.query(Course).filter(Course.id == course_id).first()
     if not db_course:
         raise HTTPException(status_code=404, detail="Course not found")
         
     update_data = course_in.model_dump(exclude_unset=True)
     
+    if current_user.role == "faculty":
+        # Check if faculty is assigned to this course
+        faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+        if not faculty:
+            raise HTTPException(status_code=403, detail="Faculty profile not found")
+        assignment = db.query(CourseAssignment).filter(
+            CourseAssignment.faculty_id == faculty.id,
+            CourseAssignment.course_id == course_id,
+            CourseAssignment.is_active == True
+        ).first()
+        if not assignment:
+            raise HTTPException(status_code=403, detail="You are not assigned to this course")
+        
+        # Faculty can only edit specific fields
+        allowed_fields = {"prerequisites", "objectives", "outcomes", "syllabus", "textbooks", "references", "co_po_mapping", "co_k_levels"}
+        update_data = {k: v for k, v in update_data.items() if k in allowed_fields}
+    elif current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins and assigned faculty can update courses")
+        
     if "code" in update_data and update_data["code"] != db_course.code:
         if db.query(Course).filter(Course.code == update_data["code"]).first():
             raise HTTPException(status_code=400, detail="Course code already in use")
