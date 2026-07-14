@@ -176,19 +176,12 @@ def get_faculty_dashboard(
     ).all()
     
     for sub in substitutions:
-        # Find requester assignments to identify the class/slot details
-        requester_assignments = db.query(CourseAssignment).options(
-            joinedload(CourseAssignment.course),
-            joinedload(CourseAssignment.section)
-        ).filter(
-            CourseAssignment.faculty_id == sub.leave_request.faculty_id
-        ).all()
-        
-        matched_assignment = None
-        for a in requester_assignments:
-            if a.course.code == sub.subject:
-                matched_assignment = a
-                break
+        # Find the original faculty's assignment being covered.
+        # Uses fallback strategies since arrangement.subject may contain
+        # the substitute's course code instead of the original faculty's.
+        matched_assignment = _find_covered_assignment(
+            db, sub.leave_request.faculty_id, sub, substitute_faculty_id=faculty.id
+        )
                 
         if matched_assignment:
             slots = db.query(TimetableSlot).filter(
@@ -695,45 +688,56 @@ def get_my_courses(
     seen_sub_keys = set()
     for arr in sub_arrangements:
         original_faculty_id = arr.leave_request.faculty_id
-        subject_code = arr.subject  # e.g. "CS3401"
+        subject_code = arr.subject  # e.g. "CSOE802"
 
-        # Build a unique key to avoid duplicates
         sub_key = f"{original_faculty_id}_{subject_code}"
         if sub_key in seen_sub_keys:
             continue
         seen_sub_keys.add(sub_key)
 
-        # Find the CourseAssignment by matching original faculty + course code
-        from app.models.academic import Course
-        sub_assignment = db.query(CourseAssignment).options(
+        # Identify the section being covered via the ORIGINAL faculty's assignment.
+        # Falls back through multiple strategies since arrangement.subject may
+        # contain the substitute's course code instead of the original's.
+        original_assignment = _find_covered_assignment(
+            db, original_faculty_id, arr, substitute_faculty_id=faculty.id
+        )
+
+        if not original_assignment:
+            continue
+
+        # The entry must reflect THIS (substitute) faculty's OWN subject for that section.
+        own_assignment = db.query(CourseAssignment).options(
             joinedload(CourseAssignment.course),
             joinedload(CourseAssignment.section),
-            joinedload(CourseAssignment.faculty)
-        ).join(Course).filter(
-            CourseAssignment.faculty_id == original_faculty_id,
+            joinedload(CourseAssignment.faculty),
+        ).filter(
+            CourseAssignment.faculty_id == faculty.id,
+            CourseAssignment.section_id == original_assignment.section_id,
             CourseAssignment.is_active == True,
-            (Course.code == subject_code) | (Course.short_name == subject_code)
         ).first()
 
-        if sub_assignment:
-            orig_fac = sub_assignment.faculty
-            orig_name = f"{orig_fac.first_name} {orig_fac.last_name}" if orig_fac else "Unknown"
-            result.append({
-                "id": sub_assignment.id,
-                "course_id": sub_assignment.course_id,
-                "section_id": sub_assignment.section_id,
-                "academic_year": sub_assignment.academic_year,
-                "semester": sub_assignment.semester,
-                "is_active": sub_assignment.is_active,
-                "created_at": sub_assignment.created_at.isoformat() if sub_assignment.created_at else None,
-                "course": {"id": sub_assignment.course.id, "code": sub_assignment.course.code,
-                           "name": sub_assignment.course.name, "credits": sub_assignment.course.credits,
-                           "course_type": sub_assignment.course.course_type} if sub_assignment.course else None,
-                "section": {"id": sub_assignment.section.id, "name": sub_assignment.section.name,
-                            "year": sub_assignment.section.year} if sub_assignment.section else None,
-                "is_substitute": True,
-                "original_faculty_name": orig_name,
-            })
+        if not own_assignment:
+            continue  # substitute doesn't teach this section — nothing to show
+
+        orig_fac = original_assignment.faculty
+        orig_name = f"{orig_fac.first_name} {orig_fac.last_name}" if orig_fac else "Unknown"
+
+        result.append({
+            "id": own_assignment.id,
+            "course_id": own_assignment.course_id,
+            "section_id": own_assignment.section_id,
+            "academic_year": own_assignment.academic_year,
+            "semester": own_assignment.semester,
+            "is_active": own_assignment.is_active,
+            "created_at": own_assignment.created_at.isoformat() if own_assignment.created_at else None,
+            "course": {"id": own_assignment.course.id, "code": own_assignment.course.code,
+                       "name": own_assignment.course.name, "credits": own_assignment.course.credits,
+                       "course_type": own_assignment.course.course_type} if own_assignment.course else None,
+            "section": {"id": own_assignment.section.id, "name": own_assignment.section.name,
+                        "year": own_assignment.section.year} if own_assignment.section else None,
+            "is_substitute": True,
+            "original_faculty_name": orig_name,
+        })
 
     return result
 
@@ -1089,6 +1093,193 @@ def add_advising_log(student_id: int, payload: dict, db: Session = Depends(get_d
 
 # ── Attendance Endpoints ───────────────────────────────────────────────────────
 
+
+def _find_covered_assignment(db, original_faculty_id, arr, substitute_faculty_id=None, section_id=None):
+    """
+    Robustly find the original (on-leave) faculty's CourseAssignment that an
+    arrangement covers.  Falls back through multiple strategies because
+    arrangement.subject may contain the substitute's course code instead of
+    the original faculty's.
+
+    Strategies (tried in order):
+      1. Exact subject-code match against original faculty's courses.
+      2. Timetable day + period match using arrangement.day / arrangement.period.
+      3. Shared-section fallback: find original faculty's assignment in a section
+         that the substitute also teaches.
+
+    Args:
+        db:                    DB session
+        original_faculty_id:   Faculty.id of the person on leave
+        arr:                   FacultyDutyArrangement row
+        substitute_faculty_id: Faculty.id of the substitute (for section fallback)
+        section_id:            If set, only match assignments in this section
+
+    Returns: CourseAssignment | None
+    """
+    from app.models.academic import Course as _Course
+
+    subject_code = arr.subject or ""
+    section_filter = [CourseAssignment.section_id == section_id] if section_id else []
+
+    # Strategy 1: exact subject-code match (works when data is correct)
+    match = db.query(CourseAssignment).options(
+        joinedload(CourseAssignment.course),
+        joinedload(CourseAssignment.section),
+        joinedload(CourseAssignment.faculty),
+    ).join(_Course).filter(
+        CourseAssignment.faculty_id == original_faculty_id,
+        CourseAssignment.is_active == True,
+        (_Course.code == subject_code) | (_Course.short_name == subject_code),
+        *section_filter,
+    ).first()
+    if match:
+        return match
+
+    # Strategy 2: timetable day + period match (handles wrong subject)
+    if arr.day and arr.period:
+        period_start = (
+            arr.period.strip().split(" - ")[0].strip()
+            if " - " in arr.period
+            else arr.period.strip()
+        )
+        candidates = db.query(CourseAssignment).options(
+            joinedload(CourseAssignment.course),
+            joinedload(CourseAssignment.section),
+            joinedload(CourseAssignment.faculty),
+        ).filter(
+            CourseAssignment.faculty_id == original_faculty_id,
+            CourseAssignment.is_active == True,
+            *section_filter,
+        ).all()
+        for ca in candidates:
+            slots = db.query(TimetableSlot).filter(
+                TimetableSlot.course_assignment_id == ca.id,
+            ).all()
+            for s in slots:
+                s_day = s.day.value if hasattr(s.day, "value") else s.day
+                s_start = s.start_time.strftime("%H:%M")
+                s_start_12h = s.start_time.strftime("%I:%M %p")
+                if s_day == arr.day and (
+                    s_start == period_start or s_start_12h == period_start
+                ):
+                    return ca
+
+    # Strategy 3: shared-section fallback (broadest match)
+    if substitute_faculty_id and not section_id:
+        sub_section_ids = [
+            a.section_id
+            for a in db.query(CourseAssignment)
+            .filter(
+                CourseAssignment.faculty_id == substitute_faculty_id,
+                CourseAssignment.is_active == True,
+            )
+            .all()
+        ]
+        if sub_section_ids:
+            match = db.query(CourseAssignment).options(
+                joinedload(CourseAssignment.course),
+                joinedload(CourseAssignment.section),
+                joinedload(CourseAssignment.faculty),
+            ).filter(
+                CourseAssignment.faculty_id == original_faculty_id,
+                CourseAssignment.is_active == True,
+                CourseAssignment.section_id.in_(sub_section_ids),
+            ).first()
+            if match:
+                return match
+
+    return None
+
+
+def _resolve_teaching_session(
+    assignment: CourseAssignment,
+    faculty,
+    db: Session,
+    target_date,
+):
+    """
+    `assignment` is ALWAYS the faculty's own CourseAssignment (their own subject).
+    Determines which CourseAssignment's TimetableSlot rows actually define today's
+    class time, and whether this is a normal / substitute / compensation session.
+
+    Returns: (slot_source_assignment, period_filter, mode)
+      - slot_source_assignment: CourseAssignment whose TimetableSlot rows to query.
+      - period_filter: list of "HH:MM" start times to restrict to, or None (= no filter).
+      - mode: "own" | "substitute" | "compensation"
+    """
+    from app.models.leave import FacultyDutyArrangement, FacultyLeaveRequest, LeaveStatus, ArrangementStatus
+    from app.models.academic import Course as _Course
+
+    DAY_MAP = {0: "mon", 1: "tue", 2: "wed", 3: "thu", 4: "fri", 5: "sat", 6: "sun"}
+    day_name = DAY_MAP[target_date.weekday()]
+
+    def _day(slot):
+        return slot.day.value if hasattr(slot.day, "value") else slot.day
+
+    # 1) Normal own slot today?
+    own_slots = db.query(TimetableSlot).filter(
+        TimetableSlot.course_assignment_id == assignment.id
+    ).all()
+    if any(_day(s) == day_name for s in own_slots):
+        return assignment, None, "own"
+
+    # 2) SUBSTITUTE: covering someone else's leave for the same section today.
+    sub_arrangements = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
+        FacultyDutyArrangement.substitute_faculty_id == faculty.id,
+        FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
+        FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+        FacultyLeaveRequest.from_date <= target_date,
+        FacultyLeaveRequest.to_date >= target_date,
+    ).all()
+    for arr in sub_arrangements:
+        original = _find_covered_assignment(
+            db, arr.leave_request.faculty_id, arr,
+            substitute_faculty_id=faculty.id,
+            section_id=assignment.section_id,
+        )
+        if not original:
+            continue
+        slots = db.query(TimetableSlot).filter(
+            TimetableSlot.course_assignment_id == original.id
+        ).all()
+        if not any(_day(s) == day_name for s in slots):
+            continue
+        period_filter = None
+        if arr.period and arr.period.strip().lower() != "all periods":
+            period_str = arr.period.strip()
+            start_part = period_str.split(" - ")[0].strip() if " - " in period_str else period_str
+            period_filter = [start_part]
+        return original, period_filter, "substitute"
+
+    # 3) COMPENSATION: make-up session — slot lives under the substitute's own assignment.
+    compensations = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.faculty_id == faculty.id,
+        FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
+        FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+        FacultyDutyArrangement.compensation_date == target_date,
+    ).all()
+    for comp in compensations:
+        sub_assignments = db.query(CourseAssignment).filter(
+            CourseAssignment.faculty_id == comp.substitute_faculty_id,
+            CourseAssignment.is_active == True,
+        ).all()
+        for sa in sub_assignments:
+            slots = db.query(TimetableSlot).filter(
+                TimetableSlot.course_assignment_id == sa.id,
+                TimetableSlot.day == day_name,
+            ).all()
+            for s in slots:
+                s_start = s.start_time.strftime("%H:%M")
+                s_start_12h = s.start_time.strftime("%I:%M %p")
+                if comp.compensation_period and (
+                    s_start in comp.compensation_period or s_start_12h in comp.compensation_period
+                ):
+                    return sa, [s_start], "compensation"
+
+    # No special session — no class today for this subject.
+    return assignment, None, "own"
+
+
 @router.get("/courses/{assignment_id}/attendance-slots")
 def get_attendance_slots(
     assignment_id: int,
@@ -1097,63 +1288,38 @@ def get_attendance_slots(
 ):
     """
     Returns today's timetable slots for this assignment.
-    Each slot includes is_current (True if current time is within that period).
-    Faculty can only mark attendance during or after the period starts.
-    Also supports substitute faculty accessing courses they are covering today.
+    assignment_id must ALWAYS be the caller's OWN CourseAssignment (their own subject).
+    The helper _resolve_teaching_session figures out where the real slot lives
+    (own timetable / absent faculty's timetable / substitute's timetable) and
+    which specific period is valid — without needing any extra client parameters.
     """
-    from datetime import datetime, time as time_type
-    from app.models.leave import FacultyDutyArrangement, FacultyLeaveRequest, LeaveStatus, ArrangementStatus
+    from datetime import datetime
 
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
     if not faculty:
         raise HTTPException(status_code=404, detail="Faculty profile not found")
 
-    today = date_type.today()
-    is_substitute = False
-    substitute_periods = []  # list of period start times (HH:MM) this sub is covering today
-
     assignment = db.query(CourseAssignment).options(
         joinedload(CourseAssignment.course),
         joinedload(CourseAssignment.section)
-    ).filter(
-        CourseAssignment.id == assignment_id,
-    ).first()
+    ).filter(CourseAssignment.id == assignment_id).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
-    # Check ownership
+    # assignment_id must always be the CALLER'S OWN subject assignment.
     if assignment.faculty_id != faculty.id:
-        # Not the original faculty — check if they are an accepted substitute today
-        sub_arrangements = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
-            FacultyDutyArrangement.substitute_faculty_id == faculty.id,
-            FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
-            FacultyLeaveRequest.status == LeaveStatus.APPROVED,
-            FacultyLeaveRequest.faculty_id == assignment.faculty_id,
-            FacultyLeaveRequest.from_date <= today,
-            FacultyLeaveRequest.to_date >= today
-        ).all()
+        raise HTTPException(status_code=403, detail="Not authorized for this course assignment")
 
-        if not sub_arrangements:
-            raise HTTPException(status_code=403, detail="Assignment not found")
-
-        is_substitute = True
-        # Collect periods this substitute is covering
-        for arr in sub_arrangements:
-            if arr.period:
-                period_str = arr.period.strip()
-                if " - " in period_str:
-                    # period is stored like "09:30 - 10:20" — extract start time
-                    start_part = period_str.split(" - ")[0].strip()
-                    substitute_periods.append(start_part)
-                # else: "All Periods" or similar — don't filter, show all slots
-
-    # Use weekday() — locale-independent: 0=Monday ... 5=Saturday
-    DAY_MAP = {0: "mon", 1: "tue", 2: "wed", 3: "thu", 4: "fri", 5: "sat", 6: "sun"}
-    today_name = DAY_MAP[date_type.today().weekday()]
+    today = date_type.today()
     now_time = datetime.now().time()
 
+    slot_source, period_filter, mode = _resolve_teaching_session(assignment, faculty, db, today)
+
+    DAY_MAP = {0: "mon", 1: "tue", 2: "wed", 3: "thu", 4: "fri", 5: "sat", 6: "sun"}
+    today_name = DAY_MAP[today.weekday()]
+
     slots = db.query(TimetableSlot).filter(
-        TimetableSlot.course_assignment_id == assignment_id
+        TimetableSlot.course_assignment_id == slot_source.id
     ).all()
 
     today_slots = []
@@ -1161,30 +1327,23 @@ def get_attendance_slots(
         slot_day = s.day.value if hasattr(s.day, 'value') else s.day
         if slot_day != today_name:
             continue
-
-        start = s.start_time if isinstance(s.start_time, time_type) else s.start_time
-        end   = s.end_time   if isinstance(s.end_time,   time_type) else s.end_time
-        start_str = start.strftime("%H:%M")
-
-        # If substitute, only show the periods they're covering
-        if is_substitute and substitute_periods and start_str not in substitute_periods:
+        start_str = s.start_time.strftime("%H:%M")
+        if period_filter and start_str not in period_filter:
             continue
-
-        # Allow marking from start_time until end of day (so staff can mark even slightly late)
-        is_active = now_time >= start
-
+        is_active = now_time >= s.start_time
         today_slots.append({
             "id": s.id,
             "day": slot_day,
             "start_time": start_str,
-            "end_time":   end.strftime("%H:%M"),
+            "end_time": s.end_time.strftime("%H:%M"),
             "room": s.room,
-            "is_active": is_active,   # True = faculty can mark now
-            "is_current": start <= now_time <= end,  # True = currently in this period
-            "is_substitute_period": is_substitute,
+            "is_active": is_active,
+            "is_current": s.start_time <= now_time <= s.end_time,
+            "is_substitute_period": mode == "substitute",
+            "is_compensation_period": mode == "compensation",
         })
 
-    # Students in this section
+    # Roster/section is always the caller's OWN subject assignment's section.
     if assignment.is_active:
         students = db.query(Student).filter(
             Student.section_id == assignment.section_id,
@@ -1221,10 +1380,10 @@ def get_attendance_slots(
         "section": f"{assignment.section.year} Year {assignment.section.name}" if assignment.section else "",
         "today": str(today),
         "today_day": today_name,
-        "is_substitute": is_substitute,
+        "is_substitute": mode == "substitute",
+        "is_compensation": mode == "compensation",
         "is_holiday": today_is_holiday,
         "holiday_name": today_holiday_name,
-
         "students": [
             {
                 "id": s.id,
@@ -1269,21 +1428,9 @@ def save_course_attendance(
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
         
+    # assignment_id must be the caller's own subject assignment.
     if assignment.faculty_id != faculty.id:
-        # Check if the current faculty is an authorized substitute
-        from app.models.leave import FacultyDutyArrangement, FacultyLeaveRequest, LeaveStatus, ArrangementStatus
-        today = date_type.today()
-        substitute = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
-            FacultyDutyArrangement.substitute_faculty_id == faculty.id,
-            FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
-            FacultyLeaveRequest.status == LeaveStatus.APPROVED,
-            FacultyLeaveRequest.faculty_id == assignment.faculty_id,
-            FacultyLeaveRequest.from_date <= today,
-            FacultyLeaveRequest.to_date >= today
-        ).first()
-        
-        if not substitute:
-            raise HTTPException(status_code=403, detail="Not authorized to mark attendance for this course")
+        raise HTTPException(status_code=403, detail="Not authorized to mark attendance for this course")
 
     from app.models.department import Department
     department = db.query(Department).filter(Department.id == assignment.course.department_id).first()
@@ -1307,24 +1454,27 @@ def save_course_attendance(
     slot_start = payload.get("slot_start_time")  # e.g. "08:45"
     payload_hour = payload.get("hour")
 
-    # Determine period number from hour, slot_start, or current time
+    # Determine period number from hour or explicit slot_start from frontend.
     period_number = None
     if payload_hour is not None:
         period_number = int(payload_hour)
-    else:
-        period_number = PERIOD_MAP.get(slot_start) if slot_start else None
+    elif slot_start:
+        period_number = PERIOD_MAP.get(slot_start)
 
     if not period_number:
-        # Find active slot from timetable right now
+        # Fall back: resolve today's session server-side (handles substitute/compensation
+        # cases where the frontend didn't send an explicit slot_start_time).
+        slot_source, period_filter, _mode = _resolve_teaching_session(assignment, faculty, db, today)
         DAY_MAP = {0: "mon", 1: "tue", 2: "wed", 3: "thu", 4: "fri", 5: "sat", 6: "sun"}
-        today_name = DAY_MAP[date_type.today().weekday()]
+        today_name = DAY_MAP[today.weekday()]
         slots = db.query(TimetableSlot).filter(
-            TimetableSlot.course_assignment_id == assignment_id
+            TimetableSlot.course_assignment_id == slot_source.id
         ).all()
         for s in slots:
             slot_day = s.day.value if hasattr(s.day, 'value') else s.day
-            if slot_day == today_name and s.start_time <= now_time:
-                period_number = PERIOD_MAP.get(s.start_time.strftime("%H:%M"))
+            start_str = s.start_time.strftime("%H:%M")
+            if slot_day == today_name and s.start_time <= now_time and (not period_filter or start_str in period_filter):
+                period_number = PERIOD_MAP.get(start_str)
                 break
 
     saved = 0
@@ -2876,7 +3026,7 @@ def get_my_attendance(
                 "id": r.id,
                 "date": r.date.strftime("%Y-%m-%d"),
                 "status": r.status.value,
-                "leave_type": r.leave_request.leave_type.value if r.leave_request else None
+                "leave_type": getattr(r.leave_request.leave_type, "value", r.leave_request.leave_type) if r.leave_request else None
             } for r in records
         ]
     }

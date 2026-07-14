@@ -431,8 +431,12 @@ def get_dean_dashboard_stats(
     
     from datetime import timedelta
     from app.models.academic import Course, Enrollment
-    from app.models.attendance import Attendance
+    from app.models.attendance import Attendance, FacultyAttendance
     from app.models.grade import Grade
+    from app.models.lms import Announcement
+    from app.models.gatepass import GatePass, GatePassStatus
+    from app.models.leave import FacultyLeaveRequest    
+    today_date = date.today()
     
     # 1. TOP NUMBERS (Stat Cards)
     total_students = db.query(Student).filter(Student.is_active == True).count()
@@ -453,11 +457,13 @@ def get_dean_dashboard_stats(
     from app.core.utils import get_sem_start_date
     
     for dept in departments:
+        # Students
         dept_students = db.query(Student).filter(
             Student.department_id == dept.id,
             Student.is_active == True
         ).all()
         student_ids = [s.id for s in dept_students]
+        total_dept_students = len(student_ids)
         
         if student_ids:
             sem_start_date = get_sem_start_date(dept.id, db)
@@ -472,15 +478,77 @@ def get_dean_dashboard_stats(
             ).count()
             dept_percent = round((dept_present / dept_total * 100), 2) if dept_total > 0 else 0
             
+            # Today's Student Attendance
+            student_present_today = db.query(Attendance.student_id).filter(
+                Attendance.student_id.in_(student_ids),
+                Attendance.date == today_date,
+                Attendance.status == "present"
+            ).distinct().count()
+            student_absent_today = total_dept_students - student_present_today
+            
+            # Gender-wise Today
+            boys = [s for s in dept_students if s.gender and s.gender.lower() in ["male", "m", "boy"]]
+            girls = [s for s in dept_students if s.gender and s.gender.lower() in ["female", "f", "girl"]]
+            
+            boys_ids = [s.id for s in boys]
+            girls_ids = [s.id for s in girls]
+            
+            boys_present = db.query(Attendance.student_id).filter(
+                Attendance.student_id.in_(boys_ids),
+                Attendance.date == today_date,
+                Attendance.status == "present"
+            ).distinct().count() if boys_ids else 0
+            
+            girls_present = db.query(Attendance.student_id).filter(
+                Attendance.student_id.in_(girls_ids),
+                Attendance.date == today_date,
+                Attendance.status == "present"
+            ).distinct().count() if girls_ids else 0
+            
+            boys_percent = round((boys_present / len(boys_ids)) * 100, 2) if boys_ids else 0
+            girls_percent = round((girls_present / len(girls_ids)) * 100, 2) if girls_ids else 0
+            
             global_total += dept_total
             global_present += dept_present
         else:
             dept_percent = 0
+            student_present_today = 0
+            student_absent_today = 0
+            boys_percent = 0
+            girls_percent = 0
+            
+        # Faculty
+        dept_faculty = db.query(Faculty).filter(
+            Faculty.department_id == dept.id,
+            Faculty.is_active == True
+        ).all()
+        faculty_ids = [f.id for f in dept_faculty]
+        total_dept_faculty = len(faculty_ids)
+        
+        if faculty_ids:
+            # Faculty are considered absent only if they have an approved leave request for today
+            faculty_absent_today = db.query(FacultyLeaveRequest).filter(
+                FacultyLeaveRequest.faculty_id.in_(faculty_ids),
+                FacultyLeaveRequest.status == "approved",
+                FacultyLeaveRequest.from_date <= today_date,
+                FacultyLeaveRequest.to_date >= today_date
+            ).count()
+            
+            faculty_present_today = total_dept_faculty - faculty_absent_today
+        else:
+            faculty_present_today = 0
+            faculty_absent_today = 0
             
         attendance_by_dept.append({
             "department_name": dept.name,
             "department_code": dept.code,
-            "attendance_percent": dept_percent
+            "attendance_percent": dept_percent,
+            "student_present_today": student_present_today,
+            "student_absent_today": student_absent_today,
+            "faculty_present_today": faculty_present_today,
+            "faculty_absent_today": faculty_absent_today,
+            "boys_percent": boys_percent,
+            "girls_percent": girls_percent
         })
         
     overall_attendance_percent = round((global_present / global_total * 100), 2) if global_total > 0 else 0
@@ -524,12 +592,19 @@ def get_dean_dashboard_stats(
         FacultyLeaveRequest.status == LeaveStatus.PENDING_DEAN
     ).count()
     
+    # Gatepasses pending Dean approval (Assuming Dean sees HOD or OM level depending on the flow, but let's query all pending for simplicity)
+    # If the Dean acts as an authority for gatepasses, maybe they approve them? The OM approves them usually. Let's return the count anyway if the Dean needs to see them.
+    pending_gate_passes = db.query(GatePass).filter(
+        GatePass.status.in_([GatePassStatus.PENDING_HOD, GatePassStatus.PENDING_OM]),
+        GatePass.is_deleted_by_student == False
+    ).count()
+    
     # Student complaints/discipline records needing attention
     today_discipline_count = db.query(DisciplineRecord).filter(
         func.date(DisciplineRecord.incident_date) == date.today()
     ).count()
     
-    total_pending = pending_faculty_leaves + today_discipline_count
+    total_pending = pending_faculty_leaves + pending_gate_passes + today_discipline_count
     
     # 5. RECENT ALERTS (Last 10 notifications/updates)
     seven_days_ago = date.today() - timedelta(days=7)
@@ -569,6 +644,114 @@ def get_dean_dashboard_stats(
     recent_alerts.sort(key=lambda x: x["timestamp"], reverse=True)
     recent_alerts = recent_alerts[:10]  # Limit to 10 most recent
     
+    # 6. LATE ARRIVALS TREND (Last 30 Days)
+    from app.models.late import LateRecord
+    from collections import defaultdict
+    thirty_days_ago = today_date - timedelta(days=30)
+    
+    late_entries = db.query(LateRecord).filter(
+        LateRecord.date >= thirty_days_ago
+    ).all()
+    
+    late_trend_dict = defaultdict(int)
+    for entry in late_entries:
+        date_str = entry.date.isoformat()
+        late_trend_dict[date_str] += 1
+        
+    # Ensure all 30 days are present in the list, even if count is 0
+    late_trend = []
+    for i in range(31):
+        d = (thirty_days_ago + timedelta(days=i)).isoformat()
+        late_trend.append({"date": d, "count": late_trend_dict.get(d, 0)})
+        
+    # 7. STUDENT DEMOGRAPHICS
+    hostel_count = db.query(Student).filter(Student.is_active == True, Student.accommodation == "Hostel").count()
+    day_scholar_count = db.query(Student).filter(Student.is_active == True, Student.accommodation == "Day Scholar").count()
+    
+    college_bus_count = db.query(Student).filter(Student.is_active == True, Student.transportation == "BUS").count()
+    own_transport_count = db.query(Student).filter(Student.is_active == True, Student.transportation == "OWN").count()
+    
+    demographics = {
+        "accommodation": [
+            {"name": "Hostel", "value": hostel_count},
+            {"name": "Day Scholar", "value": day_scholar_count}
+        ],
+        "transportation": [
+            {"name": "College Bus", "value": college_bus_count},
+            {"name": "Own Transport", "value": own_transport_count}
+        ]
+    }
+    
+    # 8. MONTHLY ATTENDANCE TREND
+    all_active_students = db.query(Student).filter(Student.is_active == True).all()
+    student_map = {s.id: s for s in all_active_students}
+    
+    all_active_faculty = db.query(Faculty).filter(Faculty.is_active == True).all()
+    faculty_map = {f.id: f for f in all_active_faculty}
+    
+    student_attendance_records = db.query(Attendance).filter(
+        Attendance.date >= thirty_days_ago,
+        Attendance.date <= today_date
+    ).all()
+    
+    faculty_leave_records = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.status == "approved",
+        FacultyLeaveRequest.to_date >= thirty_days_ago,
+        FacultyLeaveRequest.from_date <= today_date
+    ).all()
+    
+    monthly_attendance_trend = {"ALL": []}
+    for dept in departments:
+        monthly_attendance_trend[dept.code] = []
+        
+    for i in range(31):
+        d_date = thirty_days_ago + timedelta(days=i)
+        d_str = d_date.isoformat()
+        
+        stats_for_day = {"ALL": {"boys_total": 0, "boys_present": 0, "girls_total": 0, "girls_present": 0, "faculty_total": len(all_active_faculty), "faculty_absent": 0}}
+        for dept in departments:
+            stats_for_day[dept.code] = {"boys_total": 0, "boys_present": 0, "girls_total": 0, "girls_present": 0, "faculty_total": sum(1 for f in all_active_faculty if f.department_id == dept.id), "faculty_absent": 0}
+            
+        for s in all_active_students:
+            stats_for_day["ALL"]["boys_total" if s.gender == "M" else "girls_total"] += 1
+            if s.department:
+                stats_for_day[s.department.code]["boys_total" if s.gender == "M" else "girls_total"] += 1
+                
+        seen_student_attendance = set()
+        for att in student_attendance_records:
+            if att.date == d_date and att.status == "present":
+                if (att.student_id, d_date) not in seen_student_attendance:
+                    seen_student_attendance.add((att.student_id, d_date))
+                    s = student_map.get(att.student_id)
+                    if s:
+                        stats_for_day["ALL"]["boys_present" if s.gender == "M" else "girls_present"] += 1
+                        if s.department:
+                            stats_for_day[s.department.code]["boys_present" if s.gender == "M" else "girls_present"] += 1
+                            
+        seen_faculty_absent = set()
+        for leave in faculty_leave_records:
+            if leave.from_date <= d_date <= leave.to_date:
+                if (leave.faculty_id, d_date) not in seen_faculty_absent:
+                    seen_faculty_absent.add((leave.faculty_id, d_date))
+                    f = faculty_map.get(leave.faculty_id)
+                    if f:
+                        stats_for_day["ALL"]["faculty_absent"] += 1
+                        if f.department:
+                            stats_for_day[f.department.code]["faculty_absent"] += 1
+                            
+        for key in stats_for_day:
+            st = stats_for_day[key]
+            boys_pct = round(st["boys_present"] / st["boys_total"] * 100, 2) if st["boys_total"] > 0 else 0
+            girls_pct = round(st["girls_present"] / st["girls_total"] * 100, 2) if st["girls_total"] > 0 else 0
+            fac_pct = round((st["faculty_total"] - st["faculty_absent"]) / st["faculty_total"] * 100, 2) if st["faculty_total"] > 0 else 0
+            
+            monthly_attendance_trend[key].append({
+                "date": d_str,
+                "boys_percent": boys_pct,
+                "girls_percent": girls_pct,
+                "faculty_present_percent": fac_pct
+            })
+    
     return {
         # Top Numbers
         "total_students": total_students,
@@ -582,15 +765,33 @@ def get_dean_dashboard_stats(
         
         # Academic Performance
         "overall_pass_percent": overall_pass_percent,
-        "performance_by_department": performance_by_dept,
+        "academic_performance": performance_by_dept,
         
         # Pending Requests
         "pending_faculty_leaves": pending_faculty_leaves,
+        "pending_gate_passes": pending_gate_passes,
         "pending_complaints": today_discipline_count,
         "total_pending": total_pending,
         
         # Recent Alerts
         "recent_alerts": recent_alerts,
+        
+        # New Detailed Analytics
+        "monthly_attendance_trend": monthly_attendance_trend,
+        "late_trend": late_trend,
+        "demographics": demographics,
+        
+        # Announcements
+        "announcements": [
+            {
+                "id": a.id,
+                "title": a.title,
+                "content": a.content,
+                "category": a.category,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+                "posted_by": f"{a.posted_by.first_name} {a.posted_by.last_name}" if a.posted_by else "Admin"
+            } for a in db.query(Announcement).order_by(Announcement.created_at.desc()).limit(5).all()
+        ],
         
         # Metadata
         "last_updated": datetime.now().isoformat()
@@ -809,6 +1010,9 @@ def get_principal_dashboard_stats(
         
         # Recent Alerts
         "recent_alerts": recent_alerts,
+        
+        # New Detailed Analytics
+        "monthly_attendance_trend": monthly_attendance_trend,
         
         # Metadata
         "last_updated": datetime.now().isoformat()

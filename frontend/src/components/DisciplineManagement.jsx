@@ -315,6 +315,11 @@ export const DisciplineManagement = ({ role }) => {
                             <div>
                               <div className="text-sm font-bold text-gray-900">{record.student_name}</div>
                               <div className="text-xs text-gray-500">{record.student_register_number}</div>
+                              {record.student_mentor && (
+                                <div className="text-[10px] text-gray-400 font-semibold mt-0.5">
+                                  Mentor: {record.student_mentor}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
