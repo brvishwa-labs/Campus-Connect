@@ -73,17 +73,41 @@ const SectionHeader = ({ title }) => (
 const REPORT_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Times+New+Roman');
   @media print {
-    .print\\:hidden { display: none !important; }
-    .print-page { margin: 0 !important; padding: 15mm 15mm !important; box-shadow: none !important; max-width: none !important; }
+    .print-hidden { display: none !important; }
+    .print-only { display: block !important; }
+    .print-page { margin: 0 !important; padding: 0 !important; box-shadow: none !important; max-width: 100% !important; width: 100% !important; }
     @page { size: A4; margin: 15mm; }
     .page-break { page-break-before: always; break-before: page; }
   }
+  .print-only { display: none !important; }
+  .print-hidden { display: block; }
   .report-body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #1e293b; line-height: 1.6; }
   .report-body table { border-collapse: collapse; width: 100%; }
   .report-body th, .report-body td { border: 1px solid #94a3b8; padding: 5px 8px; }
   .report-body thead th { background: #f1f5f9; font-weight: bold; }
   .highlight-label { font-weight: bold; }
 `;
+
+const highlightReportText = (text) => {
+  if (!text) return <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No data available</span>;
+  
+  // Escape HTML tags to prevent XSS/rendering issues
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+    
+  // Highlight M1, M2... PEO1, PEO2... PO1, PO2... PSO1, PSO2...
+  html = html.replace(/\b(M\d+|PEO\d+|PEO[!@]|PO\d+|PSO\d+)\b/g, '<strong style="color: #1e3a8a; font-weight: bold;">$1</strong>');
+  
+  // Highlight UNIT 1, UNIT I, Unit-1, etc.
+  html = html.replace(/\b(UNIT\s*[-–—:]?\s*(?:[IVXLCDM]+|\d+))\b/gi, '<strong style="color: #1e3a8a; font-weight: 800; text-transform: uppercase;">$1</strong>');
+  
+  // Highlight unit names/lesson titles (uppercase phrase of 3+ words preceding a colon)
+  html = html.replace(/\b([A-Z][A-Z\s]{3,}[A-Z])\b(?=\s*:)/g, '<span style="font-weight: bold; color: #0f172a;">$1</span>');
+
+  return <div dangerouslySetInnerHTML={{ __html: html }} style={{ whiteSpace: 'pre-wrap', textAlign: 'justify' }} />;
+};
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export const LMSLogbookReport = () => {
@@ -293,51 +317,7 @@ export const LMSLogbookReport = () => {
     return { conducted, attended, percentage };
   };
 
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-
-  // Download self-contained HTML report
-  const handleDownloadHTML = () => {
-    const reportElement = document.querySelector('.report-body');
-    if (!reportElement) return;
-
-    // Create a complete, self-contained HTML document with custom styling
-    const htmlContent = `
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>${course.code || 'Course'}_Logbook_Report</title>
-    <style>
-      ${REPORT_STYLES}
-      body {
-        padding: 20mm;
-        background: #fff;
-        max-width: 210mm;
-        margin: 0 auto;
-        font-family: 'Times New Roman', Times, serif;
-      }
-      .print-page {
-        box-shadow: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
-      }
-    </style>
-  </head>
-  <body>
-    ${reportElement.outerHTML}
-  </body>
-</html>
-    `;
-
-    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${course.code || 'Course'}_Logbook_Report.html`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const printReport = () => window.print();
 
   // ── Loading / Error states ─────────────────────────────────────────────────
   if (loading) {
@@ -414,7 +394,7 @@ export const LMSLogbookReport = () => {
       <style>{REPORT_STYLES}</style>
 
       {/* ── Top Bar (Hidden on Print) ── */}
-      <div className="print:hidden bg-white border-b border-gray-200 sticky top-0 z-50">
+      <div className="print-hidden bg-white border-b border-gray-200 sticky top-0 z-50">
         <div style={{ maxWidth: '210mm', margin: '0 auto', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link
             to={`/faculty/courses/${assignmentId}/lms`}
@@ -436,13 +416,7 @@ export const LMSLogbookReport = () => {
               <Save className="w-4 h-4" /> {savingKLevels ? 'Saving...' : 'Save K-Levels'}
             </button>
             <button
-              onClick={handleDownloadHTML}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-sm transition-colors text-xs"
-            >
-              <Download className="w-4 h-4" /> Download HTML
-            </button>
-            <button
-              onClick={() => window.print()}
+              onClick={printReport}
               className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 shadow-sm transition-colors text-xs"
             >
               <Printer className="w-4 h-4" /> Print Report
@@ -488,14 +462,25 @@ export const LMSLogbookReport = () => {
           <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '14pt', fontWeight: 'bold', color: '#334155', margin: '0 0 12px 0' }}>
             {course.code} – {course.name}
           </p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '32px', fontSize: '12pt', fontWeight: '600', color: '#475569', flexWrap: 'wrap' }}>
-            <span>Semester: {courseAssignment.semester}</span>
-            <span>Academic Year: {courseAssignment.academic_year}</span>
-            <span>Section: {courseAssignment.section ? `${courseAssignment.section.year} Yr ${courseAssignment.section.name}` : 'N/A'}</span>
-          </div>
-          <div style={{ marginTop: '6px', fontSize: '12pt', fontWeight: '600', color: '#475569', display: 'flex', justifyContent: 'center', gap: '24px', flexWrap: 'wrap' }}>
-            <span>Faculty: {facultyName} {courseAssignment.faculty?.designation ? `(${courseAssignment.faculty.designation})` : ''}</span>
-            {department && <span>Department: {department.name} ({department.code})</span>}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '12px 24px',
+            fontSize: '11pt',
+            fontWeight: '600',
+            color: '#334155',
+            marginTop: '20px',
+            padding: '16px',
+            backgroundColor: '#f8fafc',
+            borderRadius: '8px',
+            border: '1px solid #e2e8f0',
+            textAlign: 'left'
+          }}>
+            <div><span style={{ color: '#64748b', fontWeight: 'bold' }}>Academic Year:</span> {courseAssignment.academic_year}</div>
+            <div><span style={{ color: '#64748b', fontWeight: 'bold' }}>Semester:</span> {courseAssignment.semester}</div>
+            <div><span style={{ color: '#64748b', fontWeight: 'bold' }}>Section:</span> {courseAssignment.section ? `${courseAssignment.section.year} Yr ${courseAssignment.section.name}` : 'N/A'}</div>
+            <div style={{ gridColumn: 'span 2' }}><span style={{ color: '#64748b', fontWeight: 'bold' }}>Faculty:</span> {facultyName} {courseAssignment.faculty?.designation ? `(${courseAssignment.faculty.designation})` : ''}</div>
+            <div><span style={{ color: '#64748b', fontWeight: 'bold' }}>Department:</span> {department ? `${department.name} (${department.code})` : 'N/A'}</div>
           </div>
         </div>
 
@@ -507,32 +492,32 @@ export const LMSLogbookReport = () => {
 
         {/* ══ 2. DEPARTMENT MISSION ══════════════════════════════════════════ */}
         <SectionHeader title="2. Department Mission" />
-        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
-          {department?.mission || 'No data available'}
+        <div style={{ marginBottom: '18px' }}>
+          {highlightReportText(department?.mission)}
         </div>
 
         {/* ══ 3. PROGRAMME EDUCATIONAL OBJECTIVES ═══════════════════════════ */}
         <SectionHeader title="3. Programme Educational Objectives (PEOs)" />
-        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
-          {department?.peos || 'No data available'}
+        <div style={{ marginBottom: '18px' }}>
+          {highlightReportText(department?.peos)}
         </div>
 
         {/* ══ 4. PROGRAMME OUTCOMES ══════════════════════════════════════════ */}
         <SectionHeader title="4. Programme Outcomes (POs)" />
-        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
-          {programOutcomes?.outcomes || 'No data available'}
+        <div style={{ marginBottom: '18px' }}>
+          {highlightReportText(programOutcomes?.outcomes)}
         </div>
 
         {/* ══ 5. PROGRAMME SPECIFIC OUTCOMES ════════════════════════════════ */}
         <SectionHeader title="5. Programme Specific Outcomes (PSOs)" />
-        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
-          {department?.psos || 'No data available'}
+        <div style={{ marginBottom: '18px' }}>
+          {highlightReportText(department?.psos)}
         </div>
 
         {/* ══ 6. COURSE OBJECTIVES ═══════════════════════════════════════════ */}
         <SectionHeader title="6. Course Objectives" />
-        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
-          {course.objectives || 'No data available'}
+        <div style={{ marginBottom: '18px' }}>
+          {highlightReportText(course.objectives)}
         </div>
 
         {/* Page break before CO sections */}
@@ -558,7 +543,7 @@ export const LMSLogbookReport = () => {
                   <td style={tdLeftStyle}>{row.outcomeText}</td>
                   <td style={tdStyle}>
                     {/* Screen: checkboxes for multi-select */}
-                    <div className="print:hidden" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'center' }}>
+                    <div className="print-hidden" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'center' }}>
                       {Object.entries(K_LABELS).map(([kLevel, kDesc]) => {
                         const selected = row.kLevels.includes(kLevel);
                         const atMax = row.kLevels.length >= 3 && !selected;
@@ -592,14 +577,14 @@ export const LMSLogbookReport = () => {
                       })}
                     </div>
                     {/* Print: show only selected levels */}
-                    <div className="hidden print:block" style={{ fontWeight: 'bold', textAlign: 'center' }}>
+                    <div className="print-only" style={{ fontWeight: 'bold', textAlign: 'center' }}>
                       {row.kLevels.length > 0
                         ? row.kLevels.map(k => `${k} – ${K_LABELS[k]}`).join(', ')
                         : '—'}
                     </div>
                     {/* Screen preview of selected */}
                     {row.kLevels.length > 0 && (
-                      <div className="print:hidden" style={{ marginTop: '4px', fontSize: '9pt', color: '#6366f1', fontWeight: 'bold', textAlign: 'center' }}>
+                      <div className="print-hidden" style={{ marginTop: '4px', fontSize: '9pt', color: '#6366f1', fontWeight: 'bold', textAlign: 'center' }}>
                         Selected: {row.kLevels.join(', ')} {row.kLevels.length >= 3 && '(max)'}
                       </div>
                     )}
@@ -675,20 +660,20 @@ export const LMSLogbookReport = () => {
 
         {/* ══ 9. SYLLABUS ════════════════════════════════════════════════════ */}
         <SectionHeader title="9. Syllabus" />
-        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
-          {course.syllabus || 'No data available'}
+        <div style={{ marginBottom: '18px' }}>
+          {highlightReportText(course.syllabus)}
         </div>
 
         {/* ══ 10. TEXTBOOKS ══════════════════════════════════════════════════ */}
         <SectionHeader title="10. Textbooks" />
-        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
-          {course.textbooks || 'No data available'}
+        <div style={{ marginBottom: '18px' }}>
+          {highlightReportText(course.textbooks)}
         </div>
 
         {/* ══ 11. REFERENCES ═════════════════════════════════════════════════ */}
         <SectionHeader title="11. References" />
-        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
-          {course.references || 'No data available'}
+        <div style={{ marginBottom: '18px' }}>
+          {highlightReportText(course.references)}
         </div>
 
         {/* Page break */}
