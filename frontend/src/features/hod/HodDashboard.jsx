@@ -344,9 +344,11 @@ export const HodDashboard = () => {
   };
 
   const averagePassPercentage = useMemo(() => {
-    if (!resultsSummary || resultsSummary.length === 0) return 92.5;
-    const total = resultsSummary.reduce((acc, curr) => acc + (curr.pass_percentage || 0), 0);
-    return Math.round((total / resultsSummary.length) * 10) / 10;
+    if (!resultsSummary) return 92.5;
+    let allCourses = Array.isArray(resultsSummary) ? resultsSummary : Object.values(resultsSummary).flat();
+    if (allCourses.length === 0) return 92.5;
+    const total = allCourses.reduce((acc, curr) => acc + (curr.pass_percentage || 0), 0);
+    return Math.round((total / allCourses.length) * 10) / 10;
   }, [resultsSummary]);
 
   const allEvents = useMemo(() => {
