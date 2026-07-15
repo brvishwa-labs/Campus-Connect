@@ -239,14 +239,19 @@ export const MentorAssignment = () => {
     const logoBase64 = await loadLogo();
     let startY = 15;
     if (logoBase64) {
-      doc.addImage(logoBase64, 'PNG', 14, 10, 50, 15);
-      startY = 35;
+      const logoWidth = 120;
+      const logoHeight = 25;
+      const xPos = (210 - logoWidth) / 2;
+      doc.addImage(logoBase64, 'PNG', xPos, 10, logoWidth, logoHeight);
+      startY = 45;
     }
 
     doc.setFontSize(16);
-    doc.text('Mentor Assignment Report', 14, startY);
+    const title = 'Mentor Assignment Report';
+    const titleWidth = doc.getTextWidth(title);
+    doc.text(title, (210 - titleWidth) / 2, startY);
     
-    let yPos = startY + 10;
+    let yPos = startY + 12;
     const yearsToExport = selectedYear === 'All' ? Object.keys(dataByYear).sort() : [selectedYear];
 
     yearsToExport.forEach((year, index) => {
