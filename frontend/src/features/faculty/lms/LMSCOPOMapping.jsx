@@ -13,9 +13,9 @@ const BADGE_STYLES = {
   H: 'bg-green-100 text-green-700 border-green-200',
 };
 
-const getConfig = (courseType) => ({
-  coCount: courseType === 'lab' ? 6 : 10,
-  psoCount: courseType === 'lab' ? 2 : 3,
+const getConfig = () => ({
+  coCount: 5,
+  psoCount: 2,
 });
 
 const parseMappingJSON = (raw) => {
@@ -25,7 +25,34 @@ const parseMappingJSON = (raw) => {
 };
 
 /** Sticky-header editable mapping table */
-const CoPOEditTable = ({ mapping, courseType, onChange }) => {
+const getUnitAndKLevel = (i, courseType, coCount, kLevels) => {
+  let unitNo;
+  if (courseType === 'lab') {
+    unitNo = i + 1;
+  } else {
+    if (coCount <= 5) {
+      unitNo = i + 1;
+    } else {
+      unitNo = Math.floor(i / 2) + 1;
+    }
+  }
+  const unitKey = `Unit-${unitNo}`;
+  const val = kLevels?.[unitKey];
+  let kDisplay = '—';
+  if (val) {
+    if (Array.isArray(val)) {
+      kDisplay = val.join(', ');
+    } else if (typeof val === 'object') {
+      kDisplay = JSON.stringify(val);
+    } else {
+      kDisplay = val;
+    }
+  }
+  return { unitNo, kDisplay };
+};
+
+/** Sticky-header editable mapping table */
+const CoPOEditTable = ({ mapping, courseType, onChange, kLevels }) => {
   const { coCount, psoCount } = getConfig(courseType);
   const coRows    = Array.from({ length: coCount },  (_, i) => `CO-${i + 1}`);
   const poColumns = Array.from({ length: 12 },       (_, i) => `PO-${i + 1}`);
@@ -61,13 +88,12 @@ const CoPOEditTable = ({ mapping, courseType, onChange }) => {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-indigo-200 shadow-sm">
-      <table className="text-[11px] border-collapse" style={{ minWidth: '720px' }}>
+      <table className="text-[11px] border-collapse" style={{ minWidth: '780px' }}>
         <thead className="sticky top-0 z-20">
           <tr>
-            <th
-              className="sticky left-0 z-30 bg-indigo-50 border border-indigo-200 px-3 py-2 w-16"
-              rowSpan={2}
-            />
+            <th className="sticky left-0 z-30 bg-indigo-50 border border-indigo-200 px-3 py-2 text-center font-bold text-indigo-900" rowSpan={2}>CO</th>
+            <th className="bg-indigo-50 border border-indigo-200 px-3 py-2 text-center font-bold text-indigo-900" rowSpan={2}>Unit</th>
+            <th className="bg-indigo-50 border border-indigo-200 px-3 py-2 text-center font-bold text-indigo-900" rowSpan={2}>K-Level</th>
             <th
               colSpan={12}
               className="bg-indigo-100 text-indigo-900 font-bold px-3 py-2 border border-indigo-200 text-center"
@@ -103,33 +129,42 @@ const CoPOEditTable = ({ mapping, courseType, onChange }) => {
           </tr>
         </thead>
         <tbody>
-          {coRows.map((co, idx) => (
-            <tr key={co} className={idx % 2 === 0 ? 'bg-white' : 'bg-indigo-50/20'}>
-              <td className="sticky left-0 z-10 bg-white border border-indigo-200 px-3 py-1 font-bold text-indigo-800 whitespace-nowrap text-center">
-                {co}
-              </td>
-              {allCols.map((col) => {
-                const val = mapping?.[co]?.[col] || '';
-                return (
-                  <td key={col} className="border border-indigo-100 px-0.5 py-0.5">
-                    <select
-                      value={val}
-                      onChange={(e) => handleCell(co, col, e.target.value)}
-                      className={selectCls(val)}
-                      style={{ minWidth: '38px' }}
-                      title={`${co} × ${col}`}
-                    >
-                      <option value="">–</option>
-                      <option value="N">N</option>
-                      <option value="L">L</option>
-                      <option value="M">M</option>
-                      <option value="H">H</option>
-                    </select>
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+          {coRows.map((co, idx) => {
+            const { unitNo, kDisplay } = getUnitAndKLevel(idx, courseType, coCount, kLevels);
+            return (
+              <tr key={co} className={idx % 2 === 0 ? 'bg-white hover:bg-indigo-50/20' : 'bg-indigo-50/20 hover:bg-indigo-50/30'}>
+                <td className="sticky left-0 z-10 bg-white border border-indigo-200 px-3 py-1.5 font-bold text-indigo-800 whitespace-nowrap text-center">
+                  {co}
+                </td>
+                <td className="border border-indigo-100 px-3 py-1.5 text-gray-600 whitespace-nowrap text-center">
+                  Unit {unitNo}
+                </td>
+                <td className="border border-indigo-100 px-3 py-1.5 font-semibold text-gray-700 whitespace-nowrap text-center">
+                  {kDisplay}
+                </td>
+                {allCols.map((col) => {
+                  const val = mapping?.[co]?.[col] || '';
+                  return (
+                    <td key={col} className="border border-indigo-100 px-0.5 py-0.5">
+                      <select
+                        value={val}
+                        onChange={(e) => handleCell(co, col, e.target.value)}
+                        className={selectCls(val)}
+                        style={{ minWidth: '38px' }}
+                        title={`${co} × ${col}`}
+                      >
+                        <option value="">–</option>
+                        <option value="N">N</option>
+                        <option value="L">L</option>
+                        <option value="M">M</option>
+                        <option value="H">H</option>
+                      </select>
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -137,7 +172,7 @@ const CoPOEditTable = ({ mapping, courseType, onChange }) => {
 };
 
 /** Read-only view of the mapping table */
-const CoPOViewTable = ({ mapping, courseType }) => {
+const CoPOViewTable = ({ mapping, courseType, kLevels }) => {
   const { coCount, psoCount } = getConfig(courseType);
   const coRows    = Array.from({ length: coCount },  (_, i) => `CO-${i + 1}`);
   const poColumns = Array.from({ length: 12 },       (_, i) => `PO-${i + 1}`);
@@ -146,13 +181,12 @@ const CoPOViewTable = ({ mapping, courseType }) => {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-      <table className="text-[11px] border-collapse" style={{ minWidth: '720px' }}>
+      <table className="text-[11px] border-collapse" style={{ minWidth: '780px' }}>
         <thead>
           <tr>
-            <th
-              className="sticky left-0 z-20 bg-gray-50 border border-gray-200 px-3 py-2 w-16"
-              rowSpan={2}
-            />
+            <th className="sticky left-0 z-20 bg-gray-50 border border-gray-200 px-3 py-2 text-center font-bold text-gray-700" rowSpan={2}>CO</th>
+            <th className="bg-gray-50 border border-gray-200 px-3 py-2 text-center font-bold text-gray-700" rowSpan={2}>Unit</th>
+            <th className="bg-gray-50 border border-gray-200 px-3 py-2 text-center font-bold text-gray-700" rowSpan={2}>K-Level</th>
             <th
               colSpan={12}
               className="bg-indigo-50 text-indigo-800 font-bold px-3 py-2 border border-gray-200 text-center"
@@ -188,29 +222,38 @@ const CoPOViewTable = ({ mapping, courseType }) => {
           </tr>
         </thead>
         <tbody>
-          {coRows.map((co, idx) => (
-            <tr key={co} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}>
-              <td className="sticky left-0 z-10 bg-white border border-gray-200 px-3 py-1.5 font-bold text-gray-700 whitespace-nowrap text-center">
-                {co}
-              </td>
-              {allCols.map((col) => {
-                const val = mapping?.[co]?.[col] || '';
-                return (
-                  <td key={col} className="border border-gray-200 px-1 py-1 text-center">
-                    {val ? (
-                      <span
-                        className={`inline-flex items-center justify-center w-6 h-5 rounded text-[11px] font-bold border ${BADGE_STYLES[val] || ''}`}
-                      >
-                        {val}
-                      </span>
-                    ) : (
-                      <span className="text-gray-200">–</span>
-                    )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+          {coRows.map((co, idx) => {
+            const { unitNo, kDisplay } = getUnitAndKLevel(idx, courseType, coCount, kLevels);
+            return (
+              <tr key={co} className={idx % 2 === 0 ? 'bg-white hover:bg-gray-50/30' : 'bg-gray-50/40 hover:bg-gray-50/50'}>
+                <td className="sticky left-0 z-10 bg-white border border-gray-200 px-3 py-1.5 font-bold text-gray-700 whitespace-nowrap text-center">
+                  {co}
+                </td>
+                <td className="border border-gray-200 px-3 py-1.5 text-gray-600 whitespace-nowrap text-center">
+                  Unit {unitNo}
+                </td>
+                <td className="border border-gray-200 px-3 py-1.5 font-semibold text-gray-700 whitespace-nowrap text-center">
+                  {kDisplay}
+                </td>
+                {allCols.map((col) => {
+                  const val = mapping?.[co]?.[col] || '';
+                  return (
+                    <td key={col} className="border border-gray-200 px-1 py-1 text-center">
+                      {val ? (
+                        <span
+                          className={`inline-flex items-center justify-center w-6 h-5 rounded text-[11px] font-bold border ${BADGE_STYLES[val] || ''}`}
+                        >
+                          {val}
+                        </span>
+                      ) : (
+                        <span className="text-gray-200">–</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -525,6 +568,7 @@ export const LMSCOPOMapping = () => {
             mapping={mapping}
             onChange={handleChange}
             courseType={courseType}
+            kLevels={kLevels}
           />
         </div>
       </div>
@@ -536,7 +580,7 @@ export const LMSCOPOMapping = () => {
             <Grid3x3 className="w-4 h-4 text-gray-400" />
             Preview (Read-only)
           </h2>
-          <CoPOViewTable mapping={mapping} courseType={courseType} />
+          <CoPOViewTable mapping={mapping} courseType={courseType} kLevels={kLevels} />
         </div>
       )}
     </div>

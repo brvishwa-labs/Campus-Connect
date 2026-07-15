@@ -1,7 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { BookOpen, FilePlus, Link as LinkIcon, ArrowLeft, Calendar, Save, Send, CheckCircle, AlertCircle, ClipboardList } from 'lucide-react';
+import { BookOpen, FilePlus, Link as LinkIcon, ArrowLeft, Calendar, Save, Send, CheckCircle, AlertCircle, ClipboardList, ToggleLeft, ToggleRight, Info } from 'lucide-react';
+
+// ── Assignment Rubric Criteria ─────────────────────────────────────────────────
+const ASSIGNMENT_RUBRIC = [
+  { key: 'content_quality',      label: 'Content Quality',        max: 4, hint: 'Accuracy, depth, and relevance of content (max 4)' },
+  { key: 'structure_org',        label: 'Structure & Organization', max: 2, hint: 'Logical flow and organization (max 2)' },
+  { key: 'presentation',         label: 'Presentation',            max: 1, hint: 'Neatness and clarity (max 1)' },
+  { key: 'timely_submission',    label: 'Timely Submission',       max: 1, hint: 'Submitted before or on deadline (max 1)' },
+  { key: 'creativity',           label: 'Creativity',              max: 2, hint: 'Originality and innovation (max 2)' },
+];
+const RUBRIC_MAX_TOTAL = ASSIGNMENT_RUBRIC.reduce((s, c) => s + c.max, 0); // 10
+
+const parseRubric = (remarksStr) => {
+  try {
+    const parsed = JSON.parse(remarksStr || '{}');
+    if (parsed.__rubric) return parsed.__rubric;
+  } catch { /* empty */ }
+  return null;
+};
+
+const serializeRubric = (rubricObj, note) => {
+  return JSON.stringify({ __rubric: rubricObj, note: note || '' });
+};
+
+const computeRubricTotal = (rubric) => {
+  if (!rubric) return 0;
+  return ASSIGNMENT_RUBRIC.reduce((s, c) => s + (parseFloat(rubric[c.key] ?? 0) || 0), 0);
+};
 
 export const LMSAssignments = () => {
   const { assignmentId } = useParams();
@@ -22,11 +49,12 @@ export const LMSAssignments = () => {
   // Specific assignment grading states
   const [gradingAssignment, setGradingAssignment] = useState(null);
   const [gradeRoster, setGradeRoster] = useState([]);
-  const [maxMarks, setMaxMarks] = useState(100);
+  const [maxMarks, setMaxMarks] = useState(RUBRIC_MAX_TOTAL);
   const [loadingRoster, setLoadingRoster] = useState(false);
   const [savingGrades, setSavingGrades] = useState(false);
   const [publishingGrades, setPublishingGrades] = useState(false);
   const [toast, setToast] = useState(null);
+  const [useRubric, setUseRubric] = useState(true);
 
   // Edit/delete assignment states
   const [editingAssignment, setEditingAssignment] = useState(null);
@@ -46,6 +74,11 @@ export const LMSAssignments = () => {
     };
     fetchResources();
   }, [assignmentId]);
+
+  const showToast = (text, type = 'success') => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -77,12 +110,7 @@ export const LMSAssignments = () => {
 
       const response = await axios.post(`/api/faculty/courses/${assignmentId}/resources`, payload);
       setResources([response.data, ...resources]);
-      setFormData({
-        title: '',
-        due_date: '',
-        description: '',
-        external_link: ''
-      });
+      setFormData({ title: '', due_date: '', description: '', external_link: '' });
       setMessage({ type: 'success', text: 'Assignment created successfully!' });
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
       setIsFormVisible(false);
@@ -113,12 +141,10 @@ export const LMSAssignments = () => {
     try {
       await axios.delete(`/api/faculty/courses/${assignmentId}/resources/${assignment.id}`);
       setResources(prev => prev.filter(r => r.id !== assignment.id));
-      setToast({ text: 'Assignment deleted successfully!', type: 'success' });
-      setTimeout(() => setToast(null), 3000);
+      showToast('Assignment deleted successfully!');
     } catch (err) {
       console.error(err);
-      setToast({ text: 'Failed to delete assignment', type: 'error' });
-      setTimeout(() => setToast(null), 3000);
+      showToast('Failed to delete assignment', 'error');
     }
   };
 
@@ -138,12 +164,7 @@ export const LMSAssignments = () => {
 
       const response = await axios.put(`/api/faculty/courses/${assignmentId}/resources/${editingAssignment.id}`, payload);
       setResources(prev => prev.map(r => r.id === editingAssignment.id ? response.data : r));
-      setFormData({
-        title: '',
-        due_date: '',
-        description: '',
-        external_link: ''
-      });
+      setFormData({ title: '', due_date: '', description: '', external_link: '' });
       setMessage({ type: 'success', text: 'Assignment updated successfully!' });
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
       setEditingAssignment(null);
@@ -155,58 +176,86 @@ export const LMSAssignments = () => {
     }
   };
 
-  // Specific Assignment Grading Handlers
+  // ── Grading Handlers ────────────────────────────────────────────────────────
   const handleGradeAssignment = async (assignment) => {
     setGradingAssignment(assignment);
     setLoadingRoster(true);
+    setUseRubric(true);
     try {
       const response = await axios.get(`/api/faculty/courses/${assignmentId}/assignments/${assignment.id}/grades`);
-      setGradeRoster(response.data.roster.map(r => ({ ...r, _dirty: false })));
+      const roster = response.data.roster.map(r => {
+        const rubric = parseRubric(r.remarks);
+        return {
+          ...r,
+          _dirty: false,
+          _rubric: rubric || Object.fromEntries(ASSIGNMENT_RUBRIC.map(c => [c.key, ''])),
+          _note: rubric ? (JSON.parse(r.remarks || '{}').__rubric ? '' : r.remarks) : (r.remarks || ''),
+        };
+      });
+      setGradeRoster(roster);
+      // Auto-detect mode: if first row has rubric data, use rubric mode
+      if (roster.length > 0 && parseRubric(roster[0].remarks)) {
+        setUseRubric(true);
+      }
       if (response.data.roster.length > 0) {
-        setMaxMarks(response.data.roster[0].max_marks);
+        setMaxMarks(response.data.roster[0].max_marks || RUBRIC_MAX_TOTAL);
       } else {
-        setMaxMarks(100);
+        setMaxMarks(RUBRIC_MAX_TOTAL);
       }
     } catch (err) {
       console.error(err);
-      setToast({ text: 'Failed to load student roster', type: 'error' });
-      setTimeout(() => setToast(null), 3000);
+      showToast('Failed to load student roster', 'error');
     } finally {
       setLoadingRoster(false);
     }
   };
 
-  const handleMarksChange = (idx, val) => {
+  const handleDirectMarksChange = (idx, val) => {
     setGradeRoster(prev => prev.map((r, i) =>
       i === idx ? { ...r, marks_obtained: val === '' ? null : Number(val), _dirty: true } : r
     ));
   };
 
-  const handleRemarksChange = (idx, val) => {
+  const handleRubricChange = (idx, key, val) => {
+    setGradeRoster(prev => prev.map((r, i) => {
+      if (i !== idx) return r;
+      const updatedRubric = { ...r._rubric, [key]: val === '' ? '' : Number(val) };
+      const total = computeRubricTotal(updatedRubric);
+      return { ...r, _rubric: updatedRubric, marks_obtained: total, _dirty: true };
+    }));
+  };
+
+  const handleNoteChange = (idx, val) => {
     setGradeRoster(prev => prev.map((r, i) =>
-      i === idx ? { ...r, remarks: val, _dirty: true } : r
+      i === idx ? { ...r, _note: val, _dirty: true } : r
     ));
   };
+
+  const buildEntries = () => gradeRoster.map(r => {
+    const finalMarks = useRubric ? computeRubricTotal(r._rubric) : (r.marks_obtained ?? null);
+    const remarksPayload = useRubric
+      ? serializeRubric(r._rubric, r._note)
+      : (r._note || r.remarks || '');
+    return {
+      student_id:     r.student_id,
+      marks_obtained: finalMarks,
+      is_absent:      false,
+      remarks:        remarksPayload,
+    };
+  });
 
   const handleSaveGrades = async () => {
     setSavingGrades(true);
     try {
       await axios.post(`/api/faculty/courses/${assignmentId}/assignments/${gradingAssignment.id}/grades`, {
-        max_marks: Number(maxMarks),
-        entries: gradeRoster.map(r => ({
-          student_id: r.student_id,
-          marks_obtained: r.marks_obtained,
-          is_absent: false,
-          remarks: r.remarks
-        }))
+        max_marks: useRubric ? RUBRIC_MAX_TOTAL : Number(maxMarks),
+        entries: buildEntries(),
       });
-      setToast({ text: 'Draft marks saved successfully!', type: 'success' });
+      showToast('Draft marks saved successfully!');
       setGradeRoster(prev => prev.map(r => ({ ...r, _dirty: false })));
-      setTimeout(() => setToast(null), 3000);
     } catch (err) {
       console.error(err);
-      setToast({ text: err.response?.data?.detail || 'Failed to save marks', type: 'error' });
-      setTimeout(() => setToast(null), 3000);
+      showToast(err.response?.data?.detail || 'Failed to save marks', 'error');
     } finally {
       setSavingGrades(false);
     }
@@ -216,37 +265,28 @@ export const LMSAssignments = () => {
     if (!window.confirm(`Publish all marks for "${gradingAssignment.title}"? Students will be able to see them.`)) return;
     setPublishingGrades(true);
     try {
-      // Save draft first
       await axios.post(`/api/faculty/courses/${assignmentId}/assignments/${gradingAssignment.id}/grades`, {
-        max_marks: Number(maxMarks),
-        entries: gradeRoster.map(r => ({
-          student_id: r.student_id,
-          marks_obtained: r.marks_obtained,
-          is_absent: false,
-          remarks: r.remarks
-        }))
+        max_marks: useRubric ? RUBRIC_MAX_TOTAL : Number(maxMarks),
+        entries: buildEntries(),
       });
-      // Publish
       await axios.post(`/api/faculty/courses/${assignmentId}/assignments/${gradingAssignment.id}/grades/publish`);
-      setToast({ text: 'Marks published successfully!', type: 'success' });
+      showToast('Marks published successfully!');
       setGradeRoster(prev => prev.map(r => ({ ...r, is_published: true, _dirty: false })));
-      setTimeout(() => setToast(null), 3000);
     } catch (err) {
       console.error(err);
-      setToast({ text: err.response?.data?.detail || 'Failed to publish marks', type: 'error' });
-      setTimeout(() => setToast(null), 3000);
+      showToast(err.response?.data?.detail || 'Failed to publish marks', 'error');
     } finally {
       setPublishingGrades(false);
     }
   };
 
-  // RENDER GRADING VIEW IF SELECTED
+  // ── RENDER GRADING VIEW ─────────────────────────────────────────────────────
   if (gradingAssignment) {
     const dirtyCount = gradeRoster.filter(r => r._dirty).length;
     const isPublished = gradeRoster.some(r => r.is_published);
     
     return (
-      <div className="max-w-7xl mx-auto space-y-6 p-4 md:p-6 lg:p-8">
+      <div className="max-w-full mx-auto space-y-6 p-4 md:p-6 lg:p-8">
         {/* Toast */}
         {toast && (
           <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-semibold
@@ -293,24 +333,68 @@ export const LMSAssignments = () => {
           </div>
         </div>
 
-        {/* Max Marks Selector */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center justify-between gap-4">
-          <div>
-            <h3 className="text-[13px] font-bold text-gray-700 uppercase tracking-wide mb-1">Set Maximum Marks</h3>
-            <p className="text-xs text-gray-400">Specify the total marks for grading this assignment.</p>
+        {/* Settings bar */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-wrap items-center gap-6">
+          {/* Rubric toggle */}
+          <div className="flex items-center gap-3">
+            <div>
+              <h3 className="text-[13px] font-bold text-gray-700 uppercase tracking-wide mb-0.5">Marking Mode</h3>
+              <p className="text-xs text-gray-400">Rubric auto-calculates total from criteria</p>
+            </div>
+            <div className="flex rounded-lg overflow-hidden border border-gray-200">
+              <button
+                onClick={() => { setUseRubric(true); setMaxMarks(RUBRIC_MAX_TOTAL); }}
+                className={`px-3 py-1.5 text-xs font-bold transition-colors ${useRubric ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                Rubric (max {RUBRIC_MAX_TOTAL})
+              </button>
+              <button
+                onClick={() => setUseRubric(false)}
+                className={`px-3 py-1.5 text-xs font-bold transition-colors ${!useRubric ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                Direct Entry
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min={1}
-              max={1000}
-              value={maxMarks}
-              onChange={(e) => setMaxMarks(e.target.value === '' ? '' : Number(e.target.value))}
-              className="w-24 text-center border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none font-bold text-gray-85"
-            />
-            <span className="text-sm font-semibold text-gray-500">marks</span>
-          </div>
+
+          {/* Max marks for direct mode */}
+          {!useRubric && (
+            <div className="flex items-center gap-2 border-l border-gray-100 pl-6">
+              <label className="text-[13px] font-bold text-gray-700 uppercase tracking-wide">Max Marks</label>
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                value={maxMarks}
+                onChange={(e) => setMaxMarks(e.target.value === '' ? '' : Number(e.target.value))}
+                className="w-24 text-center border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none font-bold text-gray-800"
+              />
+              <span className="text-sm font-semibold text-gray-500">marks</span>
+            </div>
+          )}
+
+          {useRubric && (
+            <div className="flex items-start gap-2 text-xs text-purple-700 bg-purple-50 border border-purple-100 rounded-lg px-3 py-2">
+              <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <span>Total = Content Quality(4) + Structure(2) + Presentation(1) + Timely Submission(1) + Creativity(2) = <strong>10</strong></span>
+            </div>
+          )}
         </div>
+
+        {/* Rubric criteria legend */}
+        {useRubric && (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Rubric Criteria</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {ASSIGNMENT_RUBRIC.map(c => (
+                <div key={c.key} className="bg-purple-50/50 border border-purple-100 rounded-lg p-2.5 text-center">
+                  <p className="text-[11px] font-bold text-purple-800 mb-0.5">{c.label}</p>
+                  <span className="inline-block text-[10px] font-bold bg-purple-200 text-purple-800 rounded px-1.5">max {c.max}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -323,26 +407,80 @@ export const LMSAssignments = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="px-4 py-3 text-left font-bold text-gray-600 w-12">#</th>
+                    <th className="px-4 py-3 text-left font-bold text-gray-600 w-10">#</th>
                     <th className="px-4 py-3 text-left font-bold text-gray-600 w-32">Reg. No.</th>
-                    <th className="px-4 py-3 text-left font-bold text-gray-600">Student Name</th>
-                    <th className="px-4 py-3 text-center font-bold text-gray-600 w-36">Marks obtained</th>
-                    <th className="px-4 py-3 text-center font-bold text-gray-600 w-28">Status</th>
-                    <th className="px-4 py-3 text-left font-bold text-gray-600 hidden md:table-cell">Remarks</th>
+                    <th className="px-4 py-3 text-left font-bold text-gray-600 w-44">Student Name</th>
+                    {useRubric ? (
+                      <>
+                        {ASSIGNMENT_RUBRIC.map(c => (
+                          <th key={c.key} className="px-3 py-3 text-center font-bold text-gray-600 whitespace-nowrap min-w-[90px]">
+                            {c.label}
+                            <span className="block text-[10px] font-normal text-gray-400">/{c.max}</span>
+                          </th>
+                        ))}
+                        <th className="px-4 py-3 text-center font-bold text-purple-700 w-20">Total</th>
+                        <th className="px-4 py-3 text-left font-bold text-gray-600 hidden md:table-cell">Note</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="px-4 py-3 text-center font-bold text-gray-600 w-36">
+                          Marks <span className="font-normal text-gray-400">/ {maxMarks}</span>
+                        </th>
+                        <th className="px-4 py-3 text-center font-bold text-gray-600 w-24">Status</th>
+                        <th className="px-4 py-3 text-left font-bold text-gray-600 hidden md:table-cell">Remarks</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {gradeRoster.map((row, idx) => {
+                    if (useRubric) {
+                      const total = computeRubricTotal(row._rubric);
+                      return (
+                        <tr key={row.student_id} className={`hover:bg-gray-50/50 transition-colors ${row._dirty ? 'bg-purple-50/10' : ''}`}>
+                          <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-700">{row.register_number}</td>
+                          <td className="px-4 py-3 font-semibold text-gray-900">{row.first_name} {row.last_name}</td>
+                          {ASSIGNMENT_RUBRIC.map(c => (
+                            <td key={c.key} className="px-3 py-3 text-center">
+                              <input
+                                type="number"
+                                min={0}
+                                max={c.max}
+                                step={0.5}
+                                value={row._rubric?.[c.key] ?? ''}
+                                onChange={(e) => handleRubricChange(idx, c.key, e.target.value)}
+                                className="w-16 text-center border border-gray-200 rounded-lg px-1.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300 font-semibold text-gray-800"
+                                placeholder="—"
+                              />
+                            </td>
+                          ))}
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-block font-bold text-sm text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-2 py-1 min-w-[40px]">
+                              {total > 0 ? total : '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 hidden md:table-cell">
+                            <input
+                              type="text"
+                              value={row._note || ''}
+                              onChange={(e) => handleNoteChange(idx, e.target.value)}
+                              placeholder="Optional note..."
+                              className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300 text-gray-700"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    // Direct mode
                     const passmark = maxMarks ? maxMarks * 0.4 : 40;
                     const passed = row.marks_obtained != null && row.marks_obtained >= passmark;
-                    
                     return (
                       <tr key={row.student_id} className={`hover:bg-gray-50/50 transition-colors ${row._dirty ? 'bg-purple-50/10' : ''}`}>
                         <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
                         <td className="px-4 py-3 font-mono text-xs text-gray-700">{row.register_number}</td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          {row.first_name} {row.last_name}
-                        </td>
+                        <td className="px-4 py-3 font-semibold text-gray-900">{row.first_name} {row.last_name}</td>
                         <td className="px-4 py-3 text-center">
                           <input
                             type="number"
@@ -350,9 +488,8 @@ export const LMSAssignments = () => {
                             max={maxMarks || 100}
                             step={0.5}
                             value={row.marks_obtained ?? ''}
-                            onChange={(e) => handleMarksChange(idx, e.target.value)}
-                            className="w-20 text-center border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm
-                                       focus:outline-none focus:ring-2 focus:ring-purple-300 font-semibold text-gray-800"
+                            onChange={(e) => handleDirectMarksChange(idx, e.target.value)}
+                            className="w-20 text-center border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 font-semibold text-gray-800"
                             placeholder="—"
                           />
                         </td>
@@ -368,11 +505,10 @@ export const LMSAssignments = () => {
                         <td className="px-4 py-3 hidden md:table-cell">
                           <input
                             type="text"
-                            value={row.remarks || ''}
-                            onChange={(e) => handleRemarksChange(idx, e.target.value)}
+                            value={row._note || row.remarks || ''}
+                            onChange={(e) => handleNoteChange(idx, e.target.value)}
                             placeholder="Optional note..."
-                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs
-                                       focus:outline-none focus:ring-2 focus:ring-purple-300 text-gray-700"
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300 text-gray-700"
                           />
                         </td>
                       </tr>
@@ -380,7 +516,7 @@ export const LMSAssignments = () => {
                   })}
                   {gradeRoster.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="text-center py-12 text-gray-400 text-sm font-medium">
+                      <td colSpan={useRubric ? 4 + ASSIGNMENT_RUBRIC.length + 1 : 6} className="text-center py-12 text-gray-400 text-sm font-medium">
                         No students found in this section.
                       </td>
                     </tr>
@@ -394,6 +530,7 @@ export const LMSAssignments = () => {
     );
   }
 
+  // ── ASSIGNMENTS LIST VIEW ───────────────────────────────────────────────────
   return (
     <div className="max-w-6xl mx-auto space-y-6 p-4 md:p-6 lg:p-8">
       {/* Toast */}
@@ -427,12 +564,7 @@ export const LMSAssignments = () => {
               onClick={() => {
                 setIsFormVisible(false);
                 setEditingAssignment(null);
-                setFormData({
-                  title: '',
-                  due_date: '',
-                  description: '',
-                  external_link: ''
-                });
+                setFormData({ title: '', due_date: '', description: '', external_link: '' });
               }}
               className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-5 rounded-lg text-sm transition-colors shadow-sm"
             >
@@ -442,10 +574,7 @@ export const LMSAssignments = () => {
             <button
               onClick={() => {
                 setIsFormVisible(true);
-                setFormData(prev => ({
-                  ...prev,
-                  title: getAutoAssignmentTitle()
-                }));
+                setFormData(prev => ({ ...prev, title: getAutoAssignmentTitle() }));
               }}
               className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors shadow-sm flex items-center gap-2"
             >
@@ -547,8 +676,6 @@ export const LMSAssignments = () => {
                   const dueMatch = assignment.description?.match(/\[Due:\s*(.+?)\]/);
                   const dueDate = dueMatch ? dueMatch[1] : 'No due date';
                   const cleanDesc = assignment.description?.replace(/\[Due:\s*(.+?)\]\n?/, '');
-
-                  // Check if overdue
                   const isOverdue = new Date(dueDate) < new Date(new Date().toDateString());
 
                   return (

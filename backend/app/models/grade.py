@@ -3,7 +3,7 @@ Campus Connect ERP — Grading & Assessment Models
 """
 
 from sqlalchemy import (
-    Column, Integer, String, DateTime, ForeignKey, Numeric, Text, Boolean,
+    Column, Integer, String, DateTime, Date, ForeignKey, Numeric, Text, Boolean,
     Enum as SQLEnum, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
@@ -55,6 +55,7 @@ class Grade(Base):
     remarks        = Column(Text, nullable=True)
     is_published   = Column(Boolean, default=False, nullable=False)
     is_absent      = Column(Boolean, default=False, nullable=False)
+    test_date      = Column(Date, nullable=True)                            # Date the test was conducted
     created_at     = Column(DateTime(timezone=True), server_default=func.now())
     updated_at     = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -91,12 +92,19 @@ class Seminar(Base):
     student_id            = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
     seminar_date          = Column(DateTime(timezone=True), nullable=True)
     seminar_topic         = Column(Text, nullable=True)
-    marks_obtained        = Column(Numeric(6, 2), nullable=True)
-    max_marks             = Column(Numeric(6, 2), nullable=False, default=100)
-    is_topic_published    = Column(Boolean, default=False, nullable=False)
-    is_marks_published    = Column(Boolean, default=False, nullable=False)
-    created_at            = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at            = Column(DateTime(timezone=True), onupdate=func.now())
+    marks_obtained            = Column(Numeric(6, 2), nullable=True)
+    max_marks                 = Column(Numeric(6, 2), nullable=False, default=100)
+    is_topic_published        = Column(Boolean, default=False, nullable=False)
+    is_marks_published        = Column(Boolean, default=False, nullable=False)
+    # Rubric scoring columns
+    rubric_content_relevance  = Column(Numeric(4, 2), nullable=True)    # out of configured max
+    rubric_presentation_skills= Column(Numeric(4, 2), nullable=True)
+    rubric_resources_used     = Column(Numeric(4, 2), nullable=True)
+    rubric_time_management    = Column(Numeric(4, 2), nullable=True)
+    rubric_question_handling  = Column(Numeric(4, 2), nullable=True)    # max 2
+    rubric_team_coordination  = Column(Numeric(4, 2), nullable=True)    # max 1
+    created_at                = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at                = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     course_assignment     = relationship("CourseAssignment")
