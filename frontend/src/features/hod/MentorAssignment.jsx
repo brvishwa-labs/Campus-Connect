@@ -239,8 +239,8 @@ export const MentorAssignment = () => {
     const logoBase64 = await loadLogo();
     let startY = 15;
     if (logoBase64) {
-      const logoWidth = 120;
-      const logoHeight = 25;
+      const logoWidth = 160;
+      const logoHeight = 30;
       const xPos = (210 - logoWidth) / 2;
       doc.addImage(logoBase64, 'PNG', xPos, 10, logoWidth, logoHeight);
       startY = 45;
