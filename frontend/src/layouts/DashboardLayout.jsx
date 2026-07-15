@@ -230,6 +230,11 @@ export default function DashboardLayout() {
     
     if (title !== 'office manager') {
       navLinks = navLinks.filter(link => link.name !== 'Gate Pass Approvals');
+    } else {
+      // If Office Manager, update Analytics path
+      navLinks = navLinks.map(link => 
+        link.name === 'Analytics' ? { ...link, path: '/authority/om-analytics' } : link
+      );
     }
     if (title !== 'dean' && title !== 'office manager' && title !== 'hr') {
       navLinks = navLinks.filter(link => link.name !== 'Faculty Gate Pass Approvals');
