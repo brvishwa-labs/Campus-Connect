@@ -108,7 +108,7 @@ export const FacultyList = () => {
       {selectedFaculty && (
         <FacultyProfileModal 
           faculty={selectedFaculty} 
-          department={null} // HOD implies their own dept, but we can pass it if we have it
+          department={{ name: selectedFaculty.department_name }}
           leaves={leaves} 
           gatepasses={gatepasses} 
           workload={selectedWorkload}
