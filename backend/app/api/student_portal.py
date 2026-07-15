@@ -24,6 +24,7 @@ from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.student import Student
 from app.models.academic import Course, CourseAssignment, Enrollment, Section, MentorAssignment
+from app.models.course_plan import CourseAssignmentUnit
 from app.models.lms import LMSResource, Announcement
 from app.models.attendance import Attendance
 from app.models.faculty import Faculty
@@ -252,6 +253,33 @@ def get_my_courses(
             "faculty_name": faculty_name,
             "enrollment_id": enrollment_id,
         })
+        
+        # Calculate syllabus progress for this course
+        progress = 0
+        units_data = []
+        if enrollment_id:
+            # We used enrollment_id as assignment_id in fake enrollments, or real enrollment
+            # We need to find the specific CourseAssignment for this student & course
+            assignment = (
+                db.query(CourseAssignment)
+                .filter(
+                    CourseAssignment.course_id == course.id,
+                    CourseAssignment.section_id == student.section_id,
+                    CourseAssignment.is_active == True
+                ).first()
+            )
+            
+            if assignment:
+                units = db.query(CourseAssignmentUnit).filter(CourseAssignmentUnit.course_assignment_id == assignment.id).order_by(CourseAssignmentUnit.unit_number).all()
+                if units:
+                    completed = sum(1 for u in units if u.is_completed)
+                    progress = int((completed / 5) * 100)
+                    units_data = [{"unit_number": u.unit_number, "title": u.title, "is_completed": u.is_completed} for u in units]
+                else:
+                    units_data = [{"unit_number": i, "title": "", "is_completed": False} for i in range(1, 6)]
+                    
+        result[-1]["syllabus_progress"] = progress
+        result[-1]["syllabus_units"] = units_data
 
     return result
 

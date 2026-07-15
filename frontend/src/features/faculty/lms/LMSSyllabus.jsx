@@ -350,9 +350,11 @@ export const LMSSyllabus = () => {
   const { assignmentId } = useParams();
   
   const [topics, setTopics] = useState([]);
+  const [units, setUnits] = useState([]);
   const [courseDetails, setCourseDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingUnits, setSavingUnits] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
@@ -383,6 +385,9 @@ export const LMSSyllabus = () => {
       const response = await axios.get(`/api/course-plan/${assignmentId}`);
       const fetchedTopics = response.data.topics || [];
       setTopics(fetchedTopics);
+
+      const unitsRes = await axios.get(`/api/course-plan/${assignmentId}/units`);
+      setUnits(unitsRes.data || []);
     } catch (err) {
       console.error("Failed to fetch course plan:", err);
       setError("Failed to load course plan. Please try again.");
@@ -509,6 +514,28 @@ export const LMSSyllabus = () => {
       return false;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveUnits = async () => {
+    setSavingUnits(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const payload = units.map(u => ({
+        unit_number: u.unit_number,
+        title: u.title || "",
+        is_completed: u.is_completed || false
+      }));
+      const res = await axios.put(`/api/course-plan/${assignmentId}/units`, payload);
+      setUnits(res.data);
+      setSuccessMessage("Units progress saved successfully!");
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error("Failed to save units:", err);
+      setError("Failed to save units progress. Please try again.");
+    } finally {
+      setSavingUnits(false);
     }
   };
 
@@ -690,6 +717,69 @@ export const LMSSyllabus = () => {
             </div>
           </div>
 
+        </div>
+        
+        {/* Unit Tracker UI */}
+        <div className="max-w-6xl mt-12 bg-white rounded-2xl border-2 border-gray-100 shadow-sm p-6 relative overflow-hidden">
+          <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Syllabus Unit Tracker</h3>
+              <p className="text-sm text-gray-500 font-medium">Define your units and mark them as completed to update the Student Dashboard progress.</p>
+            </div>
+            <button
+              onClick={handleSaveUnits}
+              disabled={savingUnits}
+              className="bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" /> {savingUnits ? "Saving..." : "Save Units"}
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {units.map((unit, index) => (
+              <div key={unit.unit_number} className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-200 text-gray-700 font-bold text-sm shrink-0">
+                  {unit.unit_number}
+                </div>
+                
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder={`Enter Unit ${unit.unit_number} Name (e.g. Introduction & Basic Concepts)`}
+                    value={unit.title || ''}
+                    onChange={(e) => {
+                      const newUnits = [...units];
+                      newUnits[index].title = e.target.value;
+                      setUnits(newUnits);
+                    }}
+                    className={`w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all ${unit.is_completed ? 'line-through text-gray-400' : 'text-gray-800'}`}
+                  />
+                </div>
+                
+                <button
+                  onClick={() => {
+                    const newUnits = [...units];
+                    newUnits[index].is_completed = !newUnits[index].is_completed;
+                    setUnits(newUnits);
+                  }}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold border transition-all shrink-0 ${
+                    unit.is_completed 
+                      ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
+                      : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                  }`}
+                >
+                  {unit.is_completed ? <CheckCircle2 className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-gray-300" />}
+                  {unit.is_completed ? 'Completed' : 'Mark Complete'}
+                </button>
+              </div>
+            ))}
+            
+            {units.length === 0 && (
+              <div className="text-center py-6 text-gray-500 text-sm font-medium">
+                No units generated.
+              </div>
+            )}
+          </div>
         </div>
 
       </div>

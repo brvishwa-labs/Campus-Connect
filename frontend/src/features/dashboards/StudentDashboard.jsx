@@ -381,8 +381,7 @@ export const StudentDashboard = () => {
               ) : courses.length > 0 ? (
                 <div className="space-y-4">
                   {courses.slice(0, 4).map((course, idx) => {
-                    // Calculate progress based on attendance or random for now
-                    const progress = Math.floor(50 + Math.random() * 40); // 50-90% range
+                    const progress = course.syllabus_progress || 0;
                     const colors = ['bg-blue-600', 'bg-green-600', 'bg-purple-600', 'bg-orange-600', 'bg-indigo-600', 'bg-teal-600'];
                     const color = colors[idx % colors.length];
 
@@ -412,7 +411,7 @@ export const StudentDashboard = () => {
                         <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
                           <span className="flex items-center gap-1">
                             <CheckCircle className="w-3 h-3 text-green-500" />
-                            {Math.floor(progress / 10)} of 10 modules
+                            {Math.round((progress / 100) * 5)} of 5 Units
                           </span>
                           <span className={`font-semibold ${progress >= 75 ? 'text-green-600' : progress >= 50 ? 'text-orange-600' : 'text-red-600'}`}>
                             {progress >= 75 ? 'On Track' : progress >= 50 ? 'In Progress' : 'Behind'}

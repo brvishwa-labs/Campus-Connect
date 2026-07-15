@@ -474,6 +474,48 @@ const SyllabusTab = ({ courseId, course }) => {
 
   return (
     <div className="space-y-6">
+      
+      {/* ─────────────────────────────────────────────────────────
+          ACADEMIC SYLLABUS COMPLETION PROGRESS 
+      ───────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-6 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-bold text-gray-500">Academic Syllabus Completion progress</h4>
+          <span className="text-sm font-bold text-indigo-600">{course?.syllabus_progress || 0}% Completed</span>
+        </div>
+        <div className="relative w-full h-2 bg-indigo-50 rounded-full overflow-hidden">
+          <div
+            className="absolute left-0 top-0 h-full bg-indigo-500 rounded-full transition-all duration-500"
+            style={{ width: `${course?.syllabus_progress || 0}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-3 mb-8">
+        {(course?.syllabus_units || []).map((unit) => {
+          const isCompleted = unit.is_completed;
+          return (
+            <div 
+              key={unit.unit_number} 
+              className={`flex items-center gap-3 px-5 py-4 rounded-xl border ${
+                isCompleted 
+                  ? "bg-green-50/30 border-green-200" 
+                  : "bg-white border-gray-100"
+              }`}
+            >
+              {isCompleted ? (
+                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+              ) : (
+                <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
+              )}
+              <div className={`font-semibold ${isCompleted ? 'text-green-700 line-through' : 'text-gray-700'}`}>
+                Unit {unit.unit_number}: {unit.title || "TBA"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
       {isLab && course?.prerequisites && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-6">
           <h4 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">

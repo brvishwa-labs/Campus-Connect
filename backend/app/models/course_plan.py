@@ -40,3 +40,15 @@ class CoursePlanTopic(Base):
 
     # Relationships
     course_plan = relationship("CoursePlan", back_populates="topics")
+
+class CourseAssignmentUnit(Base):
+    __tablename__ = "course_assignment_units"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_assignment_id = Column(Integer, ForeignKey("course_assignments.id"), nullable=False)
+    unit_number = Column(Integer, nullable=False)        # 1 to 5
+    title = Column(String(500), nullable=True)           # e.g., "Introduction to Algorithms"
+    is_completed = Column(Boolean, default=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    course_assignment = relationship("CourseAssignment")
