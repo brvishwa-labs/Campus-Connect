@@ -127,6 +127,7 @@ def hod_faculty(
             "designation": f.designation,
             "college_email": f.college_email,
             "phone": f.phone,
+            "department_name": department.name,
         }
         for f in faculty
     ]
