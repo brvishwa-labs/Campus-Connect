@@ -493,8 +493,9 @@ export const LMSLogbookReport = () => {
             <span>Academic Year: {courseAssignment.academic_year}</span>
             <span>Section: {courseAssignment.section ? `${courseAssignment.section.year} Yr ${courseAssignment.section.name}` : 'N/A'}</span>
           </div>
-          <div style={{ marginTop: '6px', fontSize: '12pt', fontWeight: '600', color: '#475569' }}>
-            Faculty: {facultyName}
+          <div style={{ marginTop: '6px', fontSize: '12pt', fontWeight: '600', color: '#475569', display: 'flex', justifyContent: 'center', gap: '24px', flexWrap: 'wrap' }}>
+            <span>Faculty: {facultyName} {courseAssignment.faculty?.designation ? `(${courseAssignment.faculty.designation})` : ''}</span>
+            {department && <span>Department: {department.name} ({department.code})</span>}
           </div>
         </div>
 

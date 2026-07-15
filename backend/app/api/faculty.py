@@ -685,6 +685,12 @@ def get_my_courses(
                 "co_k_levels": a.course.co_k_levels,
             } if a.course else None,
             "section": {"id": a.section.id, "name": a.section.name, "year": a.section.year} if a.section else None,
+            "faculty": {
+                "id": a.faculty.id,
+                "first_name": a.faculty.first_name,
+                "last_name": a.faculty.last_name,
+                "designation": a.faculty.designation,
+            } if a.faculty else None,
             "is_substitute": False,
             "original_faculty_name": None,
         })
@@ -764,6 +770,12 @@ def get_my_courses(
             } if own_assignment.course else None,
             "section": {"id": own_assignment.section.id, "name": own_assignment.section.name,
                         "year": own_assignment.section.year} if own_assignment.section else None,
+            "faculty": {
+                "id": own_assignment.faculty.id,
+                "first_name": own_assignment.faculty.first_name,
+                "last_name": own_assignment.faculty.last_name,
+                "designation": own_assignment.faculty.designation,
+            } if own_assignment.faculty else None,
             "is_substitute": True,
             "original_faculty_name": orig_name,
         })
