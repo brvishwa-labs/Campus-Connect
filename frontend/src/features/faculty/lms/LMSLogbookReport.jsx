@@ -1,20 +1,91 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { Printer, ArrowLeft, Loader2, AlertTriangle, BookOpen, Save, CheckCircle } from 'lucide-react';
+import { Printer, ArrowLeft, Loader2, AlertTriangle, Save, CheckCircle, Download } from 'lucide-react';
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
 const parseJSON = (raw) => {
   if (!raw) return {};
   if (typeof raw === 'object') return raw;
   try { return JSON.parse(raw); } catch { return {}; }
 };
 
+// Parse rubric from remarks JSON
+const parseRubric = (remarksStr) => {
+  try {
+    const parsed = JSON.parse(remarksStr || '{}');
+    if (parsed.__rubric) return parsed.__rubric;
+  } catch { /* */ }
+  return null;
+};
+
+// Assignment rubric criteria (same as LMSAssignments)
+const ASSIGNMENT_RUBRIC = [
+  { key: 'content_quality',   label: 'Content Quality',          max: 4 },
+  { key: 'structure_org',     label: 'Structure & Organization', max: 2 },
+  { key: 'presentation',      label: 'Presentation',             max: 1 },
+  { key: 'timely_submission', label: 'Timely Submission',        max: 1 },
+  { key: 'creativity',        label: 'Creativity',               max: 2 },
+];
+
+// Seminar rubric criteria (same as LMSSeminars)
+const SEMINAR_RUBRIC = [
+  { key: 'rubric_content_relevance',   label: 'Content Relevance'  },
+  { key: 'rubric_presentation_skills', label: 'Presentation Skills' },
+  { key: 'rubric_resources_used',      label: 'Resources Used'      },
+  { key: 'rubric_time_management',     label: 'Time Management'     },
+  { key: 'rubric_question_handling',   label: 'Q&A Handling (2)'   },
+  { key: 'rubric_team_coordination',   label: 'Team Coord. (1)'    },
+];
+
+// PO descriptions for the mapping table
+const PO_DESCRIPTIONS = {
+  'PO1':  'Engineering Knowledge',
+  'PO2':  'Problem Analysis',
+  'PO3':  'Design/Development of Solutions',
+  'PO4':  'Conduct Investigations of Complex Problems',
+  'PO5':  'Modern Tool Usage',
+  'PO6':  'The Engineer and Society',
+  'PO7':  'Environment and Sustainability',
+  'PO8':  'Ethics',
+  'PO9':  'Individual and Team Work',
+  'PO10': 'Communication',
+  'PO11': 'Project Management and Finance',
+  'PO12': 'Life-long Learning',
+};
+
+// K-Level labels
+const K_LABELS = {
+  K1: 'Remember', K2: 'Understand', K3: 'Apply',
+  K4: 'Analyze', K5: 'Evaluate', K6: 'Create',
+};
+
+// ── Section header component ──────────────────────────────────────────────────
 const SectionHeader = ({ title }) => (
-  <div className="border-b-2 border-slate-800 pb-2 mb-4 mt-8 break-inside-avoid print:mt-6">
-    <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">{title}</h2>
+  <div style={{ borderBottom: '2px solid #1e293b', paddingBottom: '6px', marginBottom: '14px', marginTop: '28px', pageBreakInside: 'avoid' }}>
+    <h2 style={{ fontFamily: 'Times New Roman, serif', fontSize: '13pt', fontWeight: 'bold', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
+      {title}
+    </h2>
   </div>
 );
 
+// ── Report styles (injected once) ─────────────────────────────────────────────
+const REPORT_STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Times+New+Roman');
+  @media print {
+    .print\\:hidden { display: none !important; }
+    .print-page { margin: 0 !important; padding: 15mm 15mm !important; box-shadow: none !important; max-width: none !important; }
+    @page { size: A4; margin: 15mm; }
+    .page-break { page-break-before: always; break-before: page; }
+  }
+  .report-body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #1e293b; line-height: 1.6; }
+  .report-body table { border-collapse: collapse; width: 100%; }
+  .report-body th, .report-body td { border: 1px solid #94a3b8; padding: 5px 8px; }
+  .report-body thead th { background: #f1f5f9; font-weight: bold; }
+  .highlight-label { font-weight: bold; }
+`;
+
+// ── Main Component ────────────────────────────────────────────────────────────
 export const LMSLogbookReport = () => {
   const { assignmentId } = useParams();
   
@@ -32,33 +103,35 @@ export const LMSLogbookReport = () => {
   const [seminars, setSeminars] = useState([]);
   
   // Assignment states
-  const [assignmentMeta, setAssignmentMeta] = useState([]); // List of assignments
-  const [assignmentGrades, setAssignmentGrades] = useState({}); // student_id -> { assignment_id -> grade }
+  const [assignmentMeta, setAssignmentMeta] = useState([]);
+  const [assignmentGrades, setAssignmentGrades] = useState({});
+  const [assignmentRosters, setAssignmentRosters] = useState({}); // resource_id -> roster
   
   // Gradebook states
-  const [gradebook, setGradebook] = useState([]); // Array of students with cia1, cia2, model, and retests
+  const [gradebook, setGradebook] = useState([]);
+  const [gradebookDates, setGradebookDates] = useState({}); // grade_type -> test_date
   const [editableKLevels, setEditableKLevels] = useState({});
+  const [logoUrl, setLogoUrl] = useState("/logo.png");
+  const [isBanner, setIsBanner] = useState(true);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // 1. Fetch assignment course
-      const coursesRes = await axios.get('/api/faculty/me/courses');
+      const coursesRes = await axios.get(`/api/faculty/me/courses?t=${Date.now()}`);
       const foundCourse = coursesRes.data.find(c => c.id.toString() === assignmentId);
       if (!foundCourse) throw new Error("Course Assignment not found.");
       setCourseAssignment(foundCourse);
       
       const deptId = foundCourse.course?.department_id;
 
-      // 2. Fetch parallel base data
       const [deptRes, planRes, attRes, semRes, resRes, poRes] = await Promise.all([
-        axios.get('/api/departments/'),
-        axios.get(`/api/course-plan/${assignmentId}`).catch(() => ({ data: { topics: [] } })),
-        axios.get(`/api/faculty/courses/${assignmentId}/attendance-history`).catch(() => ({ data: { history: [] } })),
-        axios.get(`/api/faculty/courses/${assignmentId}/seminars`).catch(() => ({ data: { roster: [] } })),
-        axios.get(`/api/faculty/courses/${assignmentId}/resources`).catch(() => ({ data: [] })),
-        axios.get('/api/departments/program-outcomes').catch(() => ({ data: null }))
+        axios.get(`/api/departments/?t=${Date.now()}`),
+        axios.get(`/api/course-plan/${assignmentId}?t=${Date.now()}`).catch(() => ({ data: { topics: [] } })),
+        axios.get(`/api/faculty/courses/${assignmentId}/attendance-history?t=${Date.now()}`).catch(() => ({ data: { history: [] } })),
+        axios.get(`/api/faculty/courses/${assignmentId}/seminars?t=${Date.now()}`).catch(() => ({ data: { roster: [] } })),
+        axios.get(`/api/faculty/courses/${assignmentId}/resources?t=${Date.now()}`).catch(() => ({ data: [] })),
+        axios.get(`/api/departments/program-outcomes?t=${Date.now()}`).catch(() => ({ data: null }))
       ]);
 
       const deptObj = deptRes.data.find(d => d.id === deptId) || null;
@@ -69,35 +142,43 @@ export const LMSLogbookReport = () => {
       setProgramOutcomes(poRes.data || null);
       setEditableKLevels(parseJSON(foundCourse.course?.co_k_levels) || {});
 
-      // 3. Process Assignments
+      // Process Assignments (max 5)
       const allResources = resRes.data || [];
-      const assignments = allResources.filter(r => r.resource_type === 'assignment').slice(0, 5); // Max 5 assignments
+      const assignments = allResources.filter(r => r.resource_type === 'assignment').slice(0, 5);
       setAssignmentMeta(assignments);
       
-      const assignmentGradesMap = {}; // student_id -> { resource_id: grade }
+      const assignmentGradesMap = {};
+      const rostersMap = {};
+
       if (assignments.length > 0) {
-        const gradePromises = assignments.map(a => 
-          axios.get(`/api/faculty/courses/${assignmentId}/assignments/${a.id}/grades`).catch(() => ({ data: { roster: [] } }))
+        const gradePromises = assignments.map(a =>
+          axios.get(`/api/faculty/courses/${assignmentId}/assignments/${a.id}/grades?t=${Date.now()}`).catch(() => ({ data: { roster: [] } }))
         );
         const gradesResults = await Promise.all(gradePromises);
         
         assignments.forEach((a, index) => {
           const roster = gradesResults[index].data?.roster || [];
+          rostersMap[a.id] = roster;
           roster.forEach(g => {
             if (!assignmentGradesMap[g.student_id]) assignmentGradesMap[g.student_id] = {};
-            assignmentGradesMap[g.student_id][a.id] = g.marks_obtained;
+            assignmentGradesMap[g.student_id][a.id] = {
+              marks: g.marks_obtained,
+              remarks: g.remarks,
+              rubric: parseRubric(g.remarks),
+            };
           });
         });
       }
       setAssignmentGrades(assignmentGradesMap);
+      setAssignmentRosters(rostersMap);
 
-      // 4. Process Gradebook (CIA-1, CIA-2, Model Exam + Retests)
+      // Process Gradebook (CIA-1, CIA-2, Model Exam + Retests)
       const assessmentTypes = ['internal_1', 'internal_2', 'model_exam'];
-      const gbPromises = assessmentTypes.map(type => 
-        axios.get(`/api/faculty/courses/${assignmentId}/gradebook`, { params: { grade_type: type } }).catch(() => ({ data: { roster: [] } }))
+      const gbPromises = assessmentTypes.map(type =>
+        axios.get(`/api/faculty/courses/${assignmentId}/gradebook`, { params: { grade_type: type, t: Date.now() } }).catch(() => ({ data: { roster: [], test_date: null } }))
       );
-      const retestPromises = assessmentTypes.map(type => 
-        axios.get(`/api/retest/courses/${assignmentId}/eligible`, { params: { grade_type: type } }).catch(() => ({ data: { eligible_students: [] } }))
+      const retestPromises = assessmentTypes.map(type =>
+        axios.get(`/api/retest/courses/${assignmentId}/eligible`, { params: { grade_type: type, t: Date.now() } }).catch(() => ({ data: { eligible_students: [] } }))
       );
       
       const [gbResults, rtResults] = await Promise.all([
@@ -105,36 +186,36 @@ export const LMSLogbookReport = () => {
         Promise.all(retestPromises)
       ]);
 
+      // Extract test dates
+      const datesMap = {};
+      assessmentTypes.forEach((type, i) => {
+        if (gbResults[i].data?.test_date) {
+          datesMap[type] = gbResults[i].data.test_date;
+        }
+      });
+      setGradebookDates(datesMap);
+
       const studentsMap = {};
-      
       assessmentTypes.forEach((type, index) => {
         const roster = gbResults[index].data?.roster || [];
         const retestList = rtResults[index].data?.eligible_students || [];
         
         roster.forEach(r => {
           if (!studentsMap[r.student_id]) {
-            studentsMap[r.student_id] = { 
-              student_id: r.student_id, 
-              register_number: r.register_number, 
-              name: `${r.first_name} ${r.last_name}` 
+            studentsMap[r.student_id] = {
+              student_id: r.student_id,
+              register_number: r.register_number,
+              name: `${r.first_name} ${r.last_name}`
             };
           }
-          const keyMap = {
-            'internal_1': 'cia_1',
-            'internal_2': 'cia_2',
-            'model_exam': 'model_exam'
-          };
+          const keyMap = { 'internal_1': 'cia_1', 'internal_2': 'cia_2', 'model_exam': 'model_exam' };
           const mappedKey = keyMap[type] || type;
           studentsMap[r.student_id][mappedKey] = r.is_absent ? 'AAA' : r.marks_obtained;
         });
 
         retestList.forEach(rt => {
           if (studentsMap[rt.student_id]) {
-            const keyMap = {
-              'internal_1': 'cia_1_retest',
-              'internal_2': 'cia_2_retest',
-              'model_exam': 'model_exam_retest'
-            };
+            const keyMap = { 'internal_1': 'cia_1_retest', 'internal_2': 'cia_2_retest', 'model_exam': 'model_exam_retest' };
             const mappedKey = keyMap[type] || `${type}_retest`;
             studentsMap[rt.student_id][mappedKey] = rt.retest_marks;
           }
@@ -152,15 +233,29 @@ export const LMSLogbookReport = () => {
     }
   }, [assignmentId]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleKLevelChange = (key, val) => {
-    setEditableKLevels(prev => ({
-      ...prev,
-      [key]: val
-    }));
+  // K-level multi-select handler (max 3)
+  const handleKLevelChange = (key, level) => {
+    setEditableKLevels(prev => {
+      const current = Array.isArray(prev[key]) ? prev[key] : (prev[key] ? [prev[key]] : []);
+      let updated;
+      if (current.includes(level)) {
+        updated = current.filter(l => l !== level);
+      } else if (current.length < 3) {
+        updated = [...current, level].sort();
+      } else {
+        return prev; // max 3 reached
+      }
+      return { ...prev, [key]: updated };
+    });
+  };
+
+  const getKLevelArray = (key) => {
+    const val = editableKLevels[key];
+    if (!val) return [];
+    if (Array.isArray(val)) return val;
+    return [val]; // legacy single string
   };
 
   const handleSaveKLevels = async () => {
@@ -173,17 +268,9 @@ export const LMSLogbookReport = () => {
       });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-      
-      // Update locally
       setCourseAssignment(prev => {
         if (!prev) return prev;
-        return {
-          ...prev,
-          course: {
-            ...prev.course,
-            co_k_levels: JSON.stringify(editableKLevels)
-          }
-        };
+        return { ...prev, course: { ...prev.course, co_k_levels: JSON.stringify(editableKLevels) } };
       });
     } catch (err) {
       console.error(err);
@@ -194,23 +281,65 @@ export const LMSLogbookReport = () => {
   };
 
   const getStudentAttendanceSummary = (studentId) => {
-    let conducted = 0;
-    let attended = 0;
-    
+    let conducted = 0, attended = 0;
     attendance.forEach(session => {
       const record = session.records?.find(r => r.student_id === studentId);
       if (record) {
         conducted++;
-        if (['present', 'on_duty', 'late'].includes(record.status)) {
-          attended++;
-        }
+        if (['present', 'on_duty', 'late'].includes(record.status)) attended++;
       }
     });
-    
     const percentage = conducted > 0 ? ((attended / conducted) * 100).toFixed(1) + '%' : '—';
     return { conducted, attended, percentage };
   };
 
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+  // Download self-contained HTML report
+  const handleDownloadHTML = () => {
+    const reportElement = document.querySelector('.report-body');
+    if (!reportElement) return;
+
+    // Create a complete, self-contained HTML document with custom styling
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>${course.code || 'Course'}_Logbook_Report</title>
+    <style>
+      ${REPORT_STYLES}
+      body {
+        padding: 20mm;
+        background: #fff;
+        max-width: 210mm;
+        margin: 0 auto;
+        font-family: 'Times New Roman', Times, serif;
+      }
+      .print-page {
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+    </style>
+  </head>
+  <body>
+    ${reportElement.outerHTML}
+  </body>
+</html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${course.code || 'Course'}_Logbook_Report.html`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // ── Loading / Error states ─────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -234,37 +363,62 @@ export const LMSLogbookReport = () => {
     );
   }
 
+  // ── Data preparation ───────────────────────────────────────────────────────
   const course = courseAssignment.course || {};
   const coPoMapping = parseJSON(course.co_po_mapping);
-  
-  const courseType = course.course_type;
-  const psoCount = courseType === 'lab' ? 2 : 3;
-  const coRows  = Array.from({ length: 5 },  (_, i) => `CO-${i + 1}`);
-  const poColumns  = Array.from({ length: 12 }, (_, i) => `PO-${i + 1}`);
-  const psoColumns = Array.from({ length: psoCount }, (_, i) => `PSO-${i + 1}`);
-  const allCols = [...poColumns, ...psoColumns];
 
-  // Parsing Course Outcomes for Unit table
+  // Always 2 PSOs for theory (as per requirements)
+  const psoCount = 2;
+  const coRows     = ['CO1', 'CO2', 'CO3', 'CO4', 'CO5'];
+  const poColumns  = ['PO1','PO2','PO3','PO4','PO5','PO6','PO7','PO8','PO9','PO10','PO11','PO12'];
+  const psoColumns = ['PSO1', 'PSO2'];
+  const allCols    = [...poColumns, ...psoColumns];
+
+  // Map legacy key format (CO-1, PO-1) to new format (CO1, PO1) for mapping lookup
+  const getMappingValue = (co, col) => {
+    // Try new format first
+    let val = coPoMapping?.[co]?.[col];
+    if (val !== undefined) return val;
+    // Try legacy format CO-1, PO-1
+    const legacyCo  = co.replace('CO', 'CO-');
+    const legacyCol = col.replace(/^(PO|PSO)(\d+)$/, '$1-$2');
+    val = coPoMapping?.[legacyCo]?.[legacyCol];
+    return val;
+  };
+
+  // Course Outcomes (COs)
   const outcomesText = course.outcomes || '';
-  const outcomesList = outcomesText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-  const unitRows = Array.from({ length: 5 }, (_, i) => {
-    const unitNo = i + 1;
-    const outcomeText = outcomesList[i] || `Course Outcome for Unit ${unitNo} (Not defined)`;
-    return { unitNo, outcomeText, key: `Unit-${unitNo}` };
+  const outcomesList = outcomesText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const coUnitRows = coRows.map((co, i) => {
+    const unitKey = `Unit-${i + 1}`;
+    const legacyKey = `Unit-${i + 1}`;
+    return {
+      co,
+      unitNo: i + 1,
+      unitKey: legacyKey,
+      outcomeText: outcomesList[i] || `Course Outcome ${i + 1} (Not defined)`,
+      kLevels: getKLevelArray(legacyKey),
+    };
   });
 
-  const facultyName = courseAssignment.faculty 
-    ? `${courseAssignment.faculty.first_name} ${courseAssignment.faculty.last_name}` 
+  const thStyle = { fontFamily: 'Times New Roman, serif', fontSize: '10pt', fontWeight: 'bold', textAlign: 'center', padding: '5px 6px', backgroundColor: '#f1f5f9', border: '1px solid #94a3b8' };
+  const tdStyle = { fontFamily: 'Times New Roman, serif', fontSize: '10pt', padding: '4px 6px', border: '1px solid #94a3b8', textAlign: 'center' };
+  const tdLeftStyle = { ...tdStyle, textAlign: 'left' };
+
+  const facultyName = courseAssignment.faculty
+    ? `${courseAssignment.faculty.first_name} ${courseAssignment.faculty.last_name}`
     : 'N/A';
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 print:bg-white print:pb-0">
+    <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
+      <style>{REPORT_STYLES}</style>
+
       {/* ── Top Bar (Hidden on Print) ── */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-50 print:hidden">
-        <div className="max-w-[210mm] mx-auto px-4 py-4 flex items-center justify-between">
-          <Link 
+      <div className="print:hidden bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div style={{ maxWidth: '210mm', margin: '0 auto', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link
             to={`/faculty/courses/${assignmentId}/lms`}
-            className="flex items-center gap-2 text-gray-500 hover:text-primary-600 font-medium transition-colors"
+            className="flex items-center gap-2 text-gray-500 hover:text-primary-600 font-medium transition-colors text-sm"
           >
             <ArrowLeft className="w-5 h-5" /> Back to Dashboard
           </Link>
@@ -274,14 +428,20 @@ export const LMSLogbookReport = () => {
                 <CheckCircle className="w-4 h-4" /> K-Levels Saved!
               </span>
             )}
-            <button 
+            <button
               onClick={handleSaveKLevels}
               disabled={savingKLevels}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm transition-colors text-xs disabled:opacity-50"
             >
               <Save className="w-4 h-4" /> {savingKLevels ? 'Saving...' : 'Save K-Levels'}
             </button>
-            <button 
+            <button
+              onClick={handleDownloadHTML}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-sm transition-colors text-xs"
+            >
+              <Download className="w-4 h-4" /> Download HTML
+            </button>
+            <button
               onClick={() => window.print()}
               className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 shadow-sm transition-colors text-xs"
             >
@@ -291,385 +451,502 @@ export const LMSLogbookReport = () => {
         </div>
       </div>
 
-      {/* ── A4 Page Container ── */}
-      <div className="max-w-[210mm] mx-auto bg-white p-8 md:p-12 mt-8 mb-8 shadow-md print:shadow-none print:m-0 print:p-0 print:max-w-none text-[12px] leading-relaxed text-slate-800 font-serif">
-        
-        {/* Cover / Header */}
-        <div className="text-center mb-10 border-b-4 border-slate-800 pb-6">
-          <h1 className="text-3xl font-black uppercase tracking-widest text-slate-900 mb-2">Course Logbook Report</h1>
-          <p className="text-lg font-bold text-slate-700">{course.code} - {course.name}</p>
-          <div className="mt-4 flex justify-center gap-8 text-sm font-semibold text-slate-600">
+      {/* ── A4 Report Container ── */}
+      <div
+        className="print-page report-body"
+        style={{
+          maxWidth: '210mm',
+          margin: '24px auto',
+          background: '#fff',
+          padding: '20mm 18mm',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+          fontFamily: 'Times New Roman, Times, serif',
+          fontSize: '12pt',
+          color: '#1e293b',
+          lineHeight: '1.6',
+        }}
+      >
+        {/* ══ COVER / HEADER ══════════════════════════════════════════════════ */}
+        <div style={{ textAlign: 'center', marginBottom: '28px', borderBottom: '3px solid #1e293b', paddingBottom: '20px' }}>
+          {/* College logo */}
+          <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'center' }}>
+            <img
+              src={logoUrl}
+              alt="College Logo"
+              style={isBanner ? { width: '100%', height: 'auto', display: 'block' } : { height: '80px', width: 'auto', display: 'inline-block' }}
+              onError={() => {
+                if (logoUrl !== "/logo2.png") {
+                  setLogoUrl("/logo2.png");
+                  setIsBanner(false);
+                }
+              }}
+            />
+          </div>
+          <h1 style={{ fontFamily: 'Times New Roman, serif', fontSize: '18pt', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 6px 0', color: '#0f172a' }}>
+            Course Logbook Report
+          </h1>
+          <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '14pt', fontWeight: 'bold', color: '#334155', margin: '0 0 12px 0' }}>
+            {course.code} – {course.name}
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '32px', fontSize: '12pt', fontWeight: '600', color: '#475569', flexWrap: 'wrap' }}>
             <span>Semester: {courseAssignment.semester}</span>
             <span>Academic Year: {courseAssignment.academic_year}</span>
             <span>Section: {courseAssignment.section ? `${courseAssignment.section.year} Yr ${courseAssignment.section.name}` : 'N/A'}</span>
           </div>
-          <div className="mt-2 text-sm font-semibold text-slate-600">
-            Faculty Assigned: {facultyName}
+          <div style={{ marginTop: '6px', fontSize: '12pt', fontWeight: '600', color: '#475569' }}>
+            Faculty: {facultyName}
           </div>
         </div>
 
-        {/* 1. Department Vision */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="1. Department Vision" />
-          <div className="mb-6 text-justify whitespace-pre-wrap">{department?.vision || 'No data available'}</div>
+        {/* ══ 1. DEPARTMENT VISION ═══════════════════════════════════════════ */}
+        <SectionHeader title="1. Department Vision" />
+        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
+          {department?.vision || 'No data available'}
         </div>
 
-        {/* 2. Department Mission */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="2. Department Mission" />
-          <div className="mb-6 text-justify whitespace-pre-wrap">{department?.mission || 'No data available'}</div>
-        </div>
-        
-        {/* 3. Programme Educational Objectives (PEOs) */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="3. Programme Educational Objectives (PEOs)" />
-          <div className="mb-6 text-justify whitespace-pre-wrap">{department?.peos || 'No data available'}</div>
+        {/* ══ 2. DEPARTMENT MISSION ══════════════════════════════════════════ */}
+        <SectionHeader title="2. Department Mission" />
+        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
+          {department?.mission || 'No data available'}
         </div>
 
-        {/* 4. Programme Outcomes (POs) */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="4. Programme Outcomes (POs)" />
-          <div className="mb-6 text-justify whitespace-pre-wrap">
-            {programOutcomes?.outcomes || 'No data available'}
+        {/* ══ 3. PROGRAMME EDUCATIONAL OBJECTIVES ═══════════════════════════ */}
+        <SectionHeader title="3. Programme Educational Objectives (PEOs)" />
+        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
+          {department?.peos || 'No data available'}
+        </div>
+
+        {/* ══ 4. PROGRAMME OUTCOMES ══════════════════════════════════════════ */}
+        <SectionHeader title="4. Programme Outcomes (POs)" />
+        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
+          {programOutcomes?.outcomes || 'No data available'}
+        </div>
+
+        {/* ══ 5. PROGRAMME SPECIFIC OUTCOMES ════════════════════════════════ */}
+        <SectionHeader title="5. Programme Specific Outcomes (PSOs)" />
+        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
+          {department?.psos || 'No data available'}
+        </div>
+
+        {/* ══ 6. COURSE OBJECTIVES ═══════════════════════════════════════════ */}
+        <SectionHeader title="6. Course Objectives" />
+        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
+          {course.objectives || 'No data available'}
+        </div>
+
+        {/* Page break before CO sections */}
+        <div className="page-break" />
+
+        {/* ══ 7. COURSE OUTCOMES ═════════════════════════════════════════════ */}
+        <SectionHeader title="7. Course Outcomes" />
+        <div style={{ marginBottom: '18px' }}>
+          <table>
+            <thead>
+              <tr>
+                <th style={{ ...thStyle, width: '50px', textAlign: 'center' }}>CO</th>
+                <th style={{ ...thStyle, textAlign: 'left' }}>Course Outcome Description</th>
+                <th style={{ ...thStyle, width: '180px' }}>Bloom's Taxonomy Level(s)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {coUnitRows.map((row) => (
+                <tr key={row.co}>
+                  <td style={{ ...tdStyle, fontWeight: 'bold' }}>
+                    <span className="highlight-label">{row.co}</span>
+                  </td>
+                  <td style={tdLeftStyle}>{row.outcomeText}</td>
+                  <td style={tdStyle}>
+                    {/* Screen: checkboxes for multi-select */}
+                    <div className="print:hidden" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'center' }}>
+                      {Object.entries(K_LABELS).map(([kLevel, kDesc]) => {
+                        const selected = row.kLevels.includes(kLevel);
+                        const atMax = row.kLevels.length >= 3 && !selected;
+                        return (
+                          <label
+                            key={kLevel}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '3px',
+                              cursor: atMax ? 'not-allowed' : 'pointer',
+                              opacity: atMax ? 0.4 : 1,
+                              fontSize: '10pt', fontFamily: 'Times New Roman, serif',
+                              padding: '2px 5px',
+                              borderRadius: '4px',
+                              background: selected ? '#312e81' : '#f1f5f9',
+                              color: selected ? '#fff' : '#475569',
+                              fontWeight: selected ? 'bold' : 'normal',
+                              transition: 'all 0.15s',
+                              userSelect: 'none',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              disabled={atMax}
+                              onChange={() => handleKLevelChange(row.unitKey, kLevel)}
+                              style={{ display: 'none' }}
+                            />
+                            {kLevel}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {/* Print: show only selected levels */}
+                    <div className="hidden print:block" style={{ fontWeight: 'bold', textAlign: 'center' }}>
+                      {row.kLevels.length > 0
+                        ? row.kLevels.map(k => `${k} – ${K_LABELS[k]}`).join(', ')
+                        : '—'}
+                    </div>
+                    {/* Screen preview of selected */}
+                    {row.kLevels.length > 0 && (
+                      <div className="print:hidden" style={{ marginTop: '4px', fontSize: '9pt', color: '#6366f1', fontWeight: 'bold', textAlign: 'center' }}>
+                        Selected: {row.kLevels.join(', ')} {row.kLevels.length >= 3 && '(max)'}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ══ 8. PO–CO MAPPING ═══════════════════════════════════════════════ */}
+        <SectionHeader title="8. PO–CO Mapping" />
+        <div style={{ marginBottom: '18px', overflowX: 'auto' }}>
+          <table style={{ fontSize: '9pt', width: '100%' }}>
+            <thead>
+              <tr>
+                <th style={{ ...thStyle, fontSize: '9pt', width: '48px', verticalAlign: 'middle' }} rowSpan={2}>CO</th>
+                <th style={{ ...thStyle, fontSize: '9pt', width: '52px', verticalAlign: 'middle' }} rowSpan={2}>Unit</th>
+                <th style={{ ...thStyle, fontSize: '9pt', width: '60px', verticalAlign: 'middle' }} rowSpan={2}>K-Level</th>
+                <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'center' }} colSpan={12}>
+                  Programme Outcomes (POs)
+                </th>
+                <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'center' }} colSpan={2}>
+                  PSOs
+                </th>
+              </tr>
+              <tr>
+                {poColumns.map(po => (
+                  <th key={po} style={{ ...thStyle, fontSize: '8pt', width: '28px', padding: '3px 2px' }}>
+                    <span className="highlight-label">{po}</span>
+                  </th>
+                ))}
+                {psoColumns.map(pso => (
+                  <th key={pso} style={{ ...thStyle, fontSize: '8pt', width: '28px', padding: '3px 2px' }}>
+                    <span className="highlight-label">{pso}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {coUnitRows.map((row) => {
+                const kDisplay = row.kLevels.length > 0 ? row.kLevels.join(', ') : '—';
+                return (
+                  <tr key={row.co}>
+                    <td style={{ ...tdStyle, fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
+                      <span className="highlight-label">{row.co}</span>
+                    </td>
+                    <td style={{ ...tdStyle, backgroundColor: '#f8fafc' }}>Unit {row.unitNo}</td>
+                    <td style={{ ...tdStyle, fontWeight: 'bold', backgroundColor: '#f8fafc', fontSize: '9pt' }}>{kDisplay}</td>
+                    {allCols.map(col => {
+                      const val = getMappingValue(row.co, col);
+                      return (
+                        <td key={col} style={{ ...tdStyle, fontSize: '9pt', fontWeight: val ? 'bold' : 'normal' }}>
+                          {val || '-'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {/* PO descriptions key */}
+          <div style={{ marginTop: '10px', fontSize: '9pt', color: '#475569' }}>
+            <strong>PO Key: </strong>
+            {Object.entries(PO_DESCRIPTIONS).map(([k, v]) => (
+              <span key={k} style={{ marginRight: '10px' }}>
+                <strong>{k}</strong> – {v};
+              </span>
+            ))}
           </div>
         </div>
 
-        {/* 5. Programme Specific Outcomes (PSOs) */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="5. Programme Specific Outcomes (PSOs)" />
-          <div className="mb-6 text-justify whitespace-pre-wrap">
-            {department?.psos || 'No data available'}
-          </div>
+        {/* ══ 9. SYLLABUS ════════════════════════════════════════════════════ */}
+        <SectionHeader title="9. Syllabus" />
+        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
+          {course.syllabus || 'No data available'}
         </div>
 
-        {/* 6. Course Objectives */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="6. Course Objectives" />
-          <div className="mb-6 text-justify whitespace-pre-wrap">{course.objectives || 'No data available'}</div>
+        {/* ══ 10. TEXTBOOKS ══════════════════════════════════════════════════ */}
+        <SectionHeader title="10. Textbooks" />
+        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
+          {course.textbooks || 'No data available'}
         </div>
 
-        <div className="print:break-before-page"></div>
+        {/* ══ 11. REFERENCES ═════════════════════════════════════════════════ */}
+        <SectionHeader title="11. References" />
+        <div style={{ marginBottom: '18px', textAlign: 'justify', whiteSpace: 'pre-wrap' }}>
+          {course.references || 'No data available'}
+        </div>
 
-        {/* 7. Course Outcomes (COs) & K-Levels */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="7. Course Outcomes (COs) & K-Levels" />
-          <div className="mb-6">
-            <table className="w-full border-collapse border border-slate-300">
-              <thead className="bg-slate-50">
+        {/* Page break */}
+        <div className="page-break" />
+
+        {/* ══ 12. COURSE PLAN ════════════════════════════════════════════════ */}
+        <SectionHeader title="12. Course Plan / Lesson Plan Coverage" />
+        <div style={{ marginBottom: '18px' }}>
+          {coursePlan.length === 0 ? (
+            <p style={{ fontStyle: 'italic', color: '#64748b' }}>No lesson plan coverage data available.</p>
+          ) : (
+            <table style={{ fontSize: '9pt' }}>
+              <thead>
                 <tr>
-                  <th className="border border-slate-300 p-2 text-left w-20">Unit</th>
-                  <th className="border border-slate-300 p-2 text-left">Course Outcome</th>
-                  <th className="border border-slate-300 p-2 text-center w-36">Bloom's Taxonomy Knowledge Level</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Seq</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Unit</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Topic</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Hrs</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Proposed Date</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Actual Date</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Cog. Level</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Mode</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {unitRows.map((row) => (
-                  <tr key={row.key}>
-                    <td className="border border-slate-300 p-2 text-center font-bold">Unit {row.unitNo}</td>
-                    <td className="border border-slate-300 p-2">{row.outcomeText}</td>
-                    <td className="border border-slate-300 p-2 text-center">
-                      <select
-                        value={editableKLevels[row.key] || ''}
-                        onChange={(e) => handleKLevelChange(row.key, e.target.value)}
-                        className="border border-slate-300 rounded px-2 py-1 text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-slate-500 w-28 print:border-none print:appearance-none print:bg-transparent print:w-auto print:text-center"
-                      >
-                        <option value="">- Select -</option>
-                        <option value="K1">K1 - Remember</option>
-                        <option value="K2">K2 - Understand</option>
-                        <option value="K3">K3 - Apply</option>
-                        <option value="K4">K4 - Analyze</option>
-                        <option value="K5">K5 - Evaluate</option>
-                        <option value="K6">K6 - Create</option>
-                      </select>
+                {coursePlan.map(tp => (
+                  <tr key={tp.id}>
+                    <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.unit}</td>
+                    <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.topic}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.hours}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '—'}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '—'}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.cognitive_level || '—'}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.mode_of_delivery || '—'}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>
+                      {tp.is_signed ? 'Signed' : tp.actual_date ? 'Done' : 'Pending'}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          )}
         </div>
 
-        {/* 8. PO–CO Mapping */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="8. PO–CO Mapping" />
-          <div className="mb-6 overflow-x-auto">
-            <table className="w-full border-collapse border border-slate-300 text-[10px]">
+        {/* Page break */}
+        <div className="page-break" />
+
+        {/* ══ 13. STUDENT ATTENDANCE SUMMARY ════════════════════════════════ */}
+        <SectionHeader title="13. Student Attendance Summary" />
+        <div style={{ marginBottom: '18px' }}>
+          {gradebook.length === 0 ? (
+            <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student records available.</p>
+          ) : (
+            <table style={{ fontSize: '10pt' }}>
               <thead>
                 <tr>
-                  <th className="border border-slate-300 bg-slate-50 p-1 w-12" rowSpan={2}>CO</th>
-                  <th className="border border-slate-300 bg-slate-50 p-1 w-16" rowSpan={2}>Unit</th>
-                  <th className="border border-slate-300 bg-slate-50 p-1 w-16" rowSpan={2}>K-Level</th>
-                  <th className="border border-slate-300 bg-slate-100 p-1 text-center" colSpan={12}>Programme Outcomes (POs)</th>
-                  <th className="border border-slate-300 bg-slate-100 p-1 text-center" colSpan={psoCount}>PSOs</th>
-                </tr>
-                <tr>
-                  {poColumns.map(po => (
-                    <th key={po} className="border border-slate-300 bg-slate-50 p-1 w-8">{po.replace('PO-', '')}</th>
-                  ))}
-                  {psoColumns.map(pso => (
-                    <th key={pso} className="border border-slate-300 bg-slate-50 p-1 w-8">{pso.replace('PSO-', '')}</th>
-                  ))}
+                  <th style={{ ...thStyle, textAlign: 'left', width: '110px' }}>Reg No.</th>
+                  <th style={{ ...thStyle, textAlign: 'left' }}>Student Name</th>
+                  <th style={{ ...thStyle, width: '90px' }}>Conducted</th>
+                  <th style={{ ...thStyle, width: '90px' }}>Attended</th>
+                  <th style={{ ...thStyle, width: '110px' }}>Percentage</th>
                 </tr>
               </thead>
               <tbody>
-                {coRows.map((co, index) => {
-                  const unitNo = index + 1;
-                  const unitKey = `Unit-${unitNo}`;
-                  const kLevel = editableKLevels[unitKey] || '-';
+                {gradebook.map(stu => {
+                  const { conducted, attended, percentage } = getStudentAttendanceSummary(stu.student_id);
                   return (
-                    <tr key={co}>
-                      <td className="border border-slate-300 bg-slate-50 p-1 font-bold text-center">{co}</td>
-                      <td className="border border-slate-300 bg-slate-50 p-1 font-bold text-center">Unit {unitNo}</td>
-                      <td className="border border-slate-300 bg-slate-50 p-1 font-bold text-center">{kLevel}</td>
-                      {allCols.map(col => {
-                        const val = coPoMapping?.[co]?.[col] || '';
-                        return (
-                          <td key={col} className="border border-slate-300 p-1 text-center font-bold">
-                            {val || '-'}
-                          </td>
-                        );
-                      })}
+                    <tr key={stu.student_id}>
+                      <td style={tdLeftStyle}>{stu.register_number}</td>
+                      <td style={tdLeftStyle}>{stu.name}</td>
+                      <td style={tdStyle}>{conducted}</td>
+                      <td style={tdStyle}>{attended}</td>
+                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>{percentage}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          </div>
+          )}
         </div>
 
-        {/* 9. Syllabus */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="9. Syllabus" />
-          <div className="mb-6 text-justify whitespace-pre-wrap">{course.syllabus || 'No data available'}</div>
-        </div>
+        {/* Page break */}
+        <div className="page-break" />
 
-        <div className="print:break-before-page"></div>
-
-        {/* 10. Textbooks */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="10. Textbooks" />
-          <div className="mb-6 text-justify whitespace-pre-wrap">{course.textbooks || 'No data available'}</div>
-        </div>
-
-        {/* 11. References */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="11. References" />
-          <div className="mb-6 text-justify whitespace-pre-wrap">{course.references || 'No data available'}</div>
-        </div>
-
-        {/* 12. Course Plan / Lesson Plan Coverage */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="12. Course Plan / Lesson Plan Coverage" />
-          <div className="mb-6">
-            {coursePlan.length === 0 ? (
-              <p className="italic text-gray-500">No lesson plan coverage data available.</p>
-            ) : (
-              <table className="w-full border-collapse border border-slate-300 text-[10px]">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="border border-slate-300 p-2 text-center w-12">Seq No.</th>
-                    <th className="border border-slate-300 p-2 text-center w-12">Unit</th>
-                    <th className="border border-slate-300 p-2 text-left">Topic</th>
-                    <th className="border border-slate-300 p-2 text-center w-12">Hours</th>
-                    <th className="border border-slate-300 p-2 text-center w-20">Proposed Date</th>
-                    <th className="border border-slate-300 p-2 text-center w-20">Actual Date</th>
-                    <th className="border border-slate-300 p-2 text-center w-16">Cognitive Level</th>
-                    <th className="border border-slate-300 p-2 text-center w-16">Delivery Mode</th>
-                    <th className="border border-slate-300 p-2 text-center w-16">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {coursePlan.map(tp => (
-                    <tr key={tp.id}>
-                      <td className="border border-slate-300 p-2 text-center font-bold">{tp.sequence_no}</td>
-                      <td className="border border-slate-300 p-2 text-center">{tp.unit}</td>
-                      <td className="border border-slate-300 p-2">{tp.topic}</td>
-                      <td className="border border-slate-300 p-2 text-center">{tp.hours}</td>
-                      <td className="border border-slate-300 p-2 text-center">{tp.proposed_date ? new Date(tp.proposed_date).toLocaleDateString() : '-'}</td>
-                      <td className="border border-slate-300 p-2 text-center">{tp.actual_date ? new Date(tp.actual_date).toLocaleDateString() : '-'}</td>
-                      <td className="border border-slate-300 p-2 text-center">{tp.cognitive_level || '-'}</td>
-                      <td className="border border-slate-300 p-2 text-center">{tp.mode_of_delivery || '-'}</td>
-                      <td className="border border-slate-300 p-2 text-center font-bold">
-                        {tp.is_signed ? 'Signed' : tp.actual_date ? 'Completed' : 'Pending'}
-                      </td>
-                    </tr>
+        {/* ══ 14. STUDENT SEMINAR REPORT ════════════════════════════════════ */}
+        <SectionHeader title="14. Student Seminar Report" />
+        <div style={{ marginBottom: '18px' }}>
+          {seminars.length === 0 ? (
+            <p style={{ fontStyle: 'italic', color: '#64748b' }}>No seminar records available.</p>
+          ) : (
+            <table style={{ fontSize: '9pt' }}>
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '140px' }}>Student Name</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Seminar Topic</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '75px' }}>Date</th>
+                  {SEMINAR_RUBRIC.map(c => (
+                    <th key={c.key} style={{ ...thStyle, fontSize: '8pt', width: '64px' }}>{c.label}</th>
                   ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-
-        <div className="print:break-before-page"></div>
-
-        {/* 13. Student Attendance Summary */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="13. Student Attendance Summary" />
-          <div className="mb-6">
-            {gradebook.length === 0 ? (
-              <p className="italic text-gray-500 font-medium">No student records available.</p>
-            ) : (
-              <table className="w-full border-collapse border border-slate-300 text-[10px]">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="border border-slate-300 p-2 text-left w-28">Reg No.</th>
-                    <th className="border border-slate-300 p-2 text-left">Student Name</th>
-                    <th className="border border-slate-300 p-2 text-center w-28">Conducted</th>
-                    <th className="border border-slate-300 p-2 text-center w-28">Attended</th>
-                    <th className="border border-slate-300 p-2 text-center w-28">Attendance Percentage</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gradebook.map(stu => {
-                    const { conducted, attended, percentage } = getStudentAttendanceSummary(stu.student_id);
-                    return (
-                      <tr key={stu.student_id}>
-                        <td className="border border-slate-300 p-2">{stu.register_number}</td>
-                        <td className="border border-slate-300 p-2">{stu.name}</td>
-                        <td className="border border-slate-300 p-2 text-center">{conducted}</td>
-                        <td className="border border-slate-300 p-2 text-center">{attended}</td>
-                        <td className="border border-slate-300 p-2 text-center font-bold">{percentage}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-
-        <div className="print:break-before-page"></div>
-
-        {/* 14. Student Seminar Report */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="14. Student Seminar Report" />
-          <div className="mb-6">
-            {seminars.length === 0 ? (
-              <p className="italic text-gray-500">No seminar records available.</p>
-            ) : (
-              <table className="w-full border-collapse border border-slate-300 text-[10px]">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="border border-slate-300 p-2 text-left w-28">Reg No.</th>
-                    <th className="border border-slate-300 p-2 text-left">Student Name</th>
-                    <th className="border border-slate-300 p-2 text-left">Seminar Topic</th>
-                    <th className="border border-slate-300 p-2 text-center w-28">Date</th>
-                    <th className="border border-slate-300 p-2 text-center w-20">Marks Obtained</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {seminars.map(s => (
-                    <tr key={s.student_id}>
-                      <td className="border border-slate-300 p-2">{s.register_number}</td>
-                      <td className="border border-slate-300 p-2">{`${s.first_name} ${s.last_name}`}</td>
-                      <td className="border border-slate-300 p-2">{s.seminar_topic || 'Not Assigned'}</td>
-                      <td className="border border-slate-300 p-2 text-center">{s.seminar_date ? new Date(s.seminar_date).toLocaleDateString() : '-'}</td>
-                      <td className="border border-slate-300 p-2 text-center font-bold">
-                        {s.marks_obtained !== null ? s.marks_obtained : '-'} / {s.max_marks}
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {seminars.map(s => (
+                  <tr key={s.student_id}>
+                    <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.register_number}</td>
+                    <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{`${s.first_name} ${s.last_name}`}</td>
+                    <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.seminar_topic || 'Not Assigned'}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt' }}>{s.seminar_date ? formatDate(s.seminar_date) : '—'}</td>
+                    {SEMINAR_RUBRIC.map(c => (
+                      <td key={c.key} style={{ ...tdStyle, fontSize: '9pt' }}>
+                        {s[c.key] != null ? s[c.key] : '—'}
                       </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-
-        {/* 15. Assignments Marks Report */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="15. Assignments Marks Report" />
-          <div className="mb-6">
-            {gradebook.length === 0 ? (
-              <p className="italic text-gray-500 font-medium">No student records available.</p>
-            ) : (
-              <table className="w-full border-collapse border border-slate-300 text-[10px]">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="border border-slate-300 p-2 text-left w-28">Reg No.</th>
-                    <th className="border border-slate-300 p-2 text-left">Student Name</th>
-                    {Array.from({length: 5}).map((_, i) => (
-                      <th key={i} className="border border-slate-300 p-2 text-center w-20">Assignment {i + 1}</th>
                     ))}
+                    <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>
+                      {s.marks_obtained != null ? s.marks_obtained : '—'}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {gradebook.map(stu => (
-                    <tr key={stu.student_id}>
-                      <td className="border border-slate-300 p-2">{stu.register_number}</td>
-                      <td className="border border-slate-300 p-2">{stu.name}</td>
-                      {Array.from({length: 5}).map((_, i) => {
-                        const assignRes = assignmentMeta[i];
-                        const marks = assignRes ? (assignmentGrades[stu.student_id]?.[assignRes.id] ?? '-') : '-';
-                        return (
-                          <td key={i} className="border border-slate-300 p-2 text-center font-bold">{marks}</td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
-        <div className="print:break-before-page"></div>
+        {/* ══ 15. ASSIGNMENTS MARKS REPORT ══════════════════════════════════ */}
+        <SectionHeader title="15. Assignments Marks Report" />
+        <div style={{ marginBottom: '18px' }}>
+          {assignmentMeta.length === 0 ? (
+            <p style={{ fontStyle: 'italic', color: '#64748b' }}>No assignment records available.</p>
+          ) : (
+            assignmentMeta.map((asgn, aIdx) => {
+              const roster = assignmentRosters[asgn.id] || [];
+              // Check if this assignment uses rubric
+              const firstWithRubric = roster.find(r => parseRubric(r.remarks));
+              const hasRubric = !!firstWithRubric;
 
-        {/* 16. Internal Assessments Grade Book */}
-        <div className="page-break-inside-avoid">
-          <SectionHeader title="16. Internal Assessments Grade Book" />
-          <div className="mb-6">
-            {gradebook.length === 0 ? (
-              <p className="italic text-gray-500">No student roster records available.</p>
-            ) : (
-              <table className="w-full border-collapse border border-slate-300 text-[10px]">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="border border-slate-300 p-2 text-left w-28">Reg No.</th>
-                    <th className="border border-slate-300 p-2 text-left">Student Name</th>
-                    <th className="border border-slate-300 p-2 text-center w-20">CIA-1</th>
-                    <th className="border border-slate-300 p-2 text-center text-red-700 w-20">Retest 1</th>
-                    <th className="border border-slate-300 p-2 text-center w-20">CIA-2</th>
-                    <th className="border border-slate-300 p-2 text-center text-red-700 w-20">Retest 2</th>
-                    <th className="border border-slate-300 p-2 text-center w-20">Model Exam</th>
-                    <th className="border border-slate-300 p-2 text-center text-red-700 w-20">Retest Model</th>
+              return (
+                <div key={asgn.id} style={{ marginBottom: '20px' }}>
+                  <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '13pt', fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>
+                    Assignment {aIdx + 1}: {asgn.title}
+                  </p>
+                  {roster.length === 0 ? (
+                    <p style={{ fontStyle: 'italic', color: '#64748b', fontSize: '10pt' }}>No student data available for this assignment.</p>
+                  ) : (
+                    <table style={{ fontSize: '9pt' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
+                          <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Student Name</th>
+                          <th style={{ ...thStyle, fontSize: '9pt', width: '65px' }}>Total</th>
+                          {ASSIGNMENT_RUBRIC.map(c => (
+                            <th key={c.key} style={{ ...thStyle, fontSize: '8pt', width: '64px' }}>
+                              {c.label}<br /><span style={{ fontWeight: 'normal', fontSize: '7pt' }}>/{c.max}</span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {roster.map(g => {
+                          const rubric = parseRubric(g.remarks);
+                          return (
+                            <tr key={g.student_id}>
+                              <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.register_number}</td>
+                              <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.first_name} {g.last_name}</td>
+                              <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>
+                                {g.marks_obtained != null ? g.marks_obtained : '—'}
+                              </td>
+                              {ASSIGNMENT_RUBRIC.map(c => (
+                                <td key={c.key} style={{ ...tdStyle, fontSize: '9pt' }}>
+                                  {rubric ? (rubric[c.key] != null ? rubric[c.key] : '—') : '—'}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Page break */}
+        <div className="page-break" />
+
+        {/* ══ 16. INTERNAL ASSESSMENTS GRADE BOOK ═══════════════════════════ */}
+        <SectionHeader title="16. Internal Assessments Grade Book" />
+        <div style={{ marginBottom: '18px' }}>
+          {gradebook.length === 0 ? (
+            <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student roster records available.</p>
+          ) : (
+            <table style={{ fontSize: '9pt' }}>
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Student Name</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
+                    <span className="highlight-label">CIA-1</span>
+                    {gradebookDates['internal_1'] && (
+                      <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>
+                        {formatDate(gradebookDates['internal_1'])}
+                      </div>
+                    )}
+                  </th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest 1</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
+                    <span className="highlight-label">CIA-2</span>
+                    {gradebookDates['internal_2'] && (
+                      <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>
+                        {formatDate(gradebookDates['internal_2'])}
+                      </div>
+                    )}
+                  </th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest 2</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
+                    <span className="highlight-label">Model</span>
+                    {gradebookDates['model_exam'] && (
+                      <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>
+                        {formatDate(gradebookDates['model_exam'])}
+                      </div>
+                    )}
+                  </th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest Model</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gradebook.map(stu => (
+                  <tr key={stu.student_id}>
+                    <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.register_number}</td>
+                    <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.name}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_1 ?? '—'}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.cia_1_retest ?? '—'}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_2 ?? '—'}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.cia_2_retest ?? '—'}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.model_exam ?? '—'}</td>
+                    <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.model_exam_retest ?? '—'}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {gradebook.map(stu => (
-                    <tr key={stu.student_id}>
-                      <td className="border border-slate-300 p-2">{stu.register_number}</td>
-                      <td className="border border-slate-300 p-2">{stu.name}</td>
-                      <td className="border border-slate-300 p-2 text-center font-bold">{stu.cia_1 ?? '-'}</td>
-                      <td className="border border-slate-300 p-2 text-center font-bold text-red-800">{stu.cia_1_retest ?? '-'}</td>
-                      <td className="border border-slate-300 p-2 text-center font-bold">{stu.cia_2 ?? '-'}</td>
-                      <td className="border border-slate-300 p-2 text-center font-bold text-red-800">{stu.cia_2_retest ?? '-'}</td>
-                      <td className="border border-slate-300 p-2 text-center font-bold">{stu.model_exam ?? '-'}</td>
-                      <td className="border border-slate-300 p-2 text-center font-bold text-red-800">{stu.model_exam_retest ?? '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
-        {/* Footer */}
-        <div className="mt-16 pt-8 border-t border-slate-300 flex justify-between text-sm font-bold text-slate-700">
-          <div className="text-center">
-            <div className="w-40 border-b border-slate-400 mb-2"></div>
-            Faculty Signature
-          </div>
-          <div className="text-center">
-            <div className="w-40 border-b border-slate-400 mb-2"></div>
-            HOD Signature
-          </div>
-          <div className="text-center">
-            <div className="w-40 border-b border-slate-400 mb-2"></div>
-            Principal Signature
-          </div>
+        {/* ══ FOOTER / SIGNATURES ════════════════════════════════════════════ */}
+        <div style={{ marginTop: '48px', paddingTop: '24px', borderTop: '1px solid #94a3b8', display: 'flex', justifyContent: 'space-between' }}>
+          {['Faculty Signature', 'HOD Signature', 'Principal Signature'].map(label => (
+            <div key={label} style={{ textAlign: 'center' }}>
+              <div style={{ width: '140px', borderBottom: '1px solid #64748b', marginBottom: '6px', height: '40px' }} />
+              <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '11pt', fontWeight: 'bold', color: '#334155', margin: 0 }}>{label}</p>
+            </div>
+          ))}
         </div>
 
-      </div>
+      </div>{/* end A4 container */}
     </div>
   );
 };

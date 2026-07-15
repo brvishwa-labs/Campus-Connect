@@ -380,7 +380,7 @@ export const LMSSyllabus = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`/api/course-plan/${assignmentId}`);
+      const response = await axios.get(`/api/course-plan/${assignmentId}?t=${Date.now()}`);
       const fetchedTopics = response.data.topics || [];
       setTopics(fetchedTopics);
     } catch (err) {
@@ -393,7 +393,7 @@ export const LMSSyllabus = () => {
 
   const fetchCourseDetails = async () => {
     try {
-      const response = await axios.get('/api/faculty/me/courses');
+      const response = await axios.get(`/api/faculty/me/courses?t=${Date.now()}`);
       const currentCourse = response.data.find(c => c.id.toString() === assignmentId);
       if (currentCourse) {
         setCourseDetails(currentCourse);
