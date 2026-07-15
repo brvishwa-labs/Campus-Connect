@@ -221,7 +221,7 @@ export const MentorAssignment = () => {
     const loadLogo = () => {
       return new Promise((resolve) => {
         const img = new Image();
-        img.src = '/logo2.png';
+        img.src = '/logo.png';
         img.onload = () => {
           const canvas = document.createElement('canvas');
           canvas.width = img.width;
