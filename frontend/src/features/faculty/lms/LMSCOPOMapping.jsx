@@ -13,9 +13,9 @@ const BADGE_STYLES = {
   H: 'bg-green-100 text-green-700 border-green-200',
 };
 
-const getConfig = (courseType) => ({
-  coCount: courseType === 'lab' ? 6 : 10,
-  psoCount: courseType === 'lab' ? 2 : 3,
+const getConfig = () => ({
+  coCount: 5,
+  psoCount: 2,
 });
 
 const parseMappingJSON = (raw) => {

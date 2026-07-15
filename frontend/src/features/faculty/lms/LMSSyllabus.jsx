@@ -196,9 +196,9 @@ const CO_PO_BADGE_STYLES = {
   'H': 'bg-green-100 text-green-700 border border-green-200',
 };
 
-const getLMSCoPOConfig = (courseType) => ({
-  coCount: courseType === 'lab' ? 6 : 10,
-  psoCount: courseType === 'lab' ? 2 : 3,
+const getLMSCoPOConfig = () => ({
+  coCount: 5,
+  psoCount: 2,
 });
 
 const parseLMSMappingJSON = (raw) => {
