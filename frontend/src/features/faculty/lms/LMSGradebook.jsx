@@ -47,6 +47,7 @@ export const LMSGradebook = () => {
   const [saving, setSaving]         = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [toast, setToast]           = useState(null); // { msg, type }
+  const [testDate, setTestDate]     = useState('');   // Test conducted date for current assessment
 
   // ── Retest state ───────────────────────────────────────────────────────────
   const [retestData, setRetestData]         = useState(null);   // eligible list from API
@@ -70,6 +71,8 @@ export const LMSGradebook = () => {
       );
       setData(res.data);
       setRows(res.data.roster.map(r => ({ ...r, _dirty: false })));
+      // Restore saved test_date for this assessment
+      setTestDate(res.data.test_date || '');
     } catch (err) {
       showToast('Failed to load gradebook', 'error');
     } finally {
@@ -203,6 +206,7 @@ export const LMSGradebook = () => {
     try {
       await axios.post(`/api/faculty/courses/${assignmentId}/gradebook`, {
         grade_type: assessment.value,
+        test_date: testDate || null,
         entries: rows.map(r => ({
           student_id:    r.student_id,
           marks_obtained: r.marks_obtained,
@@ -227,6 +231,7 @@ export const LMSGradebook = () => {
       // Save first, then publish
       await axios.post(`/api/faculty/courses/${assignmentId}/gradebook`, {
         grade_type: assessment.value,
+        test_date: testDate || null,
         entries: rows.map(r => ({
           student_id:    r.student_id,
           marks_obtained: r.marks_obtained,
@@ -319,7 +324,7 @@ export const LMSGradebook = () => {
       {/* Assessment selector */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Select Assessment</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 mb-4">
           {ASSESSMENTS.map(a => (
             <button
               key={a.value}
@@ -333,6 +338,24 @@ export const LMSGradebook = () => {
               <span className="ml-1.5 text-xs opacity-70">/{a.max}</span>
             </button>
           ))}
+        </div>
+
+        {/* Test Conducted Date */}
+        <div className="flex items-center gap-3 border-t border-gray-100 pt-4">
+          <label className="text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">
+            Test Conducted Date
+          </label>
+          <input
+            type="date"
+            value={testDate}
+            onChange={e => setTestDate(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300 text-gray-700"
+          />
+          {testDate && (
+            <span className="text-xs text-gray-400 font-medium">
+              {assessment.label} conducted on {new Date(testDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+          )}
         </div>
 
         {/* Retest eligibility note removed */}

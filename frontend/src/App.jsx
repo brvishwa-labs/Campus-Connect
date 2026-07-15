@@ -335,11 +335,7 @@ function AppRoutes() {
             <LMSCOPOMapping />
           </ProtectedRoute>
         } />
-        <Route path="/faculty/courses/:assignmentId/lms/logbook-report" element={
-          <ProtectedRoute allowedRole="faculty">
-            <LMSLogbookReport />
-          </ProtectedRoute>
-        } />
+
         <Route path="/faculty/courses/:assignmentId/lms/lab-marks" element={
           <ProtectedRoute allowedRole="faculty">
             <LMSLabMarks />
@@ -501,6 +497,13 @@ function AppRoutes() {
       <Route path="/late_tracker/*" element={
         <ProtectedRoute allowedRole="late_tracker">
           <LateTrackerDashboard />
+        </ProtectedRoute>
+      } />
+
+      {/* Logbook Report — Full-page view, no sidebar/layout wrapper */}
+      <Route path="/faculty/courses/:assignmentId/lms/logbook-report" element={
+        <ProtectedRoute allowedRole="faculty">
+          <LMSLogbookReport />
         </ProtectedRoute>
       } />
       

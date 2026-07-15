@@ -132,7 +132,6 @@ export const LMSDashboard = () => {
       border: 'border-indigo-100',
       hover: 'hover:border-indigo-300 hover:shadow-indigo-100',
       path: `/faculty/courses/${assignmentId}/lms/co-po-mapping`,
-      excludeForLab: true,
     },
     {
       title: 'Generate Logbook Report',
@@ -142,7 +141,6 @@ export const LMSDashboard = () => {
       border: 'border-slate-100',
       hover: 'hover:border-slate-300 hover:shadow-slate-100',
       path: `/faculty/courses/${assignmentId}/lms/logbook-report`,
-      excludeForLab: true,
     },
     // ── Lab-only card ─────────────────────────────────────────────────────
     {
