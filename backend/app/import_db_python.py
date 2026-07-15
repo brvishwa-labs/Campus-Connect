@@ -11,7 +11,7 @@ def run_import():
         conn = psycopg2.connect(url)
         cursor = conn.cursor()
         
-        with open("dump.sql", "r", encoding="utf-8") as f:
+        with open("new.sql", "r", encoding="utf-8") as f:
             lines = f.readlines()
             
         buffer = []
