@@ -12,6 +12,8 @@ class CoursePlanTopicBase(BaseModel):
     co: Optional[str] = None
     po: Optional[str] = None
     mode_of_delivery: str
+    experiment_name: Optional[str] = None
+    resources: Optional[str] = None
     actual_date: Optional[date] = None
     reason_for_deviation: Optional[str] = None
     is_signed: bool
@@ -35,5 +37,20 @@ class CoursePlanResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     topics: List[CoursePlanTopicResponse]
+
+    model_config = ConfigDict(from_attributes=True)
+
+class CourseAssignmentUnitBase(BaseModel):
+    unit_number: int
+    title: Optional[str] = None
+    is_completed: bool = False
+
+class CourseAssignmentUnitUpdate(CourseAssignmentUnitBase):
+    pass
+
+class CourseAssignmentUnitResponse(CourseAssignmentUnitBase):
+    id: int
+    course_assignment_id: int
+    updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

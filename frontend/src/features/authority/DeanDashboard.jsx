@@ -294,10 +294,10 @@ const DeanDashboard = () => {
             {/* Typography Hierarchy */}
             <div className="space-y-2">
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/80">
-                {greeting.text}, Dean
+                {greeting.text}, {user?.name || 'Dean'}
               </h1>
               <p className="text-white/80 text-[#ffffff]/80 text-xs font-bold tracking-wide">
-                Ph.D., M.E., B.Tech.
+                {user?.qualification || ''}
               </p>
               <div className="pt-2">
                 <p className="text-white/90 text-[#ffffff]/90 text-xs font-bold uppercase tracking-widest text-indigo-200">

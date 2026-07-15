@@ -1,0 +1,246 @@
+═══════════════════════════════════════════════════════════════════════════════
+          FACULTY LEAVE REQUEST - SUBSTITUTE APPROVAL WORKFLOW
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         STEP 1: FACULTY SUBMITS REQUEST                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ┌──────────────────┐
+    │   Faculty Form   │
+    │                  │
+    │ • Leave Type     │
+    │ • Dates          │
+    │ • Reason         │
+    │ • ⚠️  MUST assign│
+    │   substitutes    │
+    └────────┬─────────┘
+             │
+             │ Submit (POST /api/leave/request)
+             │
+             ▼
+    ┌─────────────────────┐
+    │  Leave Request      │
+    │  Created            │
+    │                     │
+    │  Status:            │
+    │  PENDING_SUBSTITUTE │
+    └─────────┬───────────┘
+              │
+              │ Notify Substitute Faculty
+              │
+              ▼
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    STEP 2: SUBSTITUTES REVIEW & DECIDE                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+         ┌────────────────────────────────────────┐
+         │   Each Substitute Faculty Receives:    │
+         │                                        │
+         │   • Requesting Faculty Name            │
+         │   • Leave Dates                        │
+         │   • Subject to Cover                   │
+         │   • Class & Period                     │
+         │                                        │
+         │   [Accept] or [Reject]                 │
+         └──────────┬────────────────┬────────────┘
+                    │                │
+        ┌───────────┴───────┐  ┌─────┴──────────┐
+        │                   │  │                │
+        ▼                   │  ▼                │
+  ┌──────────┐             │  ┌──────────┐     │
+  │ ACCEPTS  │             │  │ REJECTS  │     │
+  └────┬─────┘             │  └────┬─────┘     │
+       │                   │       │           │
+       │                   │       │           │
+       │  ┌────────────────┘       │           │
+       │  │                        │           │
+       │  │ Check: All Accepted?   │           │
+       │  │        OR              │           │
+       │  │        Any Rejected?   │           │
+       │  │                        │           │
+       ▼  ▼                        ▼           │
+   ┌───────────┐            ┌──────────────┐  │
+   │    ALL    │            │     ANY      │  │
+   │  ACCEPTED │            │   REJECTED   │  │
+   └─────┬─────┘            └──────┬───────┘  │
+         │                         │           │
+         │                         │           │
+         ▼                         ▼           │
+┌─────────────────┐        ┌──────────────┐   │
+│ PENDING_HOD     │        │  REJECTED ❌ │   │
+│                 │        │              │   │
+│ ✅ Forwarded to │        │ Rejection    │   │
+│    Authorities  │        │ Reason Set   │   │
+└────────┬────────┘        └──────────────┘   │
+         │                                     │
+         │                                     │
+         │ ◄───────────────────────────────────┘
+         │         Workflow Ends Here
+         │
+         ▼
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    STEP 3: ADMINISTRATIVE APPROVAL CHAIN                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+         ┌──────────────┐
+         │ PENDING_HOD  │  ← Only reaches here if ALL substitutes accepted
+         └──────┬───────┘
+                │
+                │ HOD Reviews & Approves
+                ▼
+         ┌──────────────┐
+         │PENDING_DEAN  │
+         └──────┬───────┘
+                │
+                │ Dean Reviews & Approves
+                ▼
+         ┌──────────────┐
+         │ PENDING_OM   │  (OM = Office Manager / Principal)
+         └──────┬───────┘
+                │
+                │ Principal Reviews & Approves
+                ▼
+         ┌──────────────┐
+         │  APPROVED ✅ │
+         │              │
+         │ Leave Balance│
+         │   Deducted   │
+         └──────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                            EDIT/WITHDRAW RULES
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Status              │  Can Edit?  │  Can Withdraw?  │  Reason              │
+├──────────────────────┼─────────────┼─────────────────┼──────────────────────┤
+│  PENDING_SUBSTITUTE  │     ✅      │       ✅        │  Not yet approved    │
+│  PENDING_HOD         │     ❌      │       ❌        │  🔒 Locked          │
+│  PENDING_DEAN        │     ❌      │       ❌        │  🔒 Locked          │
+│  PENDING_OM          │     ❌      │       ❌        │  🔒 Locked          │
+│  APPROVED            │     ❌      │       ❌        │  Already processed   │
+│  REJECTED            │     ❌      │       ❌        │  Already processed   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                          ARRANGEMENT STATUS TRACKING
+═══════════════════════════════════════════════════════════════════════════════
+
+Example: Faculty requests 3-day leave with 2 substitute arrangements
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Substitute 1: Dr. Smith                                                 │
+│  Subject: CS-401 | Class: 4A | Period: II                               │
+│  Status: 🟡 PENDING APPROVAL                                            │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Substitute 2: Dr. Johnson                                               │
+│  Subject: CS-402 | Class: 4B | Period: III                              │
+│  Status: 🟡 PENDING APPROVAL                                            │
+└──────────────────────────────────────────────────────────────────────────┘
+
+         ⬇️  Dr. Smith Accepts
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Substitute 1: Dr. Smith                                                 │
+│  Subject: CS-401 | Class: 4A | Period: II                               │
+│  Status: 🟢 ACCEPTED                                                     │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Substitute 2: Dr. Johnson                                               │
+│  Subject: CS-402 | Class: 4B | Period: III                              │
+│  Status: 🟡 PENDING APPROVAL  ⚠️ Waiting...                            │
+└──────────────────────────────────────────────────────────────────────────┘
+
+         ⬇️  Dr. Johnson Accepts
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Substitute 1: Dr. Smith                                                 │
+│  Status: 🟢 ACCEPTED                                                     │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Substitute 2: Dr. Johnson                                               │
+│  Status: 🟢 ACCEPTED                                                     │
+└──────────────────────────────────────────────────────────────────────────┘
+
+         ⬇️  All Accepted! Forwarding to HOD...
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Leave Request Status: PENDING_HOD ✅                                    │
+└──────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                        REJECTION SCENARIO EXAMPLE
+═══════════════════════════════════════════════════════════════════════════════
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Substitute 1: Dr. Smith    | Status: 🟢 ACCEPTED                       │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Substitute 2: Dr. Johnson  | Status: 🟡 PENDING                        │
+└──────────────────────────────────────────────────────────────────────────┘
+
+         ⬇️  Dr. Johnson Rejects
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Substitute 2: Dr. Johnson  | Status: 🔴 REJECTED                       │
+└──────────────────────────────────────────────────────────────────────────┘
+
+         ⬇️  Entire request rejected immediately!
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Leave Request Status: REJECTED ❌                                       │
+│  Reason: One or more substitute faculty rejected the arrangement        │
+└──────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                            KEY BUSINESS RULES
+═══════════════════════════════════════════════════════════════════════════════
+
+1. ⚠️  MANDATORY: At least 1 substitute arrangement required
+2. ✅  ALL-OR-NOTHING: ALL substitutes must accept to proceed
+3. ❌  ANY REJECTION: Any rejection = entire request rejected
+4. 🔒  LOCKED: Cannot edit/withdraw after substitutes approve
+5. 📊  TRANSPARENT: Real-time status tracking for all parties
+6. ⏱️  SEQUENTIAL: Must complete substitute approval before HOD review
+7. 🔄  CASCADING: HOD → Dean → Principal approval chain
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                          NOTIFICATION FLOW (Future)
+═══════════════════════════════════════════════════════════════════════════════
+
+Faculty Submits
+    ↓
+    📧 Email to all substitute faculty: "You have a new duty request"
+    ↓
+Substitute Accepts
+    ↓
+    📧 Email to requesting faculty: "Dr. Smith accepted your arrangement"
+    ↓
+All Substitutes Accept
+    ↓
+    📧 Email to requesting faculty: "Your request is now with HOD"
+    📧 Email to HOD: "New leave request requires your approval"
+    ↓
+HOD Approves
+    ↓
+    📧 Email to Dean: "Leave request forwarded for your review"
+    ↓
+Final Approval
+    ↓
+    📧 Email to all parties: "Leave request approved"
+
+
+═══════════════════════════════════════════════════════════════════════════════

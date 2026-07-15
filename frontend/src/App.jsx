@@ -30,7 +30,6 @@ import { Timetable } from './features/hod/Timetable';
 import { Announcements } from './features/hod/Announcements';
 import { AdvancedAttendanceMonitor } from './features/hod/AdvancedAttendanceMonitor';
 import { ResultsMonitor } from './features/hod/ResultsMonitor';
-import { Reports } from './features/hod/Reports';
 import { Discipline as AdminDiscipline } from './features/admin/Discipline';
 import { Discipline as HodDiscipline } from './features/hod/Discipline';
 import { Discipline as AuthorityDiscipline } from './features/authority/Discipline';
@@ -93,6 +92,7 @@ import HRLeavePortal from './features/authority/HRLeavePortal';
 import HRGatepassPortal from './features/authority/HRGatepassPortal';
 import HRFacultyDirectory from './features/authority/HRFacultyDirectory';
 import AuthorityAnalytics from './features/authority/AuthorityAnalytics';
+import OMAnalytics from './features/authority/OMAnalytics';
 import AuthorityDashboardRouter from './features/authority/AuthorityDashboardRouter';
 import StudentMessaging from './features/student/StudentMessaging';
 import DeanMessaging from './features/dean/DeanMessaging';
@@ -106,6 +106,10 @@ const ProtectedRoute = ({ children, allowedRole }) => {
   }
   
   if (allowedRole && user.role !== allowedRole) {
+    // HODs act as faculty for their own courses
+    if (allowedRole === 'faculty' && user.role === 'hod') {
+      return children;
+    }
     // Redirect to their actual role's dashboard if they try to access another
     return <Navigate to={`/${user.role}`} replace />;
   }
@@ -232,11 +236,6 @@ function AppRoutes() {
         <Route path="/hod/results" element={
           <ProtectedRoute allowedRole="hod">
             <ResultsMonitor />
-          </ProtectedRoute>
-        } />
-        <Route path="/hod/reports" element={
-          <ProtectedRoute allowedRole="hod">
-            <Reports />
           </ProtectedRoute>
         } />
         <Route path="/hod/discipline" element={
@@ -608,6 +607,16 @@ function AppRoutes() {
         <Route path="/authority/analytics" element={
           <ProtectedRoute allowedRole="authority">
             <AuthorityAnalytics />
+          </ProtectedRoute>
+        } />
+        <Route path="/authority/om-analytics" element={
+          <ProtectedRoute allowedRole="authority">
+            <OMAnalytics />
+          </ProtectedRoute>
+        } />
+        <Route path="/authority/leave/substitutes" element={
+          <ProtectedRoute allowedRole="authority">
+            <SubstituteApprovals />
           </ProtectedRoute>
         } />
         

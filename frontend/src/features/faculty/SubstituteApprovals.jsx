@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle, XCircle, Clock, Calendar } from 'lucide-react';
 
 export const SubstituteApprovals = () => {
   const [requests, setRequests] = useState([]);
+  const [compRequests, setCompRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
 
@@ -14,8 +15,12 @@ export const SubstituteApprovals = () => {
 
   const fetchRequests = async () => {
     try {
-      const res = await axios.get('/api/leave/substitute-requests');
-      setRequests(res.data);
+      const [res1, res2] = await Promise.all([
+        axios.get('/api/leave/substitute-requests'),
+        axios.get('/api/leave/compensation-verifications')
+      ]);
+      setRequests(res1.data);
+      setCompRequests(res2.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -42,6 +47,20 @@ export const SubstituteApprovals = () => {
     }
   };
 
+  const handleCompAction = async (req_id, status) => {
+    setActionLoading(`comp-${req_id}`);
+    try {
+      const res = await axios.put(`/api/leave/compensation-verifications/${req_id}?action=${status}`);
+      alert(res.data?.message || 'Status updated successfully');
+      fetchRequests();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.detail || 'Failed to update status');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center p-12">
@@ -56,8 +75,8 @@ export const SubstituteApprovals = () => {
         <Link to="/faculty/leave" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors mb-4">
           <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Requests
         </Link>
-        <h1 className="text-3xl font-bold text-[#0f172a] tracking-tight">Substitute Approvals</h1>
-        <p className="text-sm text-gray-500 mt-1">Accept or decline class substitution requests from other faculty members.</p>
+        <h1 className="text-3xl font-bold text-[#0f172a] tracking-tight">Peer Approvals</h1>
+        <p className="text-sm text-gray-500 mt-1">Accept or decline class substitution requests or overtime verifications from other faculty members.</p>
         
         {/* Info Banner */}
         <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
@@ -125,10 +144,50 @@ export const SubstituteApprovals = () => {
           </div>
         ))}
 
-        {requests.length === 0 && (
+        {requests.length === 0 && compRequests.length === 0 && (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
             <h3 className="text-lg font-bold text-gray-900 mb-2">No Requests</h3>
-            <p className="text-gray-500">You have no pending substitution requests at this time.</p>
+            <p className="text-gray-500">You have no pending requests at this time.</p>
+          </div>
+        )}
+
+        {compRequests.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Compensation Verifications</h2>
+            <div className="space-y-4">
+              {compRequests.map(req => (
+                <div key={`comp-${req.id}`} className="bg-white rounded-xl shadow-sm border border-purple-200 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">{req.leave_type}</span>
+                      <span className="text-sm text-gray-500 font-medium"><Calendar className="w-4 h-4 inline mr-1" />{new Date(req.from_date).toLocaleDateString()} to {new Date(req.to_date).toLocaleDateString()}</span>
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">{req.faculty_name} claims Overtime</h3>
+                    <div className="mt-4 bg-[#fcfaff] border border-purple-100 rounded-lg p-4">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">Details</p>
+                      <p className="text-sm font-bold text-gray-800">Date: {new Date(req.compensation_date).toLocaleDateString()}</p>
+                      <p className="text-sm text-gray-700 mt-1">Purpose: {req.compensation_purpose}</p>
+                    </div>
+                  </div>
+                  <div className="flex space-x-2 w-full md:w-auto mt-4 md:mt-0">
+                    <button 
+                      onClick={() => handleCompAction(req.id, 'approve')}
+                      disabled={actionLoading === `comp-${req.id}`}
+                      className="flex-1 md:flex-none justify-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-1.5" /> Verify & Confirm
+                    </button>
+                    <button 
+                      onClick={() => handleCompAction(req.id, 'reject')}
+                      disabled={actionLoading === `comp-${req.id}`}
+                      className="flex-1 md:flex-none justify-center bg-red-50 hover:bg-red-100 text-red-600 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center border border-red-200"
+                    >
+                      <XCircle className="w-4 h-4 mr-1.5" /> Deny
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

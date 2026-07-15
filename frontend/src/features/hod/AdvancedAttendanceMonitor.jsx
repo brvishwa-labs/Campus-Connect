@@ -22,11 +22,14 @@ export const AdvancedAttendanceMonitor = () => {
   const [semester, setSemester] = useState('');
   const [section, setSection] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Dynamic sections from backend
+  const [sectionsList, setSectionsList] = useState([]);
   
   // Dashboard view states
   const [pieView, setPieView] = useState('student');
-  const [sectionYear, setSectionYear] = useState(2);
-  const [riskYear, setRiskYear] = useState(2);
+  const [sectionYear, setSectionYear] = useState(1);
+  const [riskYear, setRiskYear] = useState(1);
   const [timeScale, setTimeScale] = useState('Daily');
   const [trendView, setTrendView] = useState('student');
   const [tableYearFilter, setTableYearFilter] = useState('All');
@@ -34,6 +37,13 @@ export const AdvancedAttendanceMonitor = () => {
   const [tableAttendanceFilter, setTableAttendanceFilter] = useState('All');
   const [heatmapYearFilter, setHeatmapYearFilter] = useState('All');
   const [heatmapSectionFilter, setHeatmapSectionFilter] = useState('All');
+
+  // Fetch sections list once on mount for filter dropdowns
+  useEffect(() => {
+    axios.get('/api/hod/sections-list')
+      .then(res => setSectionsList(res.data.sections || []))
+      .catch(err => console.error('Failed to load sections list', err));
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -656,9 +666,12 @@ export const AdvancedAttendanceMonitor = () => {
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Section Comparison</h3>
             <select value={sectionYear} onChange={e => setSectionYear(Number(e.target.value))} className="text-xs font-bold text-gray-600 bg-gray-50 border-none rounded-lg p-1 outline-none cursor-pointer">
-              <option value={2}>2nd Year</option>
-              <option value={3}>3rd Year</option>
-              <option value={4}>4th Year</option>
+              {[...new Set(sectionsList.map(s => s.year))].sort().map(yr => (
+                <option key={yr} value={yr}>{['1st','2nd','3rd','4th'][yr-1] || `${yr}th`} Year</option>
+              ))}
+              {sectionsList.length === 0 && [1,2,3,4].map(yr => (
+                <option key={yr} value={yr}>{['1st','2nd','3rd','4th'][yr-1]} Year</option>
+              ))}
             </select>
           </div>
           <div className="h-64">
@@ -679,15 +692,18 @@ export const AdvancedAttendanceMonitor = () => {
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Attendance Risk Analysis</h3>
             <select value={riskYear} onChange={e => setRiskYear(Number(e.target.value))} className="text-xs font-bold text-gray-600 bg-gray-50 border-none rounded-lg p-1 outline-none cursor-pointer">
-              <option value={2}>2nd Year</option>
-              <option value={3}>3rd Year</option>
-              <option value={4}>4th Year</option>
+              {[...new Set(sectionsList.map(s => s.year))].sort().map(yr => (
+                <option key={yr} value={yr}>{['1st','2nd','3rd','4th'][yr-1] || `${yr}th`} Year</option>
+              ))}
+              {sectionsList.length === 0 && [1,2,3,4].map(yr => (
+                <option key={yr} value={yr}>{['1st','2nd','3rd','4th'][yr-1]} Year</option>
+              ))}
             </select>
           </div>
           
           <div className="space-y-6 mt-8">
             {(() => {
-              const currentRisk = risk_distribution.find(r => r.year === riskYear) || risk_distribution[0];
+              const currentRisk = risk_distribution.find(r => r.year === riskYear) || { safe: 0, warning: 0, critical: 0 };
               const total = currentRisk.safe + currentRisk.warning + currentRisk.critical;
               const getWidth = (val) => `${total > 0 ? (val/total)*100 : 0}%`;
               return (
@@ -743,8 +759,12 @@ export const AdvancedAttendanceMonitor = () => {
               </select>
               <select value={heatmapSectionFilter} onChange={e => setHeatmapSectionFilter(e.target.value)} className="text-xs font-bold text-gray-600 bg-gray-50 border-none rounded-lg p-1.5 outline-none cursor-pointer">
                 <option value="All">All Sections</option>
-                <option value="A">Section A</option>
-                <option value="B">Section B</option>
+                {[...new Set(sectionsList.map(s => s.name))].sort().map(name => (
+                  <option key={name} value={name}>Section {name}</option>
+                ))}
+                {sectionsList.length === 0 && ['A','B'].map(n => (
+                  <option key={n} value={n}>Section {n}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -811,8 +831,12 @@ export const AdvancedAttendanceMonitor = () => {
             </select>
             <select value={tableSectionFilter} onChange={e => setTableSectionFilter(e.target.value)} className="text-xs font-bold text-gray-600 bg-gray-50 border-none rounded-lg p-2 outline-none cursor-pointer">
               <option value="All">All Sections</option>
-              <option value="A">Section A</option>
-              <option value="B">Section B</option>
+              {[...new Set(sectionsList.map(s => s.name))].sort().map(name => (
+                <option key={name} value={name}>Section {name}</option>
+              ))}
+              {sectionsList.length === 0 && ['A','B'].map(n => (
+                <option key={n} value={n}>Section {n}</option>
+              ))}
             </select>
             <select value={tableAttendanceFilter} onChange={e => setTableAttendanceFilter(e.target.value)} className="text-xs font-bold text-gray-600 bg-gray-50 border-none rounded-lg p-2 outline-none cursor-pointer">
               <option value="All">All Attendance</option>

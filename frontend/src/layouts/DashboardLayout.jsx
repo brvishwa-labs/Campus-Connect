@@ -26,14 +26,15 @@ const ROLE_NAV_LINKS = {
     { name: 'Faculty', path: '/hod/faculty', icon: Users },
     { name: 'Students', path: '/hod/students', icon: GraduationCap },
     { name: 'Sections', path: '/hod/sections', icon: Settings },
+    { name: 'My Courses', path: '/faculty/courses', icon: BookOpen },
     { name: 'Timetable', path: '/hod/timetable', icon: Calendar },
     { name: 'Course Assignment', path: '/hod/assignments', icon: BookOpen },
     { name: 'Mentor Assignment', path: '/hod/mentors', icon: Users },
     { name: 'Attendance', path: '/hod/attendance', icon: ClipboardList },
     { name: 'Results', path: '/hod/results', icon: BarChart2 },
     { name: 'Announcements', path: '/hod/announcements', icon: Bell },
-    { name: 'Reports', path: '/hod/reports', icon: Home },
     { name: 'Leave Approvals', path: '/hod/leave', icon: Calendar },
+    { name: 'Peer Approvals', path: '/faculty/leave/substitutes', icon: Users },
     { name: 'Discipline', path: '/hod/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/hod/latetracker', icon: Clock },
     { name: 'Gate Pass Approvals', path: '/hod/gatepass', icon: Clock },
@@ -44,6 +45,7 @@ const ROLE_NAV_LINKS = {
     { name: 'My Attendance', path: '/faculty/my-attendance', icon: ClipboardList },
     { name: 'My Courses', path: '/faculty/courses', icon: BookOpen },
     { name: 'Leave Requests', path: '/faculty/leave', icon: Calendar },
+    { name: 'Peer Approvals', path: '/faculty/leave/substitutes', icon: Users },
     { name: 'Mentorship', path: '/faculty/mentorship', icon: GraduationCap },
     { name: 'Report Incident', path: '/faculty/discipline', icon: ShieldAlert },
     { name: 'Gate Pass Approvals', path: '/faculty/gatepass', icon: Clock },
@@ -70,6 +72,7 @@ const ROLE_NAV_LINKS = {
     { name: 'Discipline', path: '/authority/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/authority/latetracker', icon: Clock },
     { name: 'Leave Approvals', path: '/authority/leave', icon: Calendar },
+    { name: 'Peer Approvals', path: '/authority/leave/substitutes', icon: Users },
     { name: 'Gate Pass Approvals', path: '/authority/gatepass', icon: Clock },
     { name: 'Faculty Gate Pass Approvals', path: '/authority/faculty-gatepass', icon: Clock },
     { name: 'Announcements', path: '/authority/announcements', icon: Bell },
@@ -136,13 +139,13 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     const markAsViewed = async () => {
-      let sector = null;
-      if (location.pathname === '/faculty/gatepass') sector = 'gatepass';
-      else if (location.pathname === '/faculty/late-entry') sector = 'late-entry';
-      else if (location.pathname === '/faculty/class-advisor/leave') sector = 'leave-ca';
-      else if (location.pathname === '/hod/leave') sector = 'leave-hod';
-      else if (location.pathname === '/hod/gatepass') sector = 'gatepass';
-      else if (location.pathname === '/authority/gatepass') sector = 'gatepass';
+      const pathToSector = {
+        '/faculty/faculty-gatepass': 'faculty-gatepass-own',
+        '/faculty/late-entry': 'late-entry',
+        '/student/leave': 'student-leave',
+        '/student/gatepass': 'student-gatepass',
+      };
+      const sector = pathToSector[location.pathname];
 
       if (sector) {
         try {
@@ -230,6 +233,11 @@ export default function DashboardLayout() {
     
     if (title !== 'office manager') {
       navLinks = navLinks.filter(link => link.name !== 'Gate Pass Approvals');
+    } else {
+      // If Office Manager, update Analytics path
+      navLinks = navLinks.map(link => 
+        link.name === 'Analytics' ? { ...link, path: '/authority/om-analytics' } : link
+      );
     }
     if (title !== 'dean' && title !== 'office manager' && title !== 'hr') {
       navLinks = navLinks.filter(link => link.name !== 'Faculty Gate Pass Approvals');

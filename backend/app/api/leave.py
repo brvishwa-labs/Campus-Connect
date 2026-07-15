@@ -607,8 +607,11 @@ def create_leave_request(
         if duration > sick_available:
             raise HTTPException(status_code=400, detail=f"Insufficient Sick Leave balance. Available: {sick_available} days.")
 
-    # Create the request with PENDING_SUBSTITUTE status
-    # It will only move to PENDING_HOD after all substitutes accept
+    initial_status = LeaveStatus.PENDING_SUBSTITUTE
+    if request.leave_type == "Compensation Leave":
+        initial_status = LeaveStatus.PENDING_COMPENSATION_VERIFICATION
+
+    # Create the request with appropriate initial status
     leave_req = FacultyLeaveRequest(
         faculty_id=faculty.id,
         leave_type=request.leave_type,
@@ -617,7 +620,10 @@ def create_leave_request(
         duration_days=duration,
         reason=request.reason,
         attachment_url=request.attachment_url,
-        status=LeaveStatus.PENDING_SUBSTITUTE
+        compensation_verifier_id=request.compensation_verifier_id,
+        compensation_date=request.compensation_date,
+        compensation_purpose=request.compensation_purpose,
+        status=initial_status
     )
     db.add(leave_req)
     db.flush() # Get ID
@@ -740,6 +746,9 @@ def get_my_leave_requests(
     # Attach names
     for req in requests:
         req.faculty_name = f"{faculty.first_name} {faculty.last_name}"
+        if getattr(req, "compensation_verifier_id", None):
+            verifier = db.query(Faculty).filter(Faculty.id == req.compensation_verifier_id).first()
+            req.compensation_verifier_name = f"{verifier.first_name} {verifier.last_name}" if verifier else "Unknown"
         for arr in req.arrangements:
             sub = db.query(Faculty).filter(Faculty.id == arr.substitute_faculty_id).first()
             arr.substitute_faculty_name = f"{sub.first_name} {sub.last_name}" if sub else "Unknown"
@@ -765,7 +774,7 @@ def get_all_leave_requests(
         from app.models.authority import Authority
         auth = db.query(Authority).filter(Authority.user_id == current_user.id).first()
         if "dean" in auth.title.lower():
-            query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_DEAN, LeaveStatus.PENDING_OM, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
+            query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_DEAN, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
         elif "hr" in auth.title.lower():
             # HR sees all leaves
             pass
@@ -799,6 +808,10 @@ def get_leave_request_detail(request_id: int, db: Session):
     fac = db.query(Faculty).filter(Faculty.id == req.faculty_id).first()
     req.faculty_name = f"{fac.first_name} {fac.last_name}" if fac else "Unknown"
     
+    if getattr(req, "compensation_verifier_id", None):
+        verifier = db.query(Faculty).filter(Faculty.id == req.compensation_verifier_id).first()
+        req.compensation_verifier_name = f"{verifier.first_name} {verifier.last_name}" if verifier else "Unknown"
+    
     for arr in req.arrangements:
         sub = db.query(Faculty).filter(Faculty.id == arr.substitute_faculty_id).first()
         arr.substitute_faculty_name = f"{sub.first_name} {sub.last_name}" if sub else "Unknown"
@@ -810,10 +823,13 @@ def get_substitute_requests(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Access denied")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    
+    if not faculty:
+        return []
     
     arrangements = db.query(FacultyDutyArrangement).filter(
         FacultyDutyArrangement.substitute_faculty_id == faculty.id,
@@ -834,6 +850,9 @@ def get_substitute_requests(
             "duration_days": req.duration_days,
             "reason": req.reason,
             "attachment_url": req.attachment_url,
+            "compensation_verifier_id": req.compensation_verifier_id,
+            "compensation_date": req.compensation_date,
+            "compensation_purpose": req.compensation_purpose,
             "status": req.status,
             "hod_approved_by": req.hod_approved_by,
             "dean_approved_by": req.dean_approved_by,
@@ -877,11 +896,14 @@ def update_substitute_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Access denied")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
     
+    if not faculty:
+        raise HTTPException(status_code=403, detail="User is not a faculty member")
+        
     arr = db.query(FacultyDutyArrangement).filter(
         FacultyDutyArrangement.id == arr_id,
         FacultyDutyArrangement.substitute_faculty_id == faculty.id
@@ -952,7 +974,7 @@ def approve_leave_request(
         if "dean" in auth.title.lower() and req.status == LeaveStatus.PENDING_DEAN:
             req.status = LeaveStatus.PENDING_OM
             req.dean_approved_by = auth.id
-        elif req.status == LeaveStatus.PENDING_OM:
+        elif "dean" not in auth.title.lower() and req.status == LeaveStatus.PENDING_OM:
             req.status = LeaveStatus.APPROVED
             req.om_approved_by = auth.id
             
@@ -980,3 +1002,87 @@ def approve_leave_request(
         
     db.commit()
     return {"message": "Request approved"}
+
+@router.get("/compensation-verifications", response_model=List[FacultyLeaveRequestResponse])
+def get_compensation_verifications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    requests = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.compensation_verifier_id == current_user.id,
+        FacultyLeaveRequest.status == LeaveStatus.PENDING_COMPENSATION_VERIFICATION
+    ).all()
+    
+    response_data = []
+    for req in requests:
+        response_data.append(get_leave_request_detail(req.id, db))
+        
+    return response_data
+
+@router.put("/compensation-verifications/{request_id}")
+def verify_compensation_leave(
+    request_id: int,
+    action: str, # "approve" or "reject"
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    req = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.id == request_id,
+        FacultyLeaveRequest.compensation_verifier_id == current_user.id,
+        FacultyLeaveRequest.status == LeaveStatus.PENDING_COMPENSATION_VERIFICATION
+    ).first()
+    
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found or not pending your verification")
+        
+    if action.lower() == "approve":
+        if req.arrangements:
+            all_accepted = all(a.status == ArrangementStatus.ACCEPTED for a in req.arrangements)
+            if all_accepted:
+                req.status = LeaveStatus.PENDING_HOD
+                msg = "Compensation verified successfully. All substitutes have already accepted. Request forwarded to HOD."
+            else:
+                req.status = LeaveStatus.PENDING_SUBSTITUTE
+                msg = "Compensation verified successfully. Request forwarded to substitute faculty for duty arrangement approval."
+        else:
+            req.status = LeaveStatus.PENDING_HOD
+            msg = "Compensation verified successfully. Request forwarded to HOD."
+            
+        db.commit()
+        return {"message": msg}
+    elif action.lower() == "reject":
+        req.status = LeaveStatus.REJECTED
+        req.rejection_reason = "Compensation claim was rejected by the verifier."
+        db.commit()
+        return {"message": "Compensation rejected. Request has been cancelled."}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+@router.get("/all-verifiers")
+def get_all_verifiers(db: Session = Depends(get_db)):
+    verifiers = []
+    
+    faculties = db.query(Faculty).all()
+    for f in faculties:
+        verifiers.append({
+            "id": f.user_id,
+            "name": f"{f.first_name} {f.last_name}",
+            "designation": f.designation or "Faculty"
+        })
+        
+    from app.models.authority import Authority
+    authorities = db.query(Authority).all()
+    for a in authorities:
+        verifiers.append({
+            "id": a.user_id,
+            "name": f"{a.first_name} {a.last_name}",
+            "designation": a.title or "Authority"
+        })
+        
+    return verifiers

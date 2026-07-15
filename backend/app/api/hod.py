@@ -115,7 +115,35 @@ def hod_faculty(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    # Get all faculty from all departments (not just current HOD's department)
+    # Only return faculty belonging to the HOD's own department
+    department, _ = get_hod_department(current_user, db)
+    faculty = db.query(Faculty).filter(Faculty.department_id == department.id).all()
+    return [
+        {
+            "id": f.id,
+            "first_name": f.first_name,
+            "last_name": f.last_name,
+            "employee_id": f.employee_id,
+            "designation": f.designation,
+            "college_email": f.college_email,
+            "phone": f.phone,
+            "department_name": department.name,
+        }
+        for f in faculty
+    ]
+
+
+# ── All Faculty (for Course Assignment — no dept filter) ──
+
+@router.get("/faculty/all")
+def hod_faculty_all(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    # Returns ALL faculty across all departments.
+    # Used only by Course Assignment so HODs can assign any faculty to a course.
+    if current_user.role != "hod":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access restricted to HODs")
     faculty = db.query(Faculty).all()
     return [
         {
@@ -842,16 +870,162 @@ def get_results_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
+    from app.models.academic import Course
+    from app.models.grade import Grade, GradeType, GRADE_PASS_MARKS
+    from app.models.student import Student
+    
     department, _ = get_hod_department(current_user, db)
-    # Mock data for UI demonstration
-    return [
-        {"course_code": "CS201", "course_name": "Data Structures", "pass_percentage": 94.2},
-        {"course_code": "CS202", "course_name": "Digital Electronics", "pass_percentage": 88.5},
-        {"course_code": "CS301", "course_name": "Operating Systems", "pass_percentage": 91.0},
-    ]
+    
+    # Determine the active semester for each year by checking current students
+    active_semesters = {}
+    for yr in [1, 2, 3, 4]:
+        student = db.query(Student).filter(
+            Student.department_id == department.id, 
+            Student.current_year == yr
+        ).first()
+        if student and student.current_semester:
+            active_semesters[yr] = student.current_semester
+            
+    courses = db.query(Course).filter(
+        Course.department_id == department.id,
+        Course.is_active == True
+    ).all()
+    
+    results_by_year = {
+        "I Year": [],
+        "II Year": [],
+        "III Year": [],
+        "IV Year": []
+    }
+    
+    for course in courses:
+        # Determine which year this course belongs to based on its semester
+        course_year = None
+        year_str = None
+        if course.semester in [1, 2]:
+            course_year = 1
+            year_str = "I Year"
+        elif course.semester in [3, 4]:
+            course_year = 2
+            year_str = "II Year"
+        elif course.semester in [5, 6]:
+            course_year = 3
+            year_str = "III Year"
+        elif course.semester in [7, 8]:
+            course_year = 4
+            year_str = "IV Year"
+            
+        if not course_year:
+            continue
+            
+        # ONLY include the course if it belongs to the currently active semester for that year
+        active_sem_for_this_year = active_semesters.get(course_year)
+        if active_sem_for_this_year and course.semester != active_sem_for_this_year:
+            continue
+            
+        # Get model exam grades for this course
+        grades = db.query(Grade).filter(
+            Grade.course_id == course.id,
+            Grade.grade_type == GradeType.MODEL_EXAM
+        ).all()
+        
+        total_graded = len(grades)
+        pass_threshold = GRADE_PASS_MARKS.get(GradeType.MODEL_EXAM, 30)
+        max_possible_marks = 60 # Model Exam max marks
+        
+        passed_count = 0
+        failed_count = 0
+        absent_count = 0
+        sum_scores = 0
+        highest_score = 0
+        
+        distribution = {
+            "90-100%": 0,
+            "80-89%": 0,
+            "70-79%": 0,
+            "60-69%": 0,
+            "50-59%": 0,
+            "<50% (Fail)": 0
+        }
+        
+        for g in grades:
+            if g.is_absent or g.marks_obtained is None:
+                absent_count += 1
+                continue
+                
+            score = float(g.marks_obtained)
+            sum_scores += score
+            if score > highest_score:
+                highest_score = score
+                
+            if score >= pass_threshold:
+                passed_count += 1
+            else:
+                failed_count += 1
+                
+            percentage = (score / max_possible_marks) * 100
+            if percentage >= 90: distribution["90-100%"] += 1
+            elif percentage >= 80: distribution["80-89%"] += 1
+            elif percentage >= 70: distribution["70-79%"] += 1
+            elif percentage >= 60: distribution["60-69%"] += 1
+            elif percentage >= 50: distribution["50-59%"] += 1
+            else: distribution["<50% (Fail)"] += 1
+        
+        pass_percentage = 0
+        average_score = 0
+        if total_graded > 0:
+            pass_percentage = round((passed_count / total_graded) * 100, 1)
+            average_score = round(sum_scores / (total_graded - absent_count), 1) if (total_graded - absent_count) > 0 else 0
+            
+        course_data = {
+            "course_id": course.id,
+            "course_code": course.code,
+            "course_name": course.name,
+            "course_type": course.course_type.value if course.course_type else "theory",
+            "pass_percentage": pass_percentage,
+            "total_students": total_graded,
+            "passed": passed_count,
+            "failed": failed_count,
+            "absent": absent_count,
+            "average_score": average_score,
+            "highest_score": highest_score,
+            "distribution": [
+                {"name": "90-100%", "count": distribution["90-100%"]},
+                {"name": "80-89%", "count": distribution["80-89%"]},
+                {"name": "70-79%", "count": distribution["70-79%"]},
+                {"name": "60-69%", "count": distribution["60-69%"]},
+                {"name": "50-59%", "count": distribution["50-59%"]},
+                {"name": "<50% (Fail)", "count": distribution["<50% (Fail)"]},
+            ]
+        }
+        
+        results_by_year[year_str].append(course_data)
+        
+    for yr in results_by_year:
+        results_by_year[yr].sort(key=lambda x: x["pass_percentage"], reverse=True)
+        
+    return results_by_year
 
 from sqlalchemy import func
 from datetime import datetime, timedelta, date
+
+@router.get("/sections-list")
+def get_sections_list(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Returns unique section names and years for the HOD's department (used by filter dropdowns)."""
+    from app.models.academic import Section
+    department, _ = get_hod_department(current_user, db)
+    sections = (
+        db.query(Section)
+        .filter(Section.department_id == department.id, Section.is_active == True)
+        .order_by(Section.year, Section.name)
+        .all()
+    )
+    return {
+        "sections": [{"name": s.name, "year": s.year} for s in sections]
+    }
 
 @router.get("/attendance-analytics", response_model=dict)
 def get_attendance_analytics(
@@ -1102,25 +1276,26 @@ def get_attendance_analytics(
     risk_stats = {}
     
     for st in student_table:
-        s_obj = next((s for s in all_students if s.id == st.student_id), None)
-        year = s_obj.current_year if s_obj else 1
-        
+        # Use st.year which is already normalized (s.current_year or 1) —
+        # avoids None keys in risk_stats when current_year is NULL in DB.
+        year = st.year
+
         # Risk
         if year not in risk_stats:
             risk_stats[year] = {"safe": 0, "warning": 0, "critical": 0}
-            
+
         if (st.total_present + st.total_absent) == 0 or st.percentage >= 85.0:
             risk_stats[year]["safe"] += 1
         elif st.percentage >= 75.0:
             risk_stats[year]["warning"] += 1
         else:
             risk_stats[year]["critical"] += 1
-            
+
         # Section
         sec = st.section
         if sec not in section_stats:
             section_stats[sec] = {"year": year, "total_p": 0, "total_a": 0, "below_75": 0}
-            
+
         section_stats[sec]["total_p"] += st.total_present
         section_stats[sec]["total_a"] += st.total_absent
         if st.percentage < 75.0 and (st.total_present + st.total_absent) > 0:
@@ -1174,23 +1349,50 @@ def get_attendance_analytics(
     # ---------------------------------------------------------
     # 6. Faculty Stats
     # ---------------------------------------------------------
-    dept_pct = sum(sc.percentage for sc in section_comparison) / len(section_comparison) if section_comparison else 0.0
+    # Build a lookup: student_id -> {present, absent} (already computed above)
+    # Build a lookup: section_id -> list of student IDs
+    section_student_map = {}
+    for s in all_students:
+        if s.section_id not in section_student_map:
+            section_student_map[s.section_id] = []
+        section_student_map[s.section_id].append(s.id)
+
     faculty_stats = []
-    
     for f in dept_faculty:
-        assignments = db.query(CourseAssignment).filter(CourseAssignment.faculty_id == f.id).count()
+        # Active course assignments for this faculty
+        f_assignments = db.query(CourseAssignment).filter(
+            CourseAssignment.faculty_id == f.id,
+            CourseAssignment.is_active == True
+        ).all()
+        class_count = len(f_assignments)
+
+        # Gather student IDs from sections this faculty teaches
+        taught_section_ids = set(a.section_id for a in f_assignments if a.section_id)
+        student_pcts = []
+        for sec_id in taught_section_ids:
+            for sid in section_student_map.get(sec_id, []):
+                counts = attendance_by_student.get(sid, {"present": 0, "absent": 0})
+                total = counts["present"] + counts["absent"]
+                if total > 0:
+                    student_pcts.append(counts["present"] / total * 100.0)
+
+        avg_att = round(sum(student_pcts) / len(student_pcts), 1) if student_pcts else 0.0
+
+        # Leaves taken since semester start (meaningful metric)
         leaves_taken = db.query(FacultyLeaveRequest).filter(
             FacultyLeaveRequest.faculty_id == f.id,
-            FacultyLeaveRequest.status == "approved"
+            FacultyLeaveRequest.status == "approved",
+            FacultyLeaveRequest.from_date >= sem_start_date
         ).count()
-        
+
         faculty_stats.append(FacultyAttendanceStats(
             faculty_name=f"{f.first_name} {f.last_name}",
-            classes_handled=assignments,
-            avg_student_attendance=round(dept_pct, 1),
+            classes_handled=class_count,
+            avg_student_attendance=avg_att,
             absentee_count=leaves_taken
         ))
-        
+
+
     # ---------------------------------------------------------
     # 7. Live Status & Insights
     # ---------------------------------------------------------
@@ -1296,4 +1498,127 @@ def get_faculty_attendance(
         "presentFaculty": present_list,
         "absentFaculty": absent_list,
         "onLeaveFaculty": on_leave_list
+    }
+
+@router.get("/course-results/{course_id}")
+def get_course_detailed_results(
+    course_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    from app.models.academic import Course
+    from app.models.grade import Grade, GradeType, GRADE_MAX_MARKS, GRADE_PASS_MARKS
+    from app.models.student import Student
+
+    department, _ = get_hod_department(current_user, db)
+
+    course = db.query(Course).filter(
+        Course.id == course_id,
+        Course.department_id == department.id
+    ).first()
+
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    exam_types = [GradeType.INTERNAL_1, GradeType.INTERNAL_2, GradeType.MODEL_EXAM]
+    exam_names = {
+        GradeType.INTERNAL_1: "CIA 1",
+        GradeType.INTERNAL_2: "CIA 2",
+        GradeType.MODEL_EXAM: "Model Exam"
+    }
+
+    results_data = []
+
+    for exam_type in exam_types:
+        grades = db.query(Grade, Student).join(Student, Grade.student_id == Student.id).filter(
+            Grade.course_id == course.id,
+            Grade.grade_type == exam_type
+        ).all()
+
+        if not grades:
+            continue
+
+        total_graded = len(grades)
+        max_possible_marks = GRADE_MAX_MARKS.get(exam_type, 100)
+        pass_threshold = GRADE_PASS_MARKS.get(exam_type, 40)
+
+        passed_count = 0
+        failed_count = 0
+        absent_count = 0
+        sum_scores = 0
+        highest_score = 0
+
+        distribution = {
+            "90-100%": 0, "80-89%": 0, "70-79%": 0, "60-69%": 0, "50-59%": 0, "<50% (Fail)": 0
+        }
+
+        student_list = []
+
+        for g, s in grades:
+            status = "Absent"
+            if g.is_absent or g.marks_obtained is None:
+                absent_count += 1
+            else:
+                score = float(g.marks_obtained)
+                sum_scores += score
+                if score > highest_score:
+                    highest_score = score
+                
+                if score >= pass_threshold:
+                    passed_count += 1
+                    status = "Pass"
+                else:
+                    failed_count += 1
+                    status = "Fail"
+                
+                percentage = (score / max_possible_marks) * 100
+                if percentage >= 90: distribution["90-100%"] += 1
+                elif percentage >= 80: distribution["80-89%"] += 1
+                elif percentage >= 70: distribution["70-79%"] += 1
+                elif percentage >= 60: distribution["60-69%"] += 1
+                elif percentage >= 50: distribution["50-59%"] += 1
+                else: distribution["<50% (Fail)"] += 1
+
+            student_list.append({
+                "id": s.id,
+                "name": f"{s.first_name} {s.last_name}".strip(),
+                "register_number": s.register_number,
+                "marks_obtained": float(g.marks_obtained) if g.marks_obtained is not None else None,
+                "max_marks": max_possible_marks,
+                "status": status
+            })
+
+        # Sort students alphabetically by name
+        student_list.sort(key=lambda x: x["name"])
+
+        pass_percentage = round((passed_count / total_graded) * 100, 1) if total_graded > 0 else 0
+        average_score = round(sum_scores / (total_graded - absent_count), 1) if (total_graded - absent_count) > 0 else 0
+
+        results_data.append({
+            "exam_key": exam_type.value,
+            "exam_name": exam_names[exam_type],
+            "analytics": {
+                "pass_percentage": pass_percentage,
+                "average_score": average_score,
+                "highest_score": highest_score,
+                "total_students": total_graded,
+                "passed": passed_count,
+                "failed": failed_count,
+                "absent": absent_count,
+                "distribution": [
+                    {"name": "90-100%", "count": distribution["90-100%"]},
+                    {"name": "80-89%", "count": distribution["80-89%"]},
+                    {"name": "70-79%", "count": distribution["70-79%"]},
+                    {"name": "60-69%", "count": distribution["60-69%"]},
+                    {"name": "50-59%", "count": distribution["50-59%"]},
+                    {"name": "<50% (Fail)", "count": distribution["<50% (Fail)"]},
+                ]
+            },
+            "students": student_list
+        })
+
+    return {
+        "course_code": course.code,
+        "course_name": course.name,
+        "exams": results_data
     }
