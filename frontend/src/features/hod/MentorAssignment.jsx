@@ -125,6 +125,23 @@ export const MentorAssignment = () => {
     }
   };
 
+  const handleClearMentor = async (facultyId, studentIdsToClear) => {
+    if (!window.confirm(`Are you sure you want to remove all ${studentIdsToClear.length} students from this mentor?`)) {
+      return;
+    }
+    
+    try {
+      await Promise.all(studentIdsToClear.map(studentId => 
+        axios.delete(`/api/hod/mentors/student/${studentId}`)
+      ));
+      
+      setMentors(prev => prev.filter(m => !(m.mentor_id === facultyId && studentIdsToClear.includes(m.student_id))));
+    } catch (err) {
+      console.error("Failed to clear mentor", err);
+      alert("Failed to clear mentor assignments");
+    }
+  };
+
   // Compute derived state
   const assignedStudentIds = new Set(mentors.map(m => m.student_id));
   
@@ -246,6 +263,14 @@ export const MentorAssignment = () => {
                   {fac.assignedStudents.length} mentees
                 </span>
               </div>
+              {fac.assignedStudents.length > 0 && (
+                <button 
+                  onClick={() => handleClearMentor(fac.id, fac.assignedStudents.map(s => s.id))}
+                  className="mt-3 w-full py-1.5 px-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                >
+                  <AlertCircle className="w-3 h-3" /> Clear All Mentees
+                </button>
+              )}
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
