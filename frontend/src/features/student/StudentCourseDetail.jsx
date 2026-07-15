@@ -7,7 +7,7 @@ import {
   BookMarked, BarChart3, Download, ExternalLink, Loader2,
   AlertCircle, Hash, User, Calendar, CheckCircle2, XCircle,
   MinusCircle, Clock, FileDown, Link2, Inbox, GraduationCap,
-  Award, ChevronRight, Layers, Users,
+  Award, ChevronRight, Layers, Users, FlaskConical,
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────
@@ -54,6 +54,7 @@ const FEATURES = [
     bgColor: 'bg-blue-50/60',
     accentBar: 'from-blue-400 to-indigo-400',
     lightBg: 'bg-blue-50',
+    excludeForLab: true,
   },
   {
     id: 'assignments',
@@ -64,6 +65,7 @@ const FEATURES = [
     bgColor: 'bg-violet-50/60',
     accentBar: 'from-violet-400 to-purple-400',
     lightBg: 'bg-violet-50',
+    excludeForLab: true,
   },
   {
     id: 'announcements',
@@ -84,6 +86,7 @@ const FEATURES = [
     bgColor: 'bg-orange-50/60',
     accentBar: 'from-orange-400 to-amber-400',
     lightBg: 'bg-orange-50',
+    excludeForLab: true,
   },
   {
     id: 'attendance',
@@ -103,6 +106,7 @@ const FEATURES = [
     bgColor: 'bg-pink-50/60',
     accentBar: 'from-pink-400 to-rose-400',
     lightBg: 'bg-pink-50',
+    excludeForLab: true,
   },
   {
     id: 'marks',
@@ -113,6 +117,18 @@ const FEATURES = [
     bgColor: 'bg-amber-50/60',
     accentBar: 'from-amber-400 to-yellow-400',
     lightBg: 'bg-amber-50',
+  },
+  // Lab-only
+  {
+    id: 'experiments',
+    title: 'List of Experiments',
+    description: 'View all lab experiments scheduled for this course with completion status.',
+    icon: FlaskConical,
+    accentColor: 'text-emerald-600',
+    bgColor: 'bg-emerald-50/60',
+    accentBar: 'from-emerald-400 to-teal-400',
+    lightBg: 'bg-emerald-50',
+    labOnly: true,
   },
 ];
 
@@ -915,6 +931,91 @@ const MarksTab = ({ courseId }) => {
     </div>
   );
 };
+// ── Experiments Tab (Lab courses only) ───────────────────────────────────────
+const ExperimentsTab = ({ courseId }) => {
+  const [experiments, setExperiments] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
+
+  useEffect(() => {
+    StudentCourseService.getCourseExperiments(courseId)
+      .then(d => setExperiments(d.experiments || []))
+      .catch(e => setError(e.response?.data?.detail || 'Failed to load experiments'))
+      .finally(() => setLoading(false));
+  }, [courseId]);
+
+  if (loading) return <SectionLoading />;
+  if (error)   return <SectionError message={error} />;
+  if (!experiments.length) return (
+    <EmptyState
+      icon={FlaskConical}
+      title="No experiments added yet"
+      description="The faculty hasn't added experiments to the lesson plan yet."
+    />
+  );
+
+  const done  = experiments.filter(e => e.is_completed).length;
+  const total = experiments.length;
+
+  return (
+    <div className="space-y-5">
+      {/* Summary bar */}
+      <div className="flex items-center gap-4 bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-3">
+        <FlaskConical className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm font-bold text-emerald-700">{done} / {total} Experiments Completed</span>
+            <span className="text-xs font-semibold text-emerald-500">{total > 0 ? Math.round(done / total * 100) : 0}%</span>
+          </div>
+          <div className="w-full bg-emerald-100 rounded-full h-1.5">
+            <div
+              className="bg-emerald-500 h-1.5 rounded-full transition-all"
+              style={{ width: `${total > 0 ? (done / total * 100) : 0}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="px-4 py-3 text-left font-bold text-gray-500 text-xs w-10">#</th>
+                <th className="px-4 py-3 text-left font-bold text-gray-700 text-xs">Experiment Name</th>
+                <th className="px-4 py-3 text-left font-bold text-gray-500 text-xs">Resources</th>
+                <th className="px-4 py-3 text-left font-bold text-gray-500 text-xs">Proposed Date</th>
+                <th className="px-4 py-3 text-center font-bold text-gray-500 text-xs">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {experiments.map((exp) => (
+                <tr key={exp.sequence_no} className={`transition-colors hover:bg-gray-50 ${exp.is_completed ? 'bg-emerald-50/30' : ''}`}>
+                  <td className="px-4 py-3 text-gray-400 text-xs font-mono">{exp.no}</td>
+                  <td className="px-4 py-3">
+                    <span className="font-semibold text-gray-800 text-sm">{exp.experiment_name}</span>
+                    {exp.co && <span className="ml-2 text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">{exp.co}</span>}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{exp.resources || '—'}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">
+                    {exp.proposed_date ? new Date(exp.proposed_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {exp.is_completed
+                      ? <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full"><CheckCircle2 className="w-3 h-3" /> Done</span>
+                      : <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-500 text-xs font-semibold px-2.5 py-0.5 rounded-full"><Clock className="w-3 h-3" /> Pending</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const StudentCourseDetail = () => {
   const { courseId }   = useParams();
   const location       = useLocation();
@@ -935,6 +1036,7 @@ const StudentCourseDetail = () => {
     }
   }, [courseId, course]);
 
+  const isLab = course?.course_type === 'lab';
   const activeFeature = FEATURES.find(f => f.id === activeTab);
 
   const renderContent = () => {
@@ -945,6 +1047,7 @@ const StudentCourseDetail = () => {
       case 'syllabus':      return <SyllabusTab courseId={courseId} course={course} />;
       case 'attendance':    return <AttendanceTab courseId={courseId} />;
       case 'seminar':       return <SeminarTab courseId={courseId} />;
+      case 'experiments':   return <ExperimentsTab courseId={courseId} />;
       default:              return null;
     }
   };
@@ -1036,7 +1139,10 @@ const StudentCourseDetail = () => {
       {!activeTab ? (
         /* Dashboard cards — minimalistic & professional style */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {FEATURES.map((f) => {
+          {FEATURES.filter(f => {
+            if (isLab) return !f.excludeForLab;    // for lab: hide theory cards, show labOnly
+            return !f.labOnly;                      // for theory: hide lab-only cards
+          }).map((f) => {
             const Icon = f.icon;
             return (
               <div

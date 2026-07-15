@@ -1009,6 +1009,24 @@ def get_results_summary(
 from sqlalchemy import func
 from datetime import datetime, timedelta, date
 
+@router.get("/sections-list")
+def get_sections_list(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Returns unique section names and years for the HOD's department (used by filter dropdowns)."""
+    from app.models.academic import Section
+    department, _ = get_hod_department(current_user, db)
+    sections = (
+        db.query(Section)
+        .filter(Section.department_id == department.id, Section.is_active == True)
+        .order_by(Section.year, Section.name)
+        .all()
+    )
+    return {
+        "sections": [{"name": s.name, "year": s.year} for s in sections]
+    }
+
 @router.get("/attendance-analytics", response_model=dict)
 def get_attendance_analytics(
     academic_year: Optional[str] = None,
@@ -1258,25 +1276,26 @@ def get_attendance_analytics(
     risk_stats = {}
     
     for st in student_table:
-        s_obj = next((s for s in all_students if s.id == st.student_id), None)
-        year = s_obj.current_year if s_obj else 1
-        
+        # Use st.year which is already normalized (s.current_year or 1) —
+        # avoids None keys in risk_stats when current_year is NULL in DB.
+        year = st.year
+
         # Risk
         if year not in risk_stats:
             risk_stats[year] = {"safe": 0, "warning": 0, "critical": 0}
-            
+
         if (st.total_present + st.total_absent) == 0 or st.percentage >= 85.0:
             risk_stats[year]["safe"] += 1
         elif st.percentage >= 75.0:
             risk_stats[year]["warning"] += 1
         else:
             risk_stats[year]["critical"] += 1
-            
+
         # Section
         sec = st.section
         if sec not in section_stats:
             section_stats[sec] = {"year": year, "total_p": 0, "total_a": 0, "below_75": 0}
-            
+
         section_stats[sec]["total_p"] += st.total_present
         section_stats[sec]["total_a"] += st.total_absent
         if st.percentage < 75.0 and (st.total_present + st.total_absent) > 0:
@@ -1330,23 +1349,50 @@ def get_attendance_analytics(
     # ---------------------------------------------------------
     # 6. Faculty Stats
     # ---------------------------------------------------------
-    dept_pct = sum(sc.percentage for sc in section_comparison) / len(section_comparison) if section_comparison else 0.0
+    # Build a lookup: student_id -> {present, absent} (already computed above)
+    # Build a lookup: section_id -> list of student IDs
+    section_student_map = {}
+    for s in all_students:
+        if s.section_id not in section_student_map:
+            section_student_map[s.section_id] = []
+        section_student_map[s.section_id].append(s.id)
+
     faculty_stats = []
-    
     for f in dept_faculty:
-        assignments = db.query(CourseAssignment).filter(CourseAssignment.faculty_id == f.id).count()
+        # Active course assignments for this faculty
+        f_assignments = db.query(CourseAssignment).filter(
+            CourseAssignment.faculty_id == f.id,
+            CourseAssignment.is_active == True
+        ).all()
+        class_count = len(f_assignments)
+
+        # Gather student IDs from sections this faculty teaches
+        taught_section_ids = set(a.section_id for a in f_assignments if a.section_id)
+        student_pcts = []
+        for sec_id in taught_section_ids:
+            for sid in section_student_map.get(sec_id, []):
+                counts = attendance_by_student.get(sid, {"present": 0, "absent": 0})
+                total = counts["present"] + counts["absent"]
+                if total > 0:
+                    student_pcts.append(counts["present"] / total * 100.0)
+
+        avg_att = round(sum(student_pcts) / len(student_pcts), 1) if student_pcts else 0.0
+
+        # Leaves taken since semester start (meaningful metric)
         leaves_taken = db.query(FacultyLeaveRequest).filter(
             FacultyLeaveRequest.faculty_id == f.id,
-            FacultyLeaveRequest.status == "approved"
+            FacultyLeaveRequest.status == "approved",
+            FacultyLeaveRequest.from_date >= sem_start_date
         ).count()
-        
+
         faculty_stats.append(FacultyAttendanceStats(
             faculty_name=f"{f.first_name} {f.last_name}",
-            classes_handled=assignments,
-            avg_student_attendance=round(dept_pct, 1),
+            classes_handled=class_count,
+            avg_student_attendance=avg_att,
             absentee_count=leaves_taken
         ))
-        
+
+
     # ---------------------------------------------------------
     # 7. Live Status & Insights
     # ---------------------------------------------------------

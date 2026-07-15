@@ -1209,3 +1209,68 @@ def get_student_seminar_detail(
         
     return {"seminar": result if result else None}
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. List of Experiments (lab courses only)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/courses/{course_id}/experiments")
+def get_course_experiments(
+    course_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Returns the ordered list of experiments defined in the course's lesson plan.
+    Only rows with a non-empty experiment_name are returned.
+    """
+    student = db.query(Student).filter(Student.user_id == current_user.id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+
+    # Verify the student is enrolled in this course
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    # Find the active course assignment for this course
+    assignment = db.query(CourseAssignment).filter(
+        CourseAssignment.course_id == course_id,
+        CourseAssignment.section_id == student.section_id,
+        CourseAssignment.is_active == True,
+    ).first()
+
+    if not assignment:
+        return {"experiments": []}
+
+    from app.models.course_plan import CoursePlan, CoursePlanTopic
+
+    plan = db.query(CoursePlan).filter(
+        CoursePlan.course_assignment_id == assignment.id
+    ).first()
+
+    if not plan:
+        return {"experiments": []}
+
+    topics = db.query(CoursePlanTopic).filter(
+        CoursePlanTopic.course_plan_id == plan.id,
+        CoursePlanTopic.experiment_name.isnot(None),
+        CoursePlanTopic.experiment_name != "",
+    ).order_by(CoursePlanTopic.sequence_no).all()
+
+    experiments = []
+    for idx, t in enumerate(topics, start=1):
+        experiments.append({
+            "no":              idx,
+            "sequence_no":     t.sequence_no,
+            "experiment_name": t.experiment_name,
+            "resources":       t.resources,
+            "proposed_date":   t.proposed_date.strftime("%Y-%m-%d") if t.proposed_date else None,
+            "actual_date":     t.actual_date.strftime("%Y-%m-%d") if t.actual_date else None,
+            "is_completed":    t.actual_date is not None,
+            "co":              t.co,
+        })
+
+    return {"experiments": experiments}
+
+
