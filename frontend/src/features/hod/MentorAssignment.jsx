@@ -10,6 +10,7 @@ export const MentorAssignment = () => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSectionId, setSelectedSectionId] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
 
   const fetchData = async () => {
     try {
@@ -34,8 +35,37 @@ export const MentorAssignment = () => {
     fetchData();
   }, []);
 
+  const handleStudentClick = (e, studentId) => {
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedStudentIds(prev => 
+        prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
+      );
+    } else {
+      setSelectedStudentIds([studentId]);
+    }
+  };
+
   const handleDragStart = (e, studentId) => {
-    e.dataTransfer.setData("studentId", studentId.toString());
+    const idsToDrag = selectedStudentIds.includes(studentId) 
+      ? selectedStudentIds 
+      : [studentId];
+    
+    if (!selectedStudentIds.includes(studentId)) {
+      setSelectedStudentIds([studentId]);
+    }
+    
+    e.dataTransfer.setData("studentIds", JSON.stringify(idsToDrag));
+    
+    if (idsToDrag.length > 1) {
+      const dragGhost = document.createElement("div");
+      dragGhost.textContent = `Moving ${idsToDrag.length} students`;
+      dragGhost.className = "bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg font-bold";
+      dragGhost.style.position = "absolute";
+      dragGhost.style.top = "-1000px";
+      document.body.appendChild(dragGhost);
+      e.dataTransfer.setDragImage(dragGhost, 0, 0);
+      setTimeout(() => document.body.removeChild(dragGhost), 0);
+    }
   };
 
   const handleDragOver = (e) => {
@@ -44,42 +74,54 @@ export const MentorAssignment = () => {
 
   const handleDropToFaculty = async (e, facultyId) => {
     e.preventDefault();
-    const studentId = parseInt(e.dataTransfer.getData("studentId"));
-    if (!studentId) return;
-
     try {
+      const rawData = e.dataTransfer.getData("studentIds");
+      if (!rawData) return;
+      const studentIds = JSON.parse(rawData);
+      if (!studentIds.length) return;
+
       const yr = new Date().getFullYear();
-      await axios.post('/api/hod/mentors', {
-        mentor_id: facultyId,
-        student_id: studentId,
-        academic_year: `${yr}-${yr+1}`
-      });
-      // Optimistic update
+      await Promise.all(studentIds.map(studentId => 
+        axios.post('/api/hod/mentors', {
+          mentor_id: facultyId,
+          student_id: studentId,
+          academic_year: `${yr}-${yr+1}`
+        })
+      ));
+      
       setMentors(prev => {
-        const filtered = prev.filter(m => m.student_id !== studentId);
-        return [...filtered, { student_id: studentId, mentor_id: facultyId }];
+        const filtered = prev.filter(m => !studentIds.includes(m.student_id));
+        const newAssignments = studentIds.map(id => ({ student_id: id, mentor_id: facultyId }));
+        return [...filtered, ...newAssignments];
       });
+      setSelectedStudentIds([]);
     } catch (err) {
-      console.error("Failed to assign mentor", err);
-      alert("Failed to assign mentor");
+      console.error("Failed to assign mentors", err);
+      alert("Failed to assign mentors");
     }
   };
 
   const handleDropToUnassigned = async (e) => {
     e.preventDefault();
-    const studentId = parseInt(e.dataTransfer.getData("studentId"));
-    if (!studentId) return;
+    try {
+      const rawData = e.dataTransfer.getData("studentIds");
+      if (!rawData) return;
+      const studentIds = JSON.parse(rawData);
+      if (!studentIds.length) return;
 
-    // Only hit DELETE if the student is currently assigned
-    if (mentors.find(m => m.student_id === studentId)) {
-      try {
-        await axios.delete(`/api/hod/mentors/student/${studentId}`);
-        // Optimistic update
-        setMentors(prev => prev.filter(m => m.student_id !== studentId));
-      } catch (err) {
-        console.error("Failed to unassign mentor", err);
-        alert("Failed to unassign mentor");
-      }
+      const currentlyAssignedIds = mentors
+        .filter(m => studentIds.includes(m.student_id))
+        .map(m => m.student_id);
+
+      await Promise.all(currentlyAssignedIds.map(studentId => 
+        axios.delete(`/api/hod/mentors/student/${studentId}`)
+      ));
+      
+      setMentors(prev => prev.filter(m => !studentIds.includes(m.student_id)));
+      setSelectedStudentIds([]);
+    } catch (err) {
+      console.error("Failed to unassign mentors", err);
+      alert("Failed to unassign mentors");
     }
   };
 
@@ -171,8 +213,9 @@ export const MentorAssignment = () => {
                 <div 
                   key={student.id}
                   draggable
+                  onClick={(e) => handleStudentClick(e, student.id)}
                   onDragStart={(e) => handleDragStart(e, student.id)}
-                  className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:shadow-md transition-all"
+                  className={`p-3 rounded-xl shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${selectedStudentIds.includes(student.id) ? 'bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500' : 'bg-white border-slate-200 hover:border-indigo-300'}`}
                 >
                   <div className="font-semibold text-slate-800 text-sm">{student.first_name} {student.last_name}</div>
                   <div className="text-xs text-slate-500 mt-1 flex justify-between">
@@ -215,8 +258,9 @@ export const MentorAssignment = () => {
                   <div 
                     key={student.id}
                     draggable
+                    onClick={(e) => handleStudentClick(e, student.id)}
                     onDragStart={(e) => handleDragStart(e, student.id)}
-                    className="bg-white p-3 rounded-xl shadow-sm border border-indigo-100 cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:shadow-md transition-all"
+                    className={`p-3 rounded-xl shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${selectedStudentIds.includes(student.id) ? 'bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500' : 'bg-white border-indigo-100 hover:border-indigo-300'}`}
                   >
                     <div className="font-semibold text-slate-800 text-sm">{student.first_name} {student.last_name}</div>
                     <div className="text-xs text-slate-500 mt-1 flex justify-between">
