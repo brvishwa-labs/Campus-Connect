@@ -33,6 +33,9 @@ class FacultyLeaveRequestBase(BaseModel):
     to_date: date
     reason: str
     attachment_url: Optional[str] = None
+    compensation_verifier_id: Optional[int] = None
+    compensation_date: Optional[date] = None
+    compensation_purpose: Optional[str] = None
 
 class FacultyLeaveRequestCreate(FacultyLeaveRequestBase):
     arrangements: List[FacultyDutyArrangementCreate] = []
@@ -41,6 +44,7 @@ class FacultyLeaveRequestResponse(FacultyLeaveRequestBase):
     id: int
     faculty_id: int
     faculty_name: Optional[str] = None
+    compensation_verifier_name: Optional[str] = None
     duration_days: int
     status: LeaveStatus
     hod_approved_by: Optional[int] = None

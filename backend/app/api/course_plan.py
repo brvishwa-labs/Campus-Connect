@@ -5,8 +5,11 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.models.academic import CourseAssignment
-from app.models.course_plan import CoursePlan, CoursePlanTopic
-from app.schemas.course_plan import CoursePlanCreate, CoursePlanResponse
+from app.models.course_plan import CoursePlan, CoursePlanTopic, CourseAssignmentUnit
+from app.schemas.course_plan import (
+    CoursePlanCreate, CoursePlanResponse, 
+    CourseAssignmentUnitUpdate, CourseAssignmentUnitResponse
+)
 from app.core.security import get_current_active_user
 from app.models.user import User
 
@@ -118,3 +121,57 @@ def save_course_plan(
     
     plan.topics.sort(key=lambda t: t.sequence_no)
     return plan
+
+@router.get("/{assignment_id}/units", response_model=List[CourseAssignmentUnitResponse])
+def get_course_units(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    assignment = db.query(CourseAssignment).filter(CourseAssignment.id == assignment_id).first()
+    if not assignment or (assignment.faculty_id != current_user.faculty_profile.id and not current_user.role == "admin"):
+        raise HTTPException(status_code=403, detail="Not authorized to access this course")
+
+    units = db.query(CourseAssignmentUnit).filter(CourseAssignmentUnit.course_assignment_id == assignment_id).order_by(CourseAssignmentUnit.unit_number).all()
+    
+    if not units:
+        # Create default empty units 1 to 5
+        for i in range(1, 6):
+            db.add(CourseAssignmentUnit(course_assignment_id=assignment_id, unit_number=i))
+        db.commit()
+        units = db.query(CourseAssignmentUnit).filter(CourseAssignmentUnit.course_assignment_id == assignment_id).order_by(CourseAssignmentUnit.unit_number).all()
+
+    return units
+
+@router.put("/{assignment_id}/units", response_model=List[CourseAssignmentUnitResponse])
+def update_course_units(
+    assignment_id: int,
+    units_in: List[CourseAssignmentUnitUpdate],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    assignment = db.query(CourseAssignment).filter(CourseAssignment.id == assignment_id).first()
+    if not assignment or (assignment.faculty_id != current_user.faculty_profile.id and not current_user.role == "admin"):
+        raise HTTPException(status_code=403, detail="Not authorized to update this course")
+
+    # Update or create units
+    for unit_in in units_in:
+        db_unit = db.query(CourseAssignmentUnit).filter(
+            CourseAssignmentUnit.course_assignment_id == assignment_id,
+            CourseAssignmentUnit.unit_number == unit_in.unit_number
+        ).first()
+        
+        if db_unit:
+            db_unit.title = unit_in.title
+            db_unit.is_completed = unit_in.is_completed
+        else:
+            db.add(CourseAssignmentUnit(
+                course_assignment_id=assignment_id,
+                unit_number=unit_in.unit_number,
+                title=unit_in.title,
+                is_completed=unit_in.is_completed
+            ))
+            
+    db.commit()
+    
+    return db.query(CourseAssignmentUnit).filter(CourseAssignmentUnit.course_assignment_id == assignment_id).order_by(CourseAssignmentUnit.unit_number).all()

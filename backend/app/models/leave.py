@@ -12,6 +12,7 @@ import enum
 from app.core.database import Base
 
 class LeaveStatus(str, enum.Enum):
+    PENDING_COMPENSATION_VERIFICATION = "pending_compensation_verification"
     PENDING_SUBSTITUTE = "pending_substitute"
     PENDING_HOD = "pending_hod"
     PENDING_DEAN = "pending_dean"
@@ -36,6 +37,11 @@ class FacultyLeaveRequest(Base):
     duration_days = Column(Integer, nullable=False)
     reason = Column(String(500), nullable=False)
     attachment_url = Column(String(500), nullable=True)
+    
+    # Compensation Verification fields
+    compensation_verifier_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    compensation_date = Column(Date, nullable=True)
+    compensation_purpose = Column(String(500), nullable=True)
     
     status = Column(SQLEnum(LeaveStatus, values_callable=lambda obj: [e.value for e in obj]), default=LeaveStatus.PENDING_SUBSTITUTE)
     
