@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Users, Search, AlertCircle } from 'lucide-react';
+import { Users, Search, AlertCircle, FileText, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 export const MentorAssignment = () => {
   const [mentors, setMentors] = useState([]);
@@ -142,6 +145,93 @@ export const MentorAssignment = () => {
     }
   };
 
+  const getExportData = () => {
+    const assignedIds = new Set(mentors.map(m => m.student_id));
+    const assignedStudents = students.filter(s => assignedIds.has(s.id));
+    const facultyMap = new Map(faculty.map(f => [f.id, `${f.first_name} ${f.last_name}`]));
+    const studentToMentorMap = new Map(mentors.map(m => [m.student_id, m.mentor_id]));
+
+    const groupedByYear = {};
+    assignedStudents.forEach(student => {
+      const year = student.section?.year || 'Unknown';
+      const mentorName = facultyMap.get(studentToMentorMap.get(student.id)) || 'Unknown Mentor';
+      
+      if (!groupedByYear[year]) {
+        groupedByYear[year] = [];
+      }
+      
+      groupedByYear[year].push({
+        'Student Name': `${student.first_name} ${student.last_name}`,
+        'Mentor': mentorName,
+        'Register Number': student.register_number,
+        'Section': student.section?.name || 'N/A'
+      });
+    });
+    return groupedByYear;
+  };
+
+  const exportToExcel = () => {
+    const dataByYear = getExportData();
+    if (Object.keys(dataByYear).length === 0) {
+      alert("No students are currently assigned to mentors.");
+      return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    Object.keys(dataByYear).sort().forEach(year => {
+      const ws = XLSX.utils.json_to_sheet(dataByYear[year]);
+      const colWidths = [
+        { wch: 30 }, // Name
+        { wch: 30 }, // Mentor
+        { wch: 15 }, // Reg No
+        { wch: 10 }  // Section
+      ];
+      ws['!cols'] = colWidths;
+      XLSX.utils.book_append_sheet(wb, ws, `Year ${year}`);
+    });
+    XLSX.writeFile(wb, 'Mentor_Assignment_Report.xlsx');
+  };
+
+  const exportToPDF = () => {
+    const dataByYear = getExportData();
+    if (Object.keys(dataByYear).length === 0) {
+      alert("No students are currently assigned to mentors.");
+      return;
+    }
+
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text('Mentor Assignment Report', 14, 15);
+    
+    let yPos = 25;
+    Object.keys(dataByYear).sort().forEach((year, index) => {
+      if (index > 0) {
+        doc.addPage();
+        yPos = 15;
+      }
+      doc.setFontSize(12);
+      doc.text(`Academic Year: ${year}`, 14, yPos);
+      
+      const tableData = dataByYear[year].map(row => [
+        row['Student Name'],
+        row['Mentor'],
+        row['Register Number'],
+        row['Section']
+      ]);
+      
+      doc.autoTable({
+        startY: yPos + 5,
+        head: [['Student Name', 'Mentor', 'Register Number', 'Section']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { fontSize: 9 }
+      });
+      yPos = doc.lastAutoTable.finalY + 15;
+    });
+    doc.save('Mentor_Assignment_Report.pdf');
+  };
+
   // Compute derived state
   const assignedStudentIds = new Set(mentors.map(m => m.student_id));
   
@@ -180,6 +270,22 @@ export const MentorAssignment = () => {
             <h1 className="text-2xl font-bold text-slate-800">Mentor Kanban</h1>
             <p className="text-slate-500 text-sm">Drag and drop students to assign mentors</p>
           </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={exportToExcel}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-semibold text-sm rounded-lg transition-colors border border-emerald-100"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Excel
+          </button>
+          <button
+            onClick={exportToPDF}
+            className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 font-semibold text-sm rounded-lg transition-colors border border-red-100"
+          >
+            <FileText className="w-4 h-4" />
+            PDF
+          </button>
         </div>
       </div>
 
