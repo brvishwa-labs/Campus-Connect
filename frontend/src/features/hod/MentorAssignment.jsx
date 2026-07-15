@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Users, Search, AlertCircle, FileText, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 export const MentorAssignment = () => {
   const [mentors, setMentors] = useState([]);
@@ -14,6 +14,8 @@ export const MentorAssignment = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSectionId, setSelectedSectionId] = useState('');
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [pendingExportType, setPendingExportType] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -170,7 +172,16 @@ export const MentorAssignment = () => {
     return groupedByYear;
   };
 
-  const exportToExcel = () => {
+  const handleExport = async (selectedYear) => {
+    setShowExportModal(false);
+    if (pendingExportType === 'excel') {
+      exportToExcel(selectedYear);
+    } else {
+      await exportToPDF(selectedYear);
+    }
+  };
+
+  const exportToExcel = (selectedYear) => {
     const dataByYear = getExportData();
     if (Object.keys(dataByYear).length === 0) {
       alert("No students are currently assigned to mentors.");
@@ -178,7 +189,10 @@ export const MentorAssignment = () => {
     }
 
     const wb = XLSX.utils.book_new();
-    Object.keys(dataByYear).sort().forEach(year => {
+    const yearsToExport = selectedYear === 'All' ? Object.keys(dataByYear).sort() : [selectedYear];
+
+    yearsToExport.forEach(year => {
+      if (!dataByYear[year]) return;
       const ws = XLSX.utils.json_to_sheet(dataByYear[year]);
       const colWidths = [
         { wch: 30 }, // Name
@@ -189,10 +203,12 @@ export const MentorAssignment = () => {
       ws['!cols'] = colWidths;
       XLSX.utils.book_append_sheet(wb, ws, `Year ${year}`);
     });
-    XLSX.writeFile(wb, 'Mentor_Assignment_Report.xlsx');
+    
+    const fileName = selectedYear === 'All' ? 'Mentor_Assignment_Report.xlsx' : `Mentor_Assignment_Year_${selectedYear}.xlsx`;
+    XLSX.writeFile(wb, fileName);
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async (selectedYear) => {
     const dataByYear = getExportData();
     if (Object.keys(dataByYear).length === 0) {
       alert("No students are currently assigned to mentors.");
@@ -200,11 +216,41 @@ export const MentorAssignment = () => {
     }
 
     const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text('Mentor Assignment Report', 14, 15);
     
-    let yPos = 25;
-    Object.keys(dataByYear).sort().forEach((year, index) => {
+    // Load Logo
+    const loadLogo = () => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.src = '/logo2.png';
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = () => {
+          resolve(null);
+        };
+      });
+    };
+
+    const logoBase64 = await loadLogo();
+    let startY = 15;
+    if (logoBase64) {
+      doc.addImage(logoBase64, 'PNG', 14, 10, 50, 15);
+      startY = 35;
+    }
+
+    doc.setFontSize(16);
+    doc.text('Mentor Assignment Report', 14, startY);
+    
+    let yPos = startY + 10;
+    const yearsToExport = selectedYear === 'All' ? Object.keys(dataByYear).sort() : [selectedYear];
+
+    yearsToExport.forEach((year, index) => {
+      if (!dataByYear[year]) return;
       if (index > 0) {
         doc.addPage();
         yPos = 15;
@@ -219,7 +265,7 @@ export const MentorAssignment = () => {
         row['Section']
       ]);
       
-      doc.autoTable({
+      autoTable(doc, {
         startY: yPos + 5,
         head: [['Student Name', 'Mentor', 'Register Number', 'Section']],
         body: tableData,
@@ -229,7 +275,9 @@ export const MentorAssignment = () => {
       });
       yPos = doc.lastAutoTable.finalY + 15;
     });
-    doc.save('Mentor_Assignment_Report.pdf');
+    
+    const fileName = selectedYear === 'All' ? 'Mentor_Assignment_Report.pdf' : `Mentor_Assignment_Year_${selectedYear}.pdf`;
+    doc.save(fileName);
   };
 
   // Compute derived state
@@ -273,14 +321,14 @@ export const MentorAssignment = () => {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={exportToExcel}
+            onClick={() => { setPendingExportType('excel'); setShowExportModal(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-semibold text-sm rounded-lg transition-colors border border-emerald-100"
           >
             <FileSpreadsheet className="w-4 h-4" />
             Excel
           </button>
           <button
-            onClick={exportToPDF}
+            onClick={() => { setPendingExportType('pdf'); setShowExportModal(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 font-semibold text-sm rounded-lg transition-colors border border-red-100"
           >
             <FileText className="w-4 h-4" />
@@ -406,6 +454,44 @@ export const MentorAssignment = () => {
         ))}
         
       </div>
+
+      {showExportModal && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-[400px] shadow-xl border border-slate-100">
+            <h2 className="text-xl font-bold text-slate-800 mb-4">Export Settings</h2>
+            <p className="text-sm text-slate-500 mb-6">Select which academic year you want to export, or export all years.</p>
+            
+            <div className="space-y-2 mb-6">
+              <button 
+                onClick={() => handleExport('All')}
+                className="w-full text-left px-4 py-3 rounded-lg border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-colors font-medium text-slate-700 hover:text-indigo-700 flex justify-between items-center"
+              >
+                All Years
+                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full">Complete Report</span>
+              </button>
+              
+              {Object.keys(getExportData()).sort().map(year => (
+                <button 
+                  key={year}
+                  onClick={() => handleExport(year)}
+                  className="w-full text-left px-4 py-3 rounded-lg border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-colors font-medium text-slate-700 hover:text-indigo-700"
+                >
+                  Year {year}
+                </button>
+              ))}
+            </div>
+            
+            <div className="flex justify-end">
+              <button 
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-2 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
