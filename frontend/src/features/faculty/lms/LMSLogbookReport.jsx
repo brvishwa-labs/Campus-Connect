@@ -68,14 +68,17 @@ const K_LABELS = {
   K4: 'Analyze', K5: 'Evaluate', K6: 'Create',
 };
 
-// ── Section header component ──────────────────────────────────────────────────
-const SectionHeader = ({ title }) => (
-  <div style={{ borderBottom: '2px solid #1e293b', paddingBottom: '6px', marginBottom: '14px', marginTop: '28px', pageBreakInside: 'avoid' }}>
-    <h2 style={{ fontFamily: 'Times New Roman, serif', fontSize: '13pt', fontWeight: 'bold', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
-      {title}
-    </h2>
-  </div>
-);
+const SectionHeader = ({ title }) => {
+  const upper = (title || '').toUpperCase();
+  const formatted = upper.replace(/\bPOS\b/g, 'POs').replace(/\bPSOS\b/g, 'PSOs');
+  return (
+    <div style={{ borderBottom: '2px solid #1e293b', paddingBottom: '6px', marginBottom: '14px', marginTop: '28px', pageBreakInside: 'avoid' }}>
+      <h2 style={{ fontFamily: 'Times New Roman, serif', fontSize: '13pt', fontWeight: 'bold', color: '#1e293b', letterSpacing: '0.04em', margin: 0 }}>
+        {formatted}
+      </h2>
+    </div>
+  );
+};
 
 // ── Report styles ─────────────────────────────────────────────────────────────
 const REPORT_STYLES = `
@@ -215,7 +218,7 @@ const SECTION_LABELS = {
   'psos':              '5. Programme Specific Outcomes (PSOs)',
   'course-objectives': '6. Course Objectives',
   'course-outcomes':   '7. Course Outcomes',
-  'po-co-mapping':     '8. PO\u2013CO Mapping',
+  'po-co-mapping':     '8. CO\u2013PO Mapping',
   'syllabus':          '9. Syllabus',
   'textbooks':         '10. Textbooks',
   'references':        '11. References',
@@ -233,7 +236,7 @@ const LAB_SECTION_LABELS = {
   'course-objectives':  '2. Course Objectives',
   'course-outcomes':    '3. Course Outcomes',
   'list-of-experiments':'4. List of Experiments',
-  'po-co-mapping':      '5. PO-CO Mapping',
+  'po-co-mapping':      '5. CO-PO Mapping',
   'practical-schedule': '6. Practical Schedule',
   'attendance':         '7. Student Attendance Summary',
   'lab-marks':          '8. Lab Mark Entry',
@@ -680,12 +683,12 @@ export const LMSLogbookReport = () => {
               <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Seq</th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Unit</th>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Experiment Topic</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Hrs</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Proposed Date</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Actual Date</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Cog. Level</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '55px' }}>PO</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Mode</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Status</th>
                 </tr></thead>
@@ -693,12 +696,12 @@ export const LMSLogbookReport = () => {
                   {coursePlan.map(tp => (
                     <tr key={tp.id} className="report-table-row">
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.unit}</td>
-                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{isLab ? tp.experiment_name : tp.topic}</td>
+                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.experiment_name || tp.topic}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.hours}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.cognitive_level || '\u2014'}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.po || '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.mode_of_delivery || '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.is_signed ? 'Signed' : tp.actual_date ? 'Done' : 'Pending'}</td>
                     </tr>
@@ -764,6 +767,8 @@ export const LMSLogbookReport = () => {
                   <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Proposed Date</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Actual Date</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Cog. Level</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '48px' }}>CO</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '55px' }}>PO</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Mode</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Status</th>
                 </tr></thead>
@@ -777,6 +782,8 @@ export const LMSLogbookReport = () => {
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.cognitive_level || '\u2014'}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.co || '\u2014'}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.po || '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.mode_of_delivery || '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.is_signed ? 'Signed' : tp.actual_date ? 'Done' : 'Pending'}</td>
                     </tr>
@@ -916,55 +923,133 @@ export const LMSLogbookReport = () => {
       );
 
       case 'gradebook': {
+        // Build a lookup map from gradebook (students with actual grade data)
+        const gradeMap = {};
+        gradebook.forEach(g => { gradeMap[g.student_id] = g; });
+
+        // Use ALL enrolled students as the primary source; fall back to sample if none loaded
         const sampleGradebook = [
           { student_id: 'S1', register_number: '21CSE001', name: 'Sample Student 1', cia_1: 38, cia_1_retest: null, cia_2: 42, cia_2_retest: null, model_exam: 65, model_exam_retest: null },
           { student_id: 'S2', register_number: '21CSE002', name: 'Sample Student 2', cia_1: 30, cia_1_retest: 35, cia_2: 40, cia_2_retest: null, model_exam: 58, model_exam_retest: 62 },
           { student_id: 'S3', register_number: '21CSE003', name: 'Sample Student 3', cia_1: 45, cia_1_retest: null, cia_2: 44, cia_2_retest: null, model_exam: 72, model_exam_retest: null },
         ];
-        const displayGradebook = gradebook.length > 0 ? gradebook : sampleGradebook;
-        const isSample = gradebook.length === 0;
+
+        const showSampleNotice = studentsList.length === 0;
+        const baseList = studentsList.length > 0
+          ? studentsList.map(stu => ({
+              ...stu,
+              cia_1:             gradeMap[stu.student_id]?.cia_1             ?? null,
+              cia_1_retest:      gradeMap[stu.student_id]?.cia_1_retest      ?? null,
+              cia_2:             gradeMap[stu.student_id]?.cia_2             ?? null,
+              cia_2_retest:      gradeMap[stu.student_id]?.cia_2_retest      ?? null,
+              model_exam:        gradeMap[stu.student_id]?.model_exam        ?? null,
+              model_exam_retest: gradeMap[stu.student_id]?.model_exam_retest ?? null,
+            }))
+          : sampleGradebook;
+
+        // Helper to compute derived marks for a student row
+        const getGBDerived = (stu) => {
+          const asgMarks = assignmentMeta.map(a => {
+            const ag = assignmentGrades[stu.student_id]?.[a.id];
+            return ag?.marks != null ? Number(ag.marks) : null;
+          });
+          const cia1Raw = stu.cia_1 != null ? Number(stu.cia_1) : null;
+          const cia1Ret = stu.cia_1_retest != null ? Number(stu.cia_1_retest) : null;
+          const cia1Eff = cia1Ret != null ? cia1Ret : cia1Raw;
+          const cia2Raw = stu.cia_2 != null ? Number(stu.cia_2) : null;
+          const cia2Ret = stu.cia_2_retest != null ? Number(stu.cia_2_retest) : null;
+          const cia2Eff = cia2Ret != null ? cia2Ret : cia2Raw;
+          const avgCIA1 = cia1Eff != null ? parseFloat((cia1Eff / 2).toFixed(1)) : null;
+          const avgCIA2 = cia2Eff != null ? parseFloat((cia2Eff / 2).toFixed(1)) : null;
+          const modelRaw = stu.model_exam != null ? Number(stu.model_exam) : null;
+          const modelRet = stu.model_exam_retest != null ? Number(stu.model_exam_retest) : null;
+          const modelEff = modelRet != null ? modelRet : modelRaw;
+          const avgModel = modelEff != null ? parseFloat(((modelEff / 60) * 25).toFixed(1)) : null;
+          let conducted = 0, attended = 0;
+          attendance.forEach(session => {
+            const rec = session.records?.find(r => r.student_id === stu.student_id);
+            if (rec) { conducted++; if (['present','on_duty','late'].includes(rec.status)) attended++; }
+          });
+          const attPct = conducted > 0 ? (attended / conducted) * 100 : 0;
+          const attMark = attPct >= 75 ? 5 : attPct >= 65 ? 4 : attPct >= 55 ? 3 : attPct >= 45 ? 2 : conducted > 0 ? 1 : null;
+          const intMark1 = avgCIA1 != null && attMark != null ? parseFloat((avgCIA1 + attMark).toFixed(1)) : null;
+          const bestCIA = avgCIA1 != null && avgCIA2 != null ? Math.max(avgCIA1, avgCIA2) : (avgCIA1 ?? avgCIA2);
+          const totalInt = bestCIA != null && attMark != null ? parseFloat((bestCIA + attMark).toFixed(1)) : null;
+          const boosted = totalInt != null ? parseFloat(totalInt.toFixed(1)) : null;
+          const actualMark = totalInt != null ? Math.min(30, totalInt) : null;
+          return { asgMarks, cia1Raw, cia1Ret, avgCIA1, cia2Raw, cia2Ret, avgCIA2, modelRaw, modelRet, avgModel, attMark, intMark1, totalInt, boosted, actualMark };
+        };
+        const fmtNum = (v) => v != null ? v : '\u2014';
+
         return (
           <>
             <SectionHeader title={sectionTitle} />
-            <div style={{ marginBottom: '18px' }}>
-              {isSample && (
+            <div style={{ marginBottom: '18px', overflowX: 'auto' }}>
+              {showSampleNotice && (
                 <p style={{ fontStyle: 'italic', color: '#94a3b8', fontSize: '8.5pt', marginBottom: '8px', padding: '4px 8px', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '4px' }}>
-                  ⚠ Sample table shown — actual marks will appear once CIA / Model Exam grades are entered.
+                  ⚠ Sample table shown — actual student data will appear once the course roster is loaded.
                 </p>
               )}
-              <table className="report-table" style={{ fontSize: '9pt' }}>
-                <thead><tr>
-                  <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
-                  <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Student Name</th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
-                    <span className="highlight-label">CIA-1</span>
-                    {gradebookDates['internal_1'] && <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>{formatDate(gradebookDates['internal_1'])}</div>}
-                  </th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest 1</th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
-                    <span className="highlight-label">CIA-2</span>
-                    {gradebookDates['internal_2'] && <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>{formatDate(gradebookDates['internal_2'])}</div>}
-                  </th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest 2</th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
-                    <span className="highlight-label">Model</span>
-                    {gradebookDates['model_exam'] && <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>{formatDate(gradebookDates['model_exam'])}</div>}
-                  </th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest Model</th>
-                </tr></thead>
+              <table className="report-table" style={{ fontSize: '7.5pt', width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'left', width: '80px' }} rowSpan={2}>Reg No.</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'left', width: '120px' }} rowSpan={2}>Name</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center' }} colSpan={assignmentMeta.length > 0 ? assignmentMeta.length : 5}>Assignments</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#1e40af' }} colSpan={3}>CIA-1</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#1e40af' }} colSpan={3}>CIA-2</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#7c3aed' }} colSpan={3}>Model</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Int.<br/>Marks<br/>CIA-1</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Att.<br/>Marks</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Total<br/>Int.</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Boosted</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#034ea1', fontWeight: '900' }} rowSpan={2}>Actual<br/>Marks</th>
+                  </tr>
+                  <tr>
+                    {(assignmentMeta.length > 0 ? assignmentMeta : [{id:'s1'},{id:'s2'},{id:'s3'},{id:'s4'},{id:'s5'}]).map((a, i) => (
+                      <th key={a.id} style={{ ...thStyle, fontSize: '7pt', width: '38px' }}>A{i+1}</th>
+                    ))}
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#1e40af' }}>Mark<br/><span style={{fontWeight:'normal'}}>/50</span></th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#b91c1c' }}>Retest</th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#1e40af' }}>Avg<br/><span style={{fontWeight:'normal'}}>/25</span></th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#1e40af' }}>Mark<br/><span style={{fontWeight:'normal'}}>/50</span></th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#b91c1c' }}>Retest</th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#1e40af' }}>Avg<br/><span style={{fontWeight:'normal'}}>/25</span></th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#7c3aed' }}>Mark<br/><span style={{fontWeight:'normal'}}>/60</span></th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#b91c1c' }}>Retest</th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#7c3aed' }}>Avg<br/><span style={{fontWeight:'normal'}}>/25</span></th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {displayGradebook.map(stu => (
-                    <tr key={stu.student_id} className="report-table-row" style={isSample ? { color: '#94a3b8' } : {}}>
-                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.register_number}</td>
-                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.name}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_1 ?? '\u2014'}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.cia_1_retest ?? '\u2014'}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_2 ?? '\u2014'}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.cia_2_retest ?? '\u2014'}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.model_exam ?? '\u2014'}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.model_exam_retest ?? '\u2014'}</td>
-                    </tr>
-                  ))}
+                  {baseList.map((stu, rowIdx) => {
+                    const d = showSampleNotice
+                      ? { asgMarks: [null,null,null,null,null], cia1Raw: stu.cia_1, cia1Ret: stu.cia_1_retest, avgCIA1: stu.cia_1 != null ? parseFloat((stu.cia_1/2).toFixed(1)) : null, cia2Raw: stu.cia_2, cia2Ret: stu.cia_2_retest, avgCIA2: stu.cia_2 != null ? parseFloat((stu.cia_2/2).toFixed(1)) : null, modelRaw: stu.model_exam, modelRet: stu.model_exam_retest, avgModel: stu.model_exam != null ? parseFloat(((stu.model_exam/60)*25).toFixed(1)) : null, attMark: null, intMark1: null, totalInt: null, boosted: null, actualMark: null }
+                      : getGBDerived(stu);
+                    const numCols = assignmentMeta.length > 0 ? assignmentMeta.length : 5;
+                    return (
+                      <tr key={stu.student_id || rowIdx} className="report-table-row" style={showSampleNotice ? { color: '#94a3b8' } : {}}>
+                        <td style={{ ...tdLeftStyle, fontSize: '7.5pt' }}>{stu.register_number}</td>
+                        <td style={{ ...tdLeftStyle, fontSize: '7.5pt' }}>{stu.name}</td>
+                        {Array.from({ length: numCols }, (_, i) => (
+                          <td key={i} style={{ ...tdStyle, fontSize: '7.5pt' }}>{fmtNum(d.asgMarks[i])}</td>
+                        ))}
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtNum(d.cia1Raw)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', color: '#991b1b' }}>{fmtNum(d.cia1Ret)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtNum(d.avgCIA1)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtNum(d.cia2Raw)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', color: '#991b1b' }}>{fmtNum(d.cia2Ret)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtNum(d.avgCIA2)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtNum(d.modelRaw)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', color: '#991b1b' }}>{fmtNum(d.modelRet)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtNum(d.avgModel)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtNum(d.intMark1)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtNum(d.attMark)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtNum(d.totalInt)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtNum(d.boosted)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: '900', color: '#034ea1' }}>{fmtNum(d.actualMark)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1009,6 +1094,8 @@ export const LMSLogbookReport = () => {
                     <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Proposed Date</th>
                     <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Actual Date</th>
                     <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Cog. Level</th>
+                    <th style={{ ...thStyle, fontSize: '9pt', width: '48px' }}>CO</th>
+                    <th style={{ ...thStyle, fontSize: '9pt', width: '55px' }}>PO</th>
                     <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Mode</th>
                     <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Status</th>
                   </tr>
@@ -1023,6 +1110,8 @@ export const LMSLogbookReport = () => {
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '—'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '—'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.cognitive_level || '—'}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.co || '—'}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.po || '—'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.mode_of_delivery || '—'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.is_signed ? 'Signed' : tp.actual_date ? 'Done' : 'Pending'}</td>
                     </tr>
@@ -1271,6 +1360,8 @@ export const LMSLogbookReport = () => {
           <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Proposed Date</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Actual Date</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Cog. Level</th>
+          <th style={{ ...thStyle, fontSize: '9pt', width: '48px' }}>CO</th>
+          <th style={{ ...thStyle, fontSize: '9pt', width: '55px' }}>PO</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Mode</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Status</th>
         </tr>
@@ -1279,12 +1370,12 @@ export const LMSLogbookReport = () => {
       return (
         <tr>
           <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Seq</th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Unit</th>
           <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Experiment Topic</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Hrs</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Proposed Date</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Actual Date</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Cog. Level</th>
+          <th style={{ ...thStyle, fontSize: '9pt', width: '55px' }}>PO</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Mode</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Status</th>
         </tr>
@@ -1311,26 +1402,37 @@ export const LMSLogbookReport = () => {
         </tr>
       );
     } else if (baseId === 'gradebook') {
+      const numAsg = assignmentMeta.length > 0 ? assignmentMeta.length : 5;
       return (
-        <tr>
-          <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
-          <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Student Name</th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
-            <span className="highlight-label">CIA-1</span>
-            {gradebookDates['internal_1'] && <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>{formatDate(gradebookDates['internal_1'])}</div>}
-          </th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest 1</th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
-            <span className="highlight-label">CIA-2</span>
-            {gradebookDates['internal_2'] && <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>{formatDate(gradebookDates['internal_2'])}</div>}
-          </th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest 2</th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
-            <span className="highlight-label">Model</span>
-            {gradebookDates['model_exam'] && <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>{formatDate(gradebookDates['model_exam'])}</div>}
-          </th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest Model</th>
-        </tr>
+        <>
+          <tr>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'left', width: '80px' }} rowSpan={2}>Reg No.</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'left', width: '110px' }} rowSpan={2}>Name</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center' }} colSpan={numAsg}>Assignments</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#1e40af' }} colSpan={3}>CIA-1</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#1e40af' }} colSpan={3}>CIA-2</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#7c3aed' }} colSpan={3}>Model</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Int.<br/>CIA-1</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Att.<br/>Marks</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Total<br/>Int.</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Boosted</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#034ea1', fontWeight: '900' }} rowSpan={2}>Actual</th>
+          </tr>
+          <tr>
+            {Array.from({ length: numAsg }, (_, i) => (
+              <th key={i} style={{ ...thStyle, fontSize: '7pt', width: '38px' }}>A{i+1}</th>
+            ))}
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#1e40af' }}>/50</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#b91c1c' }}>Ret</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#1e40af' }}>Avg</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#1e40af' }}>/50</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#b91c1c' }}>Ret</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#1e40af' }}>Avg</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#7c3aed' }}>/60</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#b91c1c' }}>Ret</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#7c3aed' }}>Avg</th>
+          </tr>
+        </>
       );
     } else if (baseId === 'lab-marks') {
       return (
@@ -1376,17 +1478,34 @@ export const LMSLogbookReport = () => {
           {allCols.map(col => { const val = getMappingValue(row.co, col); return <td key={col} style={{ ...tdStyle, fontSize: '9pt', fontWeight: val ? 'bold' : 'normal' }}>{val || '-'}</td>; })}
         </tr>
       );
-    } else if (baseId === 'course-plan' || baseId === 'practical-schedule') {
+    } else if (baseId === 'practical-schedule') {
+      const tp = rowData;
+      return (
+        <tr key={tp.id} className="report-table-row">
+          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
+          <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.experiment_name || tp.topic}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.hours}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.cognitive_level || '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.po || '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.mode_of_delivery || '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.is_signed ? 'Signed' : tp.actual_date ? 'Done' : 'Pending'}</td>
+        </tr>
+      );
+    } else if (baseId === 'course-plan') {
       const tp = rowData;
       return (
         <tr key={tp.id} className="report-table-row">
           <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.unit}</td>
-          <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{isLab ? tp.experiment_name : tp.topic}</td>
+          <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.topic}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.hours}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '—'}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '—'}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.cognitive_level || '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.co || '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.po || '—'}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.mode_of_delivery || '—'}</td>
           <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.is_signed ? 'Signed' : tp.actual_date ? 'Done' : 'Pending'}</td>
         </tr>
@@ -1417,16 +1536,59 @@ export const LMSLogbookReport = () => {
       );
     } else if (baseId === 'gradebook') {
       const stu = rowData;
+      const fmtN = (v) => v != null ? v : '—';
+      const asgMarks = assignmentMeta.map(a => {
+        const ag = assignmentGrades[stu.student_id]?.[a.id];
+        return ag?.marks != null ? Number(ag.marks) : null;
+      });
+      const numCols = assignmentMeta.length > 0 ? assignmentMeta.length : 5;
+      const cia1Raw = stu.cia_1 != null ? Number(stu.cia_1) : null;
+      const cia1Ret = stu.cia_1_retest != null ? Number(stu.cia_1_retest) : null;
+      const cia1Eff = cia1Ret != null ? cia1Ret : cia1Raw;
+      const avgCIA1 = cia1Eff != null ? parseFloat((cia1Eff / 2).toFixed(1)) : null;
+      const cia2Raw = stu.cia_2 != null ? Number(stu.cia_2) : null;
+      const cia2Ret = stu.cia_2_retest != null ? Number(stu.cia_2_retest) : null;
+      const cia2Eff = cia2Ret != null ? cia2Ret : cia2Raw;
+      const avgCIA2 = cia2Eff != null ? parseFloat((cia2Eff / 2).toFixed(1)) : null;
+      const modelRaw = stu.model_exam != null ? Number(stu.model_exam) : null;
+      const modelRet = stu.model_exam_retest != null ? Number(stu.model_exam_retest) : null;
+      const modelEff = modelRet != null ? modelRet : modelRaw;
+      const avgModel = modelEff != null ? parseFloat(((modelEff / 60) * 25).toFixed(1)) : null;
+      let attMark = null;
+      (() => {
+        let c = 0, a = 0;
+        attendance.forEach(session => {
+          const rec = session.records?.find(r => r.student_id === stu.student_id);
+          if (rec) { c++; if (['present','on_duty','late'].includes(rec.status)) a++; }
+        });
+        const pct = c > 0 ? (a / c) * 100 : 0;
+        attMark = pct >= 75 ? 5 : pct >= 65 ? 4 : pct >= 55 ? 3 : pct >= 45 ? 2 : c > 0 ? 1 : null;
+      })();
+      const intMark1 = avgCIA1 != null && attMark != null ? parseFloat((avgCIA1 + attMark).toFixed(1)) : null;
+      const bestCIA = avgCIA1 != null && avgCIA2 != null ? Math.max(avgCIA1, avgCIA2) : (avgCIA1 ?? avgCIA2);
+      const totalInt = bestCIA != null && attMark != null ? parseFloat((bestCIA + attMark).toFixed(1)) : null;
+      const actualMark = totalInt != null ? Math.min(30, totalInt) : null;
       return (
         <tr key={stu.student_id} className="report-table-row">
-          <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.register_number}</td>
-          <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.name}</td>
-          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_1 ?? '—'}</td>
-          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.cia_1_retest ?? '—'}</td>
-          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_2 ?? '—'}</td>
-          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.cia_2_retest ?? '—'}</td>
-          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.model_exam ?? '—'}</td>
-          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.model_exam_retest ?? '—'}</td>
+          <td style={{ ...tdLeftStyle, fontSize: '7.5pt' }}>{stu.register_number}</td>
+          <td style={{ ...tdLeftStyle, fontSize: '7.5pt' }}>{stu.name}</td>
+          {Array.from({ length: numCols }, (_, i) => (
+            <td key={i} style={{ ...tdStyle, fontSize: '7.5pt' }}>{fmtN(asgMarks[i])}</td>
+          ))}
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtN(cia1Raw)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', color: '#991b1b' }}>{fmtN(cia1Ret)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtN(avgCIA1)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtN(cia2Raw)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', color: '#991b1b' }}>{fmtN(cia2Ret)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtN(avgCIA2)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtN(modelRaw)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', color: '#991b1b' }}>{fmtN(modelRet)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtN(avgModel)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtN(intMark1)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtN(attMark)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtN(totalInt)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtN(totalInt)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: '900', color: '#034ea1' }}>{fmtN(actualMark)}</td>
         </tr>
       );
     } else if (baseId === 'lab-marks') {
@@ -2089,19 +2251,55 @@ export const LMSLogbookReport = () => {
 
   // ── VIEW MODE ────────────────────────────────────────────────────────────────
   // Simple continuous scroll. K-level editing lives here.
-  const renderViewMode = () => (
-    <div
-      className="print-page report-body print-ui-hide"
-      style={{ maxWidth: '210mm', margin: '24px auto', background: '#fff', padding: '20mm 18mm', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', fontFamily: 'Times New Roman, Times, serif', fontSize: '12pt', color: '#1e293b', lineHeight: '1.6' }}
-    >
-      {visibleSections.map((id, i) => (
-        <div key={id}>
-          {i > 0 && effectivePageBreaks(id) && <div className="page-break" />}
-          <div style={{ marginTop: (layoutMap[id]?.spacingTop || 0) + 'px' }}>{renderSection(id)}</div>
+  const renderViewMode = () => {
+    const viewElements = sectionOrder
+      .filter(id => layoutMap[id]?.visible !== false)
+      .map(id => ({ id, baseId: id, type: 'full', render: () => renderSection(id) }));
+
+    return (
+      <div className="print-ui-hide" style={{ background: '#f1f5f9', padding: '28px 20px 60px', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ position: 'relative', margin: '0 auto' }}>
+            <div
+              className="print-page report-body"
+              style={{
+                width: '210mm',
+                minHeight: '297mm',
+                background: '#fff',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                position: 'relative',
+                boxSizing: 'border-box',
+                padding: '15mm',
+                fontFamily: 'Times New Roman, Times, serif',
+                fontSize: '12pt',
+                color: '#1e293b',
+                lineHeight: '1.6',
+              }}
+            >
+              {/* Thin solid blue border 10mm from page edges */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '10mm',
+                  left: '10mm',
+                  right: '10mm',
+                  bottom: '10mm',
+                  border: '1px solid #034ea1',
+                  pointerEvents: 'none',
+                  boxSizing: 'border-box',
+                  zIndex: 10
+                }}
+              />
+              {/* Report content */}
+              <div className="report-body">
+                {renderPageElements(viewElements)}
+              </div>
+            </div>
+          </div>
         </div>
-      ))}
-    </div>
-  );
+      </div>
+    );
+  };
 
   // ── PRINT LAYOUT EDITOR ───────────────────────────────────────────────────────
   // The editor IS the print preview — what you see is exactly what prints.
@@ -2273,7 +2471,7 @@ export const LMSLogbookReport = () => {
                   height: '297mm',
                   background: '#fff',
                   boxShadow: '0 6px 28px rgba(0,0,0,0.38)',
-                  border: '1px solid #374151',
+                  border: '1px solid #e2e8f0',
                   position: 'relative',
                   boxSizing: 'border-box',
                   margin: '0 auto',
@@ -2285,6 +2483,20 @@ export const LMSLogbookReport = () => {
                   overflow: 'hidden',
                 }}
               >
+                {/* Thin solid blue border 10mm from page edges */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '10mm',
+                    left: '10mm',
+                    right: '10mm',
+                    bottom: '10mm',
+                    border: '1px solid #034ea1',
+                    pointerEvents: 'none',
+                    boxSizing: 'border-box',
+                    zIndex: 10
+                  }}
+                />
                 {/* Dashed margin guide */}
                 <div
                   style={{ position: 'absolute', top: '15mm', left: '15mm', right: '15mm', bottom: '15mm', border: '1px dashed rgba(99,102,241,0.18)', pointerEvents: 'none', borderRadius: '2px' }}
@@ -2295,7 +2507,7 @@ export const LMSLogbookReport = () => {
                 </div>
                 {/* Page number */}
                 <div
-                  style={{ position: 'absolute', bottom: '8mm', left: 0, right: 0, textAlign: 'center', fontSize: '9pt', color: '#94a3b8', fontFamily: 'Times New Roman, serif' }}
+                  style={{ position: 'absolute', bottom: '12mm', left: 0, right: 0, textAlign: 'center', fontSize: '9pt', color: '#94a3b8', fontFamily: 'Times New Roman, serif' }}
                 >
                   Page {pageIdx + 1} of {pages.length}
                 </div>
@@ -2416,17 +2628,16 @@ export const LMSLogbookReport = () => {
                   {generatingPDF ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
                   {generatingPDF ? 'Generating...' : 'Download PDF'}
                 </button>
+                {/* Print — prints all pages of the current view */}
+                <button
+                  onClick={printAllPages}
+                  disabled={generatingPDF}
+                  style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 13px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: '9px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: generatingPDF ? 0.55 : 1 }}
+                >
+                  <Printer size={13} /> Print
+                </button>
               </>
             )}
-
-            {/* Print — prints all pages of the current view */}
-            <button
-              onClick={printAllPages}
-              disabled={generatingPDF}
-              style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 13px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: '9px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: generatingPDF ? 0.55 : 1 }}
-            >
-              <Printer size={13} /> Print
-            </button>
           </div>
         </div>
       </div>
@@ -2459,6 +2670,7 @@ export const LMSLogbookReport = () => {
               padding: '15mm',
               boxSizing: 'border-box',
               background: '#fff',
+              border: 'none',
               position: 'relative',
               fontFamily: 'Times New Roman, Times, serif',
               fontSize: '12pt',
@@ -2467,12 +2679,26 @@ export const LMSLogbookReport = () => {
               overflow: 'hidden',
             }}
           >
+            {/* Thin solid blue border 10mm from page edges */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '10mm',
+                left: '10mm',
+                right: '10mm',
+                bottom: '10mm',
+                border: '1px solid #034ea1',
+                pointerEvents: 'none',
+                boxSizing: 'border-box',
+                zIndex: 10
+              }}
+            />
             <div className="report-body">
               {renderPageElements(pageItems)}
             </div>
             <div
               className="a4-page-number"
-              style={{ position: 'absolute', bottom: '8mm', left: 0, right: 0, textAlign: 'center', fontSize: '9pt', color: '#94a3b8', fontFamily: 'Times New Roman, serif' }}
+              style={{ position: 'absolute', bottom: '12mm', left: 0, right: 0, textAlign: 'center', fontSize: '9pt', color: '#94a3b8', fontFamily: 'Times New Roman, serif' }}
             >
               Page {pageIdx + 1} of {pages.length}
             </div>
