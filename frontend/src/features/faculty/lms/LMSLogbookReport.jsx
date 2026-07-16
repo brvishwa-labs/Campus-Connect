@@ -1373,9 +1373,10 @@ export const LMSLogbookReport = () => {
           }
           i++;
         }
+        const label = isLab ? (LAB_SECTION_LABELS[baseId] || SECTION_LABELS[baseId] || baseId) : (SECTION_LABELS[baseId] || LAB_SECTION_LABELS[baseId] || baseId);
         rendered.push(
           <div key={`${baseId}-prose-group`} style={{ marginTop: spacingTop + 'px' }}>
-            <SectionHeader title={isFirst ? SECTION_LABELS[baseId] || LAB_SECTION_LABELS[baseId] : `${SECTION_LABELS[baseId] || LAB_SECTION_LABELS[baseId]} (Continued)`} />
+            <SectionHeader title={isFirst ? label : `${label} (Continued)`} />
             <div style={{ marginBottom: '18px' }}>
               <div style={{ textAlign: 'justify' }} className="prose-container">
                 {group.map((item, idx) => (
@@ -1399,9 +1400,10 @@ export const LMSLogbookReport = () => {
           }
           i++;
         }
+        const label = isLab ? (LAB_SECTION_LABELS[baseId] || SECTION_LABELS[baseId] || baseId) : (SECTION_LABELS[baseId] || LAB_SECTION_LABELS[baseId] || baseId);
         rendered.push(
           <div key={`${baseId}-table-group-${group.length > 0 ? group[0].id || group[0].student_id || i : i}`} style={{ marginTop: spacingTop + 'px' }}>
-            <SectionHeader title={isFirst ? SECTION_LABELS[baseId] || LAB_SECTION_LABELS[baseId] : `${SECTION_LABELS[baseId] || LAB_SECTION_LABELS[baseId]} (Continued)`} />
+            <SectionHeader title={isFirst ? label : `${label} (Continued)`} />
             <div style={{ marginBottom: '18px' }}>
               {group.length === 0 && isFirst ? (
                 <p style={{ fontStyle: 'italic', color: '#64748b' }}>No records available.</p>
