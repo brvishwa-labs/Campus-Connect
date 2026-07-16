@@ -95,45 +95,35 @@ const REPORT_STYLES = `
   .layout-sidebar::-webkit-scrollbar-track { background: transparent; }
   .layout-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
 
-  /* Off-screen canvas layout style for printing view mode contents accurately */
-  .printable-area-hidden-screen {
-    position: absolute !important;
-    left: -9999mm !important;
-    top: -9999mm !important;
-    width: 210mm !important;
-    display: block !important;
-    z-index: -1000 !important;
-  }
-
-  /* ── PRINT: only .printable-area is rendered; everything else is hidden ── */
+  /* ── PRINT: show only .lms-print-output, hide everything else ── */
   @media print {
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+    /* Hide everything in body first */
     body > * { display: none !important; }
     #root { display: block !important; }
-    
-    /* Hide all editor UI elements, sidebars, and navbars */
+
+    /* Hide all UI chrome — order matters: specific overrides after general */
     .print-ui-hide { display: none !important; }
-    
-    /* Display the printable area correctly */
-    .printable-area {
+    .layout-sidebar { display: none !important; }
+    .layout-scroll-panel { display: none !important; }
+
+    /* The dedicated print output container — always in DOM, always visible on print */
+    .lms-print-output {
       display: block !important;
       position: static !important;
       left: auto !important;
       top: auto !important;
-      width: 210mm !important;
-    }
-    
-    .printable-area-hidden-screen {
-      position: static !important;
-      left: auto !important;
-      top: auto !important;
-      display: block !important;
-      width: 210mm !important;
+      width: auto !important;
+      height: auto !important;
+      overflow: visible !important;
+      background: white !important;
     }
 
-    .printable-area .a4-print-page {
+    .lms-print-output .a4-print-page {
+      display: block !important;
       width: 210mm !important;
-      height: 297mm !important; /* STRICT A4 HEIGHT */
+      min-height: 297mm !important;
       padding: 15mm !important;
       margin: 0 !important;
       box-shadow: none !important;
@@ -143,17 +133,21 @@ const REPORT_STYLES = `
       box-sizing: border-box !important;
       background: white !important;
       overflow: hidden !important;
+      position: relative !important;
     }
-    
-    .printable-area .a4-print-page:last-child {
+
+    .lms-print-output .a4-print-page:last-child {
       page-break-after: auto !important;
       break-after: auto !important;
     }
     
-    .printable-area .a4-page-number {
+    .lms-print-output .a4-page-number {
       display: block !important;
     }
-    
+
+    /* Hide screen-only decorators inside print pages */
+    .lms-print-output .print-ui-hide { display: none !important; }
+
     @page { size: A4; margin: 0; }
   }
 `;
@@ -1843,10 +1837,28 @@ export const LMSLogbookReport = () => {
 
   const downloadPDF = async () => {
     setGeneratingPDF(true);
+    // Create a temporary container positioned off-screen so html2canvas
+    // can measure and render it correctly regardless of scroll position.
+    const tempContainer = document.createElement('div');
+    tempContainer.style.cssText = [
+      'position:fixed',
+      'top:0',
+      'left:0',
+      'width:210mm',
+      'background:#ffffff',
+      'z-index:-9999',
+      'pointer-events:none',
+      'overflow:visible',
+      'font-family:Times New Roman,Times,serif',
+      'font-size:12pt',
+      'color:#1e293b',
+      'line-height:1.6',
+    ].join(';');
+    document.body.appendChild(tempContainer);
+
     try {
-      const pageElements = document.querySelectorAll('.printable-area .a4-print-page');
-      if (!pageElements.length) {
-        alert('No pages found to export.');
+      if (!pages.length) {
+        alert('No pages found to export. Please switch to Print Layout Editor mode first.');
         return;
       }
 
@@ -1854,32 +1866,86 @@ export const LMSLogbookReport = () => {
       const pdfWidth = 210;
       const pdfHeight = 297;
 
-      for (let i = 0; i < pageElements.length; i++) {
-        try {
-          const pageElement = pageElements[i];
+      // Inject the same report styles so fonts/borders render correctly
+      const styleEl = document.createElement('style');
+      styleEl.textContent = `
+        .pdf-page { box-sizing:border-box; width:210mm; min-height:297mm;
+          padding:15mm; background:#fff; position:relative;
+          font-family:'Times New Roman',Times,serif; font-size:12pt;
+          color:#1e293b; line-height:1.6; overflow:hidden; }
+        .pdf-page table { border-collapse:collapse; width:100%; }
+        .pdf-page th, .pdf-page td { border:1px solid #94a3b8; padding:5px 8px; }
+        .pdf-page thead th { background:#f1f5f9; font-weight:bold; }
+        .pdf-page .a4-page-number { position:absolute; bottom:8mm; left:0; right:0;
+          text-align:center; font-size:9pt; color:#94a3b8;
+          font-family:'Times New Roman',serif; }
+        .pdf-page .print-ui-hide { display:none !important; }
+      `;
+      tempContainer.appendChild(styleEl);
 
-          const canvas = await html2canvas(pageElement, {
+      for (let i = 0; i < pages.length; i++) {
+        // Clear previous page content
+        while (tempContainer.children.length > 1) {
+          tempContainer.removeChild(tempContainer.lastChild);
+        }
+
+        // Create a fresh page div
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'pdf-page';
+        tempContainer.appendChild(pageDiv);
+
+        // We need a React root to render JSX into this div
+        // Use a hidden iframe-like approach: clone the actual DOM page from lms-print-output
+        const printPages = document.querySelectorAll('.lms-print-output .a4-print-page');
+        if (printPages.length > 0 && printPages[i]) {
+          // Clone the already-rendered DOM node
+          const clone = printPages[i].cloneNode(true);
+          // Strip the screen-only decorators
+          clone.querySelectorAll('.print-ui-hide').forEach(el => el.remove());
+          // Remove inline dimensions that fight with our fixed capture size
+          clone.style.width = '210mm';
+          clone.style.height = 'auto';
+          clone.style.minHeight = '297mm';
+          clone.style.padding = '15mm';
+          clone.style.margin = '0';
+          clone.style.boxShadow = 'none';
+          clone.style.border = 'none';
+          clone.style.boxSizing = 'border-box';
+          clone.style.background = '#ffffff';
+          clone.style.overflow = 'hidden';
+          clone.style.position = 'relative';
+          clone.style.fontFamily = 'Times New Roman,Times,serif';
+          clone.style.fontSize = '12pt';
+          clone.style.color = '#1e293b';
+          clone.style.lineHeight = '1.6';
+          // Fix cross-origin images
+          clone.querySelectorAll('img').forEach(img => {
+            img.crossOrigin = 'anonymous';
+          });
+          tempContainer.appendChild(clone);
+          tempContainer.removeChild(pageDiv);
+
+          // Allow browser to layout
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+          const canvas = await html2canvas(clone, {
             scale: 2,
             useCORS: true,
+            allowTaint: true,
             logging: false,
             backgroundColor: '#ffffff',
-            onclone: (clonedDoc) => {
-              const imgs = clonedDoc.querySelectorAll('img');
-              imgs.forEach(img => {
-                img.crossOrigin = 'anonymous';
-              });
-            }
+            width: clone.offsetWidth,
+            height: clone.offsetHeight,
+            windowWidth: clone.offsetWidth,
           });
 
           const imgData = canvas.toDataURL('image/jpeg', 0.95);
-          if (i > 0) {
-            pdf.addPage();
-          }
+          if (i > 0) pdf.addPage();
           pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
 
-          await new Promise(resolve => setTimeout(resolve, 50));
-        } catch (pageErr) {
-          console.error(`Error generating page ${i + 1}:`, pageErr);
+          tempContainer.removeChild(clone);
+        } else {
+          console.warn(`Page ${i + 1} not found in print output DOM.`);
         }
       }
 
@@ -1887,22 +1953,18 @@ export const LMSLogbookReport = () => {
       pdf.save(`Logbook_Report_${courseCode}.pdf`);
     } catch (err) {
       console.error('Error generating PDF:', err);
-      alert('Failed to generate PDF. Please try again.');
+      alert('Failed to generate PDF: ' + (err.message || 'Unknown error'));
     } finally {
+      if (document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
+      }
       setGeneratingPDF(false);
     }
   };
 
-  // ── Print all pages from the layout editor ───────────────────────────────────
+  // ── Print all pages ───────────────────────────────────────────────────────────
   const printAllPages = () => window.print();
 
-  const pageSeparator = (
-    <div style={{ height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', width: '210mm' }}>
-      <div style={{ height: '1px', flex: 1, background: 'rgba(209,213,219,0.3)' }} />
-      <span style={{ color: '#9ca3af', fontSize: '10px', margin: '0 10px', fontFamily: 'sans-serif', letterSpacing: '0.05em' }}>— page break —</span>
-      <div style={{ height: '1px', flex: 1, background: 'rgba(209,213,219,0.3)' }} />
-    </div>
-  );
 
   // ── VIEW MODE ────────────────────────────────────────────────────────────────
   // Simple continuous scroll. K-level editing lives here.
@@ -1923,6 +1985,8 @@ export const LMSLogbookReport = () => {
   // ── PRINT LAYOUT EDITOR ───────────────────────────────────────────────────────
   // The editor IS the print preview — what you see is exactly what prints.
   // Sidebar is sticky/fixed with its own scrollbar. Right panel scrolls independently.
+  // NOTE: The outer div does NOT carry print-ui-hide — the lms-print-output div
+  //       at the bottom of the tree is what actually prints.
   const renderLayoutMode = () => (
     <div
       className="print-ui-hide"
@@ -1936,12 +2000,12 @@ export const LMSLogbookReport = () => {
           flexShrink: 0,
           background: '#1e293b',
           color: '#f1f5f9',
-          overflowY: 'auto',       /* independent scrollbar */
+          overflowY: 'auto',
           overflowX: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           borderRight: '1px solid #0f172a',
-          position: 'sticky',      /* stays in place while doc scrolls */
+          position: 'sticky',
           top: 0,
           height: '100%',
         }}
@@ -2070,20 +2134,19 @@ export const LMSLogbookReport = () => {
       </div>
 
       {/* ── Right: scrollable A4 page canvas ──────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: 'auto', background: '#4b5563', padding: '28px 20px 60px' }}>
+      <div className="layout-scroll-panel" style={{ flex: 1, overflowY: 'auto', background: '#4b5563', padding: '28px 20px 60px' }}>
 
         {/* Info bar */}
         <div style={{ textAlign: 'center', marginBottom: '18px', color: '#9ca3af', fontSize: '11px', fontFamily: 'sans-serif', letterSpacing: '0.03em' }}>
           Print Layout Editor — What you see is exactly what prints &nbsp;·&nbsp; {pages.length} pages total
         </div>
 
-        {/* Printable area: only this subtree is printed */}
-        <div className="printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {/* Screen-only preview pages (NOT what prints — lms-print-output below is the print target) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {pages.map((pageItems, pageIdx) => (
-            <div key={pageIdx} style={{ marginBottom: pageIdx < pages.length - 1 ? 0 : 0 }}>
-              {/* A4 sheet — screen view */}
+            <div key={pageIdx}>
+              {/* A4 sheet — screen preview only */}
               <div
-                className="a4-print-page"
                 style={{
                   width: '210mm',
                   height: '297mm',
@@ -2098,33 +2161,27 @@ export const LMSLogbookReport = () => {
                   fontSize: '12pt',
                   color: '#1e293b',
                   lineHeight: '1.6',
-                  overflow: 'visible',
+                  overflow: 'hidden',
                 }}
               >
-                {/* Dashed margin guide (screen only, hidden on print) */}
+                {/* Dashed margin guide */}
                 <div
-                  className="print-ui-hide"
                   style={{ position: 'absolute', top: '15mm', left: '15mm', right: '15mm', bottom: '15mm', border: '1px dashed rgba(99,102,241,0.18)', pointerEvents: 'none', borderRadius: '2px' }}
                 />
-
                 {/* Report content */}
                 <div className="report-body">
                   {renderPageElements(pageItems)}
                 </div>
-
                 {/* Page number */}
                 <div
-                  className="a4-page-number"
                   style={{ position: 'absolute', bottom: '8mm', left: 0, right: 0, textAlign: 'center', fontSize: '9pt', color: '#94a3b8', fontFamily: 'Times New Roman, serif' }}
                 >
                   Page {pageIdx + 1} of {pages.length}
                 </div>
               </div>
-
-              {/* Page gap indicator (screen only) */}
+              {/* Page gap indicator */}
               {pageIdx < pages.length - 1 && (
                 <div
-                  className="print-ui-hide"
                   style={{ height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '210mm', margin: '0 auto' }}
                 >
                   <div style={{ flex: 1, height: '1px', background: 'rgba(209,213,219,0.3)' }} />
@@ -2256,21 +2313,51 @@ export const LMSLogbookReport = () => {
       {mode === 'view'   && renderViewMode()}
       {mode === 'layout' && renderLayoutMode()}
 
-      {/* Always-in-DOM printable area: hidden on screen, active on print. Avoids duplicate in layout mode. */}
-      {mode === 'view' && (
-        <div className="print-only printable-area printable-area-hidden-screen" style={{ display: 'none' }}>
-          {pages.map((pageItems, pageIdx) => (
-            <div key={pageIdx} className="a4-print-page">
-              <div className="report-body">
-                {renderPageElements(pageItems)}
-              </div>
-              <div className="a4-page-number" style={{ position: 'absolute', bottom: '8mm', left: 0, right: 0, textAlign: 'center', fontSize: '9pt', color: '#94a3b8', fontFamily: 'Times New Roman, serif' }}>
-                Page {pageIdx + 1} of {pages.length}
-              </div>
+      {/*
+        lms-print-output: ALWAYS in the DOM. Hidden on screen via CSS (display:none
+        is not set inline — it is the @media print rules that make it visible).
+        This is the single source of truth for both Print and PDF Export.
+        It exists outside of any print-ui-hide container so @media print can
+        display it correctly regardless of which mode the user is in.
+      */}
+      <div
+        className="lms-print-output"
+        aria-hidden="true"
+        style={{
+          // Hidden on screen — @media print overrides this to display:block
+          display: 'none',
+        }}
+      >
+        {pages.map((pageItems, pageIdx) => (
+          <div
+            key={pageIdx}
+            className="a4-print-page"
+            style={{
+              width: '210mm',
+              minHeight: '297mm',
+              padding: '15mm',
+              boxSizing: 'border-box',
+              background: '#fff',
+              position: 'relative',
+              fontFamily: 'Times New Roman, Times, serif',
+              fontSize: '12pt',
+              color: '#1e293b',
+              lineHeight: '1.6',
+              overflow: 'hidden',
+            }}
+          >
+            <div className="report-body">
+              {renderPageElements(pageItems)}
             </div>
-          ))}
-        </div>
-      )}
+            <div
+              className="a4-page-number"
+              style={{ position: 'absolute', bottom: '8mm', left: 0, right: 0, textAlign: 'center', fontSize: '9pt', color: '#94a3b8', fontFamily: 'Times New Roman, serif' }}
+            >
+              Page {pageIdx + 1} of {pages.length}
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Measure container: rendered offscreen so offsetHeight can be read accurately */}
       <div
