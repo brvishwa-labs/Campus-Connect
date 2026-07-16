@@ -21,6 +21,11 @@ router = APIRouter()
 def apply_view_filter(query, model, sector_name, views_dict):
     last_view = views_dict.get(sector_name)
     if last_view:
+        # Ensure last_view is timezone-aware — SQLAlchemy can return
+        # naive datetimes even from timestamptz columns depending on driver config
+        if last_view.tzinfo is None:
+            from datetime import timezone as _tz
+            last_view = last_view.replace(tzinfo=_tz.utc)
         if hasattr(model, 'updated_at'):
             return query.filter(func.coalesce(model.updated_at, model.created_at) > last_view)
         else:
@@ -99,7 +104,7 @@ def get_badge_counts(
                 StudentLeaveRequest.student_id.in_(mentees_sub),
                 StudentLeaveRequest.status == StudentLeaveStatus.PENDING_MENTOR
             )
-            counts["/faculty/mentorship"] = apply_view_filter(q_mentor_leave, StudentLeaveRequest, "faculty-mentorship", views_dict).count()
+            counts["/faculty/mentorship"] = apply_view_filter(q_mentor_leave, StudentLeaveRequest, "leave-mentor", views_dict).count()
 
             # 3. Class Advisor leave (clears on visit)
             advised_sections = db.query(Section.id).filter(Section.class_advisor_id == faculty.id, Section.is_active == True).subquery()
@@ -293,13 +298,15 @@ def mark_sector_viewed(
 ):
     """
     Mark informational items as viewed by updating NotificationView.
+    Uses timezone-aware datetime so comparisons with timestamptz columns work correctly.
     """
-    from datetime import datetime
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
     nv = db.query(NotificationView).filter_by(user_id=current_user.id, sector=sector).first()
     if nv:
-        nv.last_viewed_at = datetime.utcnow()
+        nv.last_viewed_at = now
     else:
-        nv = NotificationView(user_id=current_user.id, sector=sector, last_viewed_at=datetime.utcnow())
+        nv = NotificationView(user_id=current_user.id, sector=sector, last_viewed_at=now)
         db.add(nv)
     db.commit()
     return {"message": "marked viewed"}
