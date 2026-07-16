@@ -11,7 +11,7 @@ const CO_PO_VALUE_BADGE = {
 };
 
 const getCoPOConfig = (courseType) => ({
-  coCount: courseType === 'lab' ? 6 : 10,
+  coCount: courseType === 'lab' ? 2 : 10,
   psoCount: courseType === 'lab' ? 2 : 3,
 });
 
@@ -610,18 +610,7 @@ export const Courses = () => {
                   </div>
                 </div>
 
-                {formData.course_type === 'lab' && (
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Prerequisites</label>
-                    <textarea 
-                      rows={3}
-                      placeholder="Enter prerequisites for this practical course..."
-                      value={formData.prerequisites}
-                      onChange={(e) => setFormData({...formData, prerequisites: e.target.value})}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
-                    />
-                  </div>
-                )}
+
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Objectives</label>
@@ -646,32 +635,38 @@ export const Courses = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Syllabus</label>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                    {formData.course_type === 'lab' ? 'List of Experiments' : 'Syllabus'}
+                  </label>
                   <textarea 
                     rows={4}
-                    placeholder="Enter the syllabus topics and details for this course..."
+                    placeholder={formData.course_type === 'lab' ? "Enter the list of experiments for this lab..." : "Enter the syllabus topics and details for this course..."}
                     value={formData.syllabus}
                     onChange={(e) => setFormData({...formData, syllabus: e.target.value})}
                     className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Textbooks</label>
-                  <textarea 
-                    rows={3}
-                    placeholder="Enter textbooks details..."
-                    value={formData.textbooks}
-                    onChange={(e) => setFormData({...formData, textbooks: e.target.value})}
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
-                  />
-                </div>
+                {formData.course_type !== 'lab' && (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Textbooks</label>
+                    <textarea 
+                      rows={3}
+                      placeholder="Enter textbooks details..."
+                      value={formData.textbooks}
+                      onChange={(e) => setFormData({...formData, textbooks: e.target.value})}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
+                    />
+                  </div>
+                )}
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">References</label>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                    {formData.course_type === 'lab' ? 'Resources' : 'References'}
+                  </label>
                   <textarea 
                     rows={3}
-                    placeholder="Enter reference books and online links..."
+                    placeholder={formData.course_type === 'lab' ? "Enter resources for this lab..." : "Enter reference books and online links..."}
                     value={formData.references}
                     onChange={(e) => setFormData({...formData, references: e.target.value})}
                     className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
