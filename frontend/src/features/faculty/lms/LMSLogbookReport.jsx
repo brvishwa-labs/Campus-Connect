@@ -190,7 +190,7 @@ const DEFAULT_SECTION_IDS = [
 ];
 
 const LAB_SECTION_IDS = [
-  'cover', 'course-objectives', 'course-outcomes',
+  'cover', 'course-prerequisites', 'course-objectives', 'course-outcomes',
   'list-of-experiments', 'po-co-mapping',
   'practical-schedule', 'attendance', 'lab-marks', 'footer',
 ];
@@ -229,6 +229,7 @@ const SECTION_LABELS = {
 
 const LAB_SECTION_LABELS = {
   'cover':              'Cover / Header',
+  'course-prerequisites':'Course Prerequisites',
   'course-objectives':  '1. Course Objectives',
   'course-outcomes':    '2. Course Outcomes',
   'list-of-experiments':'3. List of Experiments',
@@ -529,6 +530,7 @@ export const LMSLogbookReport = () => {
       case 'peos': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.peos)}</div></>);
       case 'pos': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(programOutcomes?.outcomes)}</div></>);
       case 'psos': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.psos)}</div></>);
+      case 'course-prerequisites': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.prerequisites)}</div></>);
       case 'course-objectives': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.objectives)}</div></>);
 
       case 'course-outcomes': return (
@@ -1483,7 +1485,7 @@ export const LMSLogbookReport = () => {
   const estimateHeight = (id) => {
     if (id === 'cover') return 350;
     if (id === 'dept-vision' || id === 'dept-mission' || id === 'peos' || id === 'pos' || id === 'psos') return 150;
-    if (id === 'course-objectives' || id === 'course-outcomes') return 200;
+    if (id === 'course-prerequisites' || id === 'course-objectives' || id === 'course-outcomes') return 200;
     if (id === 'po-co-mapping') return 250;
     if (id === 'syllabus' || id === 'textbooks' || id === 'references') return 250;
     if (id === 'course-plan') return 400;
@@ -1549,7 +1551,7 @@ export const LMSLogbookReport = () => {
         return;
       }
 
-      if (['dept-vision', 'dept-mission', 'peos', 'pos', 'psos', 'course-objectives', 'syllabus', 'textbooks', 'references', 'list-of-experiments'].includes(id)) {
+      if (['dept-vision', 'dept-mission', 'peos', 'pos', 'psos', 'course-prerequisites', 'course-objectives', 'syllabus', 'textbooks', 'references', 'list-of-experiments'].includes(id)) {
         const headerEl = measureEl.querySelector('.section-header');
         const headerHeight = (headerEl?.offsetHeight || 40) + spacingTop;
         const lines = Array.from(measureEl.querySelectorAll('.prose-line'));
@@ -2398,10 +2400,10 @@ export const LMSLogbookReport = () => {
         {visibleSections.map(id => (
           <div key={id} id={`measure-${id}`} className="measure-section">
             {id === 'cover' && renderSection('cover')}
-            {['dept-vision', 'dept-mission', 'peos', 'pos', 'psos', 'course-objectives', 'syllabus', 'textbooks', 'references'].includes(id) && (
+            {['dept-vision', 'dept-mission', 'peos', 'pos', 'psos', 'course-prerequisites', 'course-objectives', 'syllabus', 'textbooks', 'references'].includes(id) && (
               <div className="measure-prose">
                 <div className="section-header">
-                  <SectionHeader title={SECTION_LABELS[id]} />
+                  <SectionHeader title={isLab ? (LAB_SECTION_LABELS[id] || SECTION_LABELS[id] || id) : (SECTION_LABELS[id] || LAB_SECTION_LABELS[id] || id)} />
                 </div>
                 {highlightReportText(
                   id === 'dept-vision' ? department?.vision :
@@ -2409,6 +2411,7 @@ export const LMSLogbookReport = () => {
                   id === 'peos' ? department?.peos :
                   id === 'pos' ? programOutcomes?.outcomes :
                   id === 'psos' ? department?.psos :
+                  id === 'course-prerequisites' ? course.prerequisites :
                   id === 'course-objectives' ? course.objectives :
                   id === 'syllabus' ? course.syllabus :
                   id === 'textbooks' ? course.textbooks :
