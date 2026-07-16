@@ -232,10 +232,10 @@ const LAB_SECTION_LABELS = {
   'course-objectives':  '1. Course Objectives',
   'course-outcomes':    '2. Course Outcomes',
   'list-of-experiments':'3. List of Experiments',
-  'po-co-mapping':      '4. CO\u2013PO Mapping',
+  'po-co-mapping':      '4. PO-CO Mapping',
   'practical-schedule': '5. Practical Schedule',
-  'attendance':         '6. Attendance',
-  'lab-marks':          '7. Lab Mark Entry',
+  'attendance':         '5. Student Attendance Summary',
+  'lab-marks':          '6. Lab Mark Entry',
   'footer':             'Signatures Footer',
 };
 
