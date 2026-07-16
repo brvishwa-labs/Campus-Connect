@@ -89,6 +89,7 @@ import DeanDashboard from './features/authority/DeanDashboard';
 import OMDashboard from './features/authority/OMDashboard';
 import HRDashboard from './features/authority/HRDashboard';
 import HRLeavePortal from './features/authority/HRLeavePortal';
+import HRSetLeaveLimits from './features/authority/HRSetLeaveLimits';
 import HRGatepassPortal from './features/authority/HRGatepassPortal';
 import HRFacultyDirectory from './features/authority/HRFacultyDirectory';
 import AuthorityAnalytics from './features/authority/AuthorityAnalytics';
@@ -564,6 +565,11 @@ function AppRoutes() {
         <Route path="/hr/leaves" element={
           <ProtectedRoute allowedRole="authority">
             <HRLeavePortal />
+          </ProtectedRoute>
+        } />
+        <Route path="/hr/leaves/set-limits" element={
+          <ProtectedRoute allowedRole="authority">
+            <HRSetLeaveLimits />
           </ProtectedRoute>
         } />
         <Route path="/hr/gatepass" element={

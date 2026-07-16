@@ -11,7 +11,7 @@ from app.models.leave import FacultyLeaveRequest, FacultyDutyArrangement, Facult
 from app.models.academic import CourseAssignment, Course, Section
 from app.models.lms import TimetableSlot, DayOfWeek
 from app.models.department import Department
-from app.schemas.leave import FacultyLeaveRequestCreate, FacultyLeaveRequestResponse, FacultyDutyArrangementResponse, FacultyLeaveBalanceResponse
+from app.schemas.leave import FacultyLeaveRequestCreate, FacultyLeaveRequestResponse, FacultyDutyArrangementResponse, FacultyLeaveBalanceResponse, FacultyLeaveBalanceUpdate
 
 router = APIRouter()
 
@@ -489,13 +489,13 @@ def get_leave_balances(
         "id": balance.id,
         "faculty_id": balance.faculty_id,
         "academic_year": balance.academic_year,
-        "casual_leaves_total": 1,
-        "casual_leaves_used": int(min(casual_used_this_month, 1)),
-        "restricted_leaves_total": 1,
-        "restricted_leaves_used": int(min(restricted_used_this_sem, 1)),
+        "casual_leaves_total": balance.casual_leaves_total,
+        "casual_leaves_used": balance.casual_leaves_used,
+        "restricted_leaves_total": balance.restricted_leaves_total,
+        "restricted_leaves_used": balance.restricted_leaves_used,
         "sick_leaves_total": balance.sick_leaves_total,
         "sick_leaves_used": balance.sick_leaves_used,
-        "earned_leaves_total": int(completed_months),
+        "earned_leaves_total": balance.earned_leaves_total,
         "earned_leaves_used": balance.earned_leaves_used,
         "vacation_leaves_total": balance.vacation_leaves_total,
         "vacation_leaves_used": balance.vacation_leaves_used,
@@ -1082,7 +1082,104 @@ def get_all_verifiers(db: Session = Depends(get_db)):
         verifiers.append({
             "id": a.user_id,
             "name": f"{a.first_name} {a.last_name}",
-            "designation": a.title or "Authority"
         })
         
-    return verifiers
+    return verifiers
+
+@router.get("/admin/balances/{faculty_id}", response_model=FacultyLeaveBalanceResponse)
+def admin_get_leave_balances(
+    faculty_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Admin/Authority endpoint to get leave balances of a specific faculty."""
+    if current_user.role not in [UserRole.ADMIN, UserRole.AUTHORITY]:
+        raise HTTPException(status_code=403, detail="Only admins/authorities can view faculty balances")
+        
+    faculty = db.query(Faculty).filter(Faculty.id == faculty_id).first()
+    if not faculty:
+        raise HTTPException(status_code=404, detail="Faculty profile not found")
+        
+    academic_year = "2023-2024" # Default for now
+    balance = db.query(FacultyLeaveBalance).filter(
+        FacultyLeaveBalance.faculty_id == faculty.id,
+        FacultyLeaveBalance.academic_year == academic_year
+    ).first()
+    
+    if not balance:
+        balance = FacultyLeaveBalance(faculty_id=faculty.id, academic_year=academic_year)
+        db.add(balance)
+        db.commit()
+        db.refresh(balance)
+        
+    return balance
+
+@router.put("/admin/balances/bulk", response_model=dict)
+def admin_bulk_update_leave_balances(
+    balance_update: FacultyLeaveBalanceUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Admin/Authority endpoint to update leave balance totals for all faculties."""
+    if current_user.role not in [UserRole.ADMIN, UserRole.AUTHORITY]:
+        raise HTTPException(status_code=403, detail="Only admins/authorities can update faculty balances")
+        
+    academic_year = "2023-2024" # Default for now
+    update_data = balance_update.model_dump(exclude_unset=True)
+    
+    if not update_data:
+        return {"message": "No data provided for update", "updated_count": 0}
+        
+    faculties = db.query(Faculty).all()
+    updated_count = 0
+    for faculty in faculties:
+        balance = db.query(FacultyLeaveBalance).filter(
+            FacultyLeaveBalance.faculty_id == faculty.id,
+            FacultyLeaveBalance.academic_year == academic_year
+        ).first()
+        
+        if not balance:
+            balance = FacultyLeaveBalance(faculty_id=faculty.id, academic_year=academic_year)
+            db.add(balance)
+            
+        for field, value in update_data.items():
+            setattr(balance, field, value)
+        updated_count += 1
+        
+    db.commit()
+    return {"message": "Bulk update successful", "updated_count": updated_count}
+
+@router.put("/admin/balances/{faculty_id}", response_model=FacultyLeaveBalanceResponse)
+def admin_update_leave_balances(
+    faculty_id: int,
+    balance_update: FacultyLeaveBalanceUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Admin/Authority endpoint to update leave balance totals for a specific faculty."""
+    if current_user.role not in [UserRole.ADMIN, UserRole.AUTHORITY]:
+        raise HTTPException(status_code=403, detail="Only admins/authorities can update faculty balances")
+        
+    faculty = db.query(Faculty).filter(Faculty.id == faculty_id).first()
+    if not faculty:
+        raise HTTPException(status_code=404, detail="Faculty profile not found")
+        
+    academic_year = "2023-2024" # Default for now
+    balance = db.query(FacultyLeaveBalance).filter(
+        FacultyLeaveBalance.faculty_id == faculty.id,
+        FacultyLeaveBalance.academic_year == academic_year
+    ).first()
+    
+    if not balance:
+        balance = FacultyLeaveBalance(faculty_id=faculty.id, academic_year=academic_year)
+        db.add(balance)
+        db.commit()
+        db.refresh(balance)
+
+    update_data = balance_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(balance, field, value)
+
+    db.commit()
+    db.refresh(balance)
+    return balance

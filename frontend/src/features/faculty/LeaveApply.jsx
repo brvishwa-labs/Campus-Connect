@@ -816,9 +816,14 @@ const addArrangementRow = () => {
                 <span className="text-lg font-bold">{(balance.vacation_leaves_total || 12) - (balance.vacation_leaves_used || 0)}/{balance.vacation_leaves_total || 12}</span>
               </div>
 
-              <div className="flex justify-between items-center pb-1">
+              <div className="flex justify-between items-center border-b border-white/10 pb-3">
                 <span className="text-blue-100">Academic Leave</span>
                 <span className="text-lg font-bold">{(balance.academic_leaves_total || 10) - (balance.academic_leaves_used || 0)}/{balance.academic_leaves_total || 10}</span>
+              </div>
+
+              <div className="flex justify-between items-center pb-1">
+                <span className="text-blue-100">Compensation Leave</span>
+                <span className="text-lg font-bold">{(balance.compensation_leaves_total || 5) - (balance.compensation_leaves_used || 0)}/{balance.compensation_leaves_total || 5}</span>
               </div>
             </div>
             <div className="px-6 py-4 bg-black/10">

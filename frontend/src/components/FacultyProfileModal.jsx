@@ -1,9 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import axios from 'axios';
 import { 
   Users, Mail, Phone, Building, Briefcase, X, 
   FileText, Clock, ChevronLeft, ChevronRight, Activity, Calendar as CalendarIcon,
-  BookOpen, GraduationCap
+  BookOpen, GraduationCap, Edit2, Save, Check
 } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
   ResponsiveContainer, Legend
@@ -14,6 +17,23 @@ export const FacultyProfileModal = ({ faculty, department, leaves = [], gatepass
   if (!faculty) return null;
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  
+  const [leaveBalances, setLeaveBalances] = useState(null);
+
+  useEffect(() => {
+    const fetchBalances = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`${API_BASE_URL}/api/leave/admin/balances/${faculty.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setLeaveBalances(res.data);
+      } catch (err) {
+        console.error('Failed to fetch leave balances:', err);
+      }
+    };
+    fetchBalances();
+  }, [faculty.id]);
 
   const facultyLeaves = leaves.filter(l => l.faculty_id === faculty.id);
   const facultyGatepasses = gatepasses.filter(g => g.faculty_id === faculty.id);
@@ -314,6 +334,50 @@ export const FacultyProfileModal = ({ faculty, department, leaves = [], gatepass
                 </ResponsiveContainer>
               </div>
             </div>
+
+            {/* Leave Balances Section */}
+            {leaveBalances && (
+              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
+                      <Check className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-lg">Leave Balances</h3>
+                      <p className="text-sm text-slate-500">Academic Year {leaveBalances.academic_year}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {[
+                    { label: 'Casual Leave', key_total: 'casual_leaves_total', key_used: 'casual_leaves_used' },
+                    { label: 'Restricted Leave', key_total: 'restricted_leaves_total', key_used: 'restricted_leaves_used' },
+                    { label: 'Earned Leave', key_total: 'earned_leaves_total', key_used: 'earned_leaves_used' },
+                    { label: 'Vacation Leave', key_total: 'vacation_leaves_total', key_used: 'vacation_leaves_used' },
+                    { label: 'Academic Leave', key_total: 'academic_leaves_total', key_used: 'academic_leaves_used' },
+                    { label: 'Compensation Leave', key_total: 'compensation_leaves_total', key_used: 'compensation_leaves_used' }
+                  ].map((leave) => (
+                    <div key={leave.label} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex flex-col justify-between">
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">{leave.label}</p>
+                      <div className="flex items-end justify-between mt-auto">
+                        <div className="text-sm font-semibold text-slate-700">
+                          <span className="text-slate-400">Used:</span> {leaveBalances[leave.key_used]}
+                        </div>
+                        <div className="flex items-center text-lg font-bold text-slate-900">
+                          <span className="text-indigo-600 mr-1">
+                            {leaveBalances[leave.key_total] - leaveBalances[leave.key_used]}
+                          </span>
+                          <span className="text-slate-300 mx-1">/</span>
+                          <span>{leaveBalances[leave.key_total]}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Separated History Tables */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

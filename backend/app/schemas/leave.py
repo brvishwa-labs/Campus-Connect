@@ -83,6 +83,15 @@ class FacultyLeaveBalanceResponse(FacultyLeaveBalanceBase):
     class Config:
         from_attributes = True
 
+class FacultyLeaveBalanceUpdate(BaseModel):
+    casual_leaves_total: Optional[int] = None
+    sick_leaves_total: Optional[int] = None
+    earned_leaves_total: Optional[int] = None
+    restricted_leaves_total: Optional[int] = None
+    vacation_leaves_total: Optional[int] = None
+    compensation_leaves_total: Optional[int] = None
+    academic_leaves_total: Optional[int] = None
+
 
 # ── Student Leave Schemas ──────────────────────────────────────────────────
 
