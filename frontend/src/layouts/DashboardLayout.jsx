@@ -51,6 +51,7 @@ const ROLE_NAV_LINKS = {
     { name: 'Gate Pass Approvals', path: '/faculty/gatepass', icon: Clock },
     { name: 'Faculty Gate Pass', path: '/faculty/faculty-gatepass', icon: Clock },
     { name: 'Late Entry Notifications', path: '/faculty/late-entry', icon: Bell },
+    { name: 'Altered Class Advisor', path: '/faculty/altered-class-advisor', icon: Users },
     { name: 'Announcements', path: '/faculty/announcements', icon: Bell },
   ],
   student: [

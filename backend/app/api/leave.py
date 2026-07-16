@@ -187,10 +187,44 @@ def get_leave_preparation_data(
         # Sort by name if needed
         item["available_substitutes"].sort(key=lambda x: x["name"])
         
-        # Remove internal fields
-        item.pop("_section_id", None)
+    # Remove internal fields
+    for item in my_schedule:
+        item["section_id"] = item.pop("_section_id", None)
         item.pop("_start_time", None)
         item.pop("_end_time", None)
+
+    # ALWAYS automatically ask to appoint a faculty for department works
+    all_subs = []
+    for f in faculty_list:
+        if f.get("department_id") == faculty.department_id:
+            sub_info = dict(f)
+            sub_info.pop("department_id", None)
+            all_subs.append(sub_info)
+        
+    period_str = f"{start_date.strftime('%d-%b-%Y')} to {end_date.strftime('%d-%b-%Y')}" if start_date != end_date else start_date.strftime('%d-%b-%Y')
+    dept_code = "DEPT"
+    if faculty.department_id:
+        dept = db.query(Department).filter(Department.id == faculty.department_id).first()
+        if dept:
+            dept_code = dept.code
+            
+    my_schedule.append({
+        "slot_id": None,
+        "assignment_id": None,
+        "day": day_names[0] if day_names else "",
+        "start_time": "",
+        "end_time": "",
+        "room": "",
+        "course_code": "Department Works",
+        "course_name": "Department Works",
+        "course_short_name": "DW",
+        "section_name": "",
+        "year": "",
+        "department_short": dept_code,
+        "class_section": "Department Works",
+        "period_display": period_str,
+        "available_substitutes": all_subs
+    })
 
     # Check if current faculty is a class advisor
     advised_sections = db.query(Section).filter(
@@ -511,6 +545,7 @@ def create_leave_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    import datetime
     if current_user.role != UserRole.FACULTY:
         raise HTTPException(status_code=403, detail="Only faculty can request leave")
         
@@ -520,12 +555,42 @@ def create_leave_request(
     if duration <= 0:
         raise HTTPException(status_code=400, detail="Invalid date range")
 
+    leave_type_lower = request.leave_type.lower()
+
     # Validate that arrangements are provided
-    if not request.arrangements or len(request.arrangements) == 0:
+    if leave_type_lower != "hour permission" and (not request.arrangements or len(request.arrangements) == 0):
         raise HTTPException(status_code=400, detail="At least one substitute arrangement must be provided")
 
+    # Hour Permission Validation
+    if leave_type_lower == "hour permission":
+        if request.from_date != request.to_date:
+            raise HTTPException(400, "Hour Permission must be requested for a single day")
+        if not request.hour_permission_session or not request.hour_permission_period:
+            raise HTTPException(400, "Start Time and End Time are required for Hour Permission")
+
+        active_statuses = [LeaveStatus.APPROVED, LeaveStatus.PENDING_SUBSTITUTE, LeaveStatus.PENDING_HOD,
+                            LeaveStatus.PENDING_DEAN, LeaveStatus.PENDING_OM, LeaveStatus.PENDING_PRINCIPAL]
+        month_start = datetime.date(datetime.date.today().year, datetime.date.today().month, 1)
+        month_end = (datetime.date(datetime.date.today().year + 1, 1, 1) if datetime.date.today().month == 12
+                     else datetime.date(datetime.date.today().year, datetime.date.today().month + 1, 1))
+
+        monthly_perms = db.query(FacultyLeaveRequest).filter(
+            FacultyLeaveRequest.faculty_id == faculty.id,
+            FacultyLeaveRequest.leave_type == "Hour Permission",
+            FacultyLeaveRequest.status.in_(active_statuses),
+            FacultyLeaveRequest.from_date >= month_start,
+            FacultyLeaveRequest.from_date < month_end
+        ).all()
+
+        if len(monthly_perms) >= 3:
+            raise HTTPException(400, "Only 3 Hour Permissions are allowed per month. Limit reached.")
+        if any(r.from_date == request.from_date for r in monthly_perms):
+            raise HTTPException(400, "Only one Hour Permission is allowed per day.")
+            
+    # On Duty Validation (Proof can be submitted after the OD period)
+    # The requirement to submit proof at the time of application has been removed.
+
     # CHECK LEAVE BALANCE BEFORE CREATING REQUEST
-    import datetime
     today = datetime.date.today()
     academic_year = "2023-2024"
     
@@ -621,8 +686,10 @@ def create_leave_request(
         reason=request.reason,
         attachment_url=request.attachment_url,
         compensation_verifier_id=request.compensation_verifier_id,
-        compensation_date=request.compensation_date,
         compensation_purpose=request.compensation_purpose,
+        hour_permission_session=request.hour_permission_session,
+        hour_permission_period=request.hour_permission_period,
+        proof_link=request.proof_link,
         status=initial_status
     )
     db.add(leave_req)
@@ -635,6 +702,7 @@ def create_leave_request(
             substitute_faculty_id=arr.substitute_faculty_id,
             subject=arr.subject,
             class_section=arr.class_section,
+            section_id=arr.section_id,
             period=arr.period,
             day=arr.day,
             compensation_date=arr.compensation_date,
@@ -719,6 +787,7 @@ def update_leave_request(
             substitute_faculty_id=arr.substitute_faculty_id,
             subject=arr.subject,
             class_section=arr.class_section,
+            section_id=arr.section_id,
             period=arr.period,
             day=arr.day,
             compensation_date=arr.compensation_date,
@@ -775,11 +844,13 @@ def get_all_leave_requests(
         auth = db.query(Authority).filter(Authority.user_id == current_user.id).first()
         if "dean" in auth.title.lower():
             query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_DEAN, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
+        elif "om" in auth.title.lower() or "office manager" in auth.title.lower():
+            query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_OM, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
+        elif "principal" in auth.title.lower():
+            query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_PRINCIPAL, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
         elif "hr" in auth.title.lower():
             # HR sees all leaves
             pass
-        else: # OM / Principal
-            query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_OM, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
 
     requests = query.order_by(FacultyLeaveRequest.created_at.desc()).all()
     
@@ -974,9 +1045,12 @@ def approve_leave_request(
         if "dean" in auth.title.lower() and req.status == LeaveStatus.PENDING_DEAN:
             req.status = LeaveStatus.PENDING_OM
             req.dean_approved_by = auth.id
-        elif "dean" not in auth.title.lower() and req.status == LeaveStatus.PENDING_OM:
-            req.status = LeaveStatus.APPROVED
+        elif ("om" in auth.title.lower() or "office manager" in auth.title.lower()) and req.status == LeaveStatus.PENDING_OM:
+            req.status = LeaveStatus.PENDING_PRINCIPAL
             req.om_approved_by = auth.id
+        elif "principal" in auth.title.lower() and req.status == LeaveStatus.PENDING_PRINCIPAL:
+            req.status = LeaveStatus.APPROVED
+            req.principal_approved_by = auth.id
             
             # Deduct leave balance
             academic_year = "2023-2024"
@@ -1182,4 +1256,161 @@ def admin_update_leave_balances(
 
     db.commit()
     db.refresh(balance)
-    return balance
+    return balance
+
+@router.get("/hour-permission-data")
+def get_hour_permission_data(
+    on_date: str, start_time: str, end_time: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not faculty:
+        raise HTTPException(404, "Faculty profile not found")
+
+    d = datetime.strptime(on_date, "%Y-%m-%d").date()
+    day_name = d.strftime("%a").lower()[:3]
+    st = datetime.strptime(start_time, "%H:%M").time()
+    et = datetime.strptime(end_time, "%H:%M").time()
+
+    my_assignments = db.query(CourseAssignment).filter(
+        CourseAssignment.faculty_id == faculty.id, CourseAssignment.is_active == True
+    ).all()
+    assignment_ids = [a.id for a in my_assignments]
+
+    conflict_slot = db.query(TimetableSlot).filter(
+        TimetableSlot.course_assignment_id.in_(assignment_ids),
+        TimetableSlot.day == day_name
+    ).all()
+    conflict_slots = [s for s in conflict_slot if s.start_time < et and s.end_time > st]
+
+    other_faculty = db.query(Faculty).filter(Faculty.id != faculty.id, Faculty.is_active == True).all()
+
+    conflicts_data = []
+
+    if not conflict_slots:
+        subs = []
+        for f in other_faculty:
+            if f.department_id != faculty.department_id:
+                continue
+            busy_slots = db.query(TimetableSlot).join(CourseAssignment, TimetableSlot.course_assignment_id == CourseAssignment.id).filter(
+                CourseAssignment.faculty_id == f.id,
+                TimetableSlot.day == day_name
+            ).all()
+            is_busy = any(bs.start_time < et and bs.end_time > st for bs in busy_slots)
+            if not is_busy:
+                subs.append({"id": f.id, "name": f"{f.first_name} {f.last_name}", "designation": f.designation})
+                
+        conflicts_data.append({
+            "class_section": "Department Works",
+            "section_id": None,
+            "course_code": "Department Works",
+            "period": f"{start_time} - {end_time}",
+            "available_substitutes": subs
+        })
+
+    for cs in conflict_slots:
+        assignment = db.query(CourseAssignment).filter(CourseAssignment.id == cs.course_assignment_id).first()
+        course = db.query(Course).filter(Course.id == assignment.course_id).first()
+        section = db.query(Section).filter(Section.id == assignment.section_id).first()
+        department = db.query(Department).filter(Department.id == section.department_id).first()
+
+        subs = []
+        for f in other_faculty:
+            teaches = db.query(CourseAssignment).filter(
+                CourseAssignment.faculty_id == f.id,
+                CourseAssignment.section_id == section.id,
+                CourseAssignment.is_active == True
+            ).first()
+            if not teaches:
+                continue
+            busy_slots = db.query(TimetableSlot).filter(
+                TimetableSlot.course_assignment_id == teaches.id, TimetableSlot.day == day_name
+            ).all()
+            is_busy = any(bs.start_time < cs.end_time and bs.end_time > cs.start_time for bs in busy_slots)
+            if not is_busy:
+                subs.append({"id": f.id, "name": f"{f.first_name} {f.last_name}", "designation": f.designation})
+
+        conflicts_data.append({
+            "class_section": f"{department.code if department else 'Dept'} Year-{section.year} {section.name}",
+            "section_id": section.id,
+            "course_code": course.code,
+            "period": cs.period_display,
+            "available_substitutes": subs
+        })
+
+    # Always append Department Works if we had conflicts
+    if conflict_slots:
+        subs = []
+        for f in other_faculty:
+            if f.department_id != faculty.department_id:
+                continue
+            busy_slots = db.query(TimetableSlot).join(CourseAssignment, TimetableSlot.course_assignment_id == CourseAssignment.id).filter(
+                CourseAssignment.faculty_id == f.id,
+                TimetableSlot.day == day_name
+            ).all()
+            is_busy = any(bs.start_time < et and bs.end_time > st for bs in busy_slots)
+            if not is_busy:
+                subs.append({"id": f.id, "name": f"{f.first_name} {f.last_name}", "designation": f.designation})
+                
+        conflicts_data.append({
+            "class_section": "Department Works",
+            "section_id": None,
+            "course_code": "Department Works",
+            "period": f"{start_time} - {end_time}",
+            "available_substitutes": subs
+        })
+
+    return {"has_conflict": True, "conflicts": conflicts_data}
+
+
+@router.get("/altered-class-advisor-duties")
+def get_altered_class_advisor_duties(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not faculty:
+        return []
+
+    import datetime as dt
+    today = dt.datetime.now().date()
+    rows = db.query(FacultyDutyArrangement).join(
+        FacultyLeaveRequest, FacultyDutyArrangement.leave_request_id == FacultyLeaveRequest.id
+    ).filter(
+        FacultyDutyArrangement.substitute_faculty_id == faculty.id,
+        FacultyDutyArrangement.subject == "Class Advisor",
+        FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
+        FacultyLeaveRequest.from_date <= today,
+        FacultyLeaveRequest.to_date >= today,
+        FacultyLeaveRequest.status.notin_([LeaveStatus.REJECTED, LeaveStatus.WITHDRAWN])
+    ).all()
+
+    result = []
+    for arr in rows:
+        section = db.query(Section).filter(Section.id == arr.section_id).first()
+        if section:
+            result.append({
+                "arrangement_id": arr.id,
+                "section_id": section.id,
+                "class_section": arr.class_section,
+                "original_advisor_id": section.class_advisor_id
+            })
+    return result
+
+
+def is_effective_class_advisor(faculty_id: int, section_id: int, on_date, db: Session) -> bool:
+    section = db.query(Section).filter(Section.id == section_id).first()
+    if section and section.class_advisor_id == faculty_id:
+        return True
+    return db.query(FacultyDutyArrangement).join(
+        FacultyLeaveRequest, FacultyDutyArrangement.leave_request_id == FacultyLeaveRequest.id
+    ).filter(
+        FacultyDutyArrangement.substitute_faculty_id == faculty_id,
+        FacultyDutyArrangement.section_id == section_id,
+        FacultyDutyArrangement.subject == "Class Advisor",
+        FacultyDutyArrangement.status == ArrangementStatus.ACCEPTED,
+        FacultyLeaveRequest.from_date <= on_date,
+        FacultyLeaveRequest.to_date >= on_date,
+        FacultyLeaveRequest.status.notin_([LeaveStatus.REJECTED, LeaveStatus.WITHDRAWN])
+    ).first() is not None

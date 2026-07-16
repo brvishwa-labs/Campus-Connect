@@ -6,6 +6,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import Login from './features/auth/Login';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import FullscreenButton from './components/FullscreenButton';
+import ErrorBoundary from './components/ErrorBoundary';
 import { 
   AdminDashboard, 
   FacultyDashboard, 
@@ -71,6 +72,7 @@ import { CASubjects } from './features/faculty/classadvisor/CASubjects';
 import { CACourseProgress } from './features/faculty/classadvisor/CACourseProgress';
 import { CAClassInfo } from './features/faculty/classadvisor/CAClassInfo';
 import { CALeaveRequests } from './features/faculty/classadvisor/CALeaveRequests';
+import { AlteredClassAdvisor } from './features/faculty/AlteredClassAdvisor';
 import { Mentorship } from './features/faculty/Mentorship';
 import { GatePass } from './features/student/GatePass';
 import { StudentLeave } from './features/student/StudentLeave';
@@ -400,6 +402,11 @@ function AppRoutes() {
         <Route path="/faculty/class-advisor/leave" element={
           <ProtectedRoute allowedRole="faculty"><CALeaveRequests /></ProtectedRoute>
         } />
+        <Route path="/faculty/altered-class-advisor" element={
+          <ProtectedRoute allowedRole="faculty">
+            <AlteredClassAdvisor />
+          </ProtectedRoute>
+        } />
         <Route path="/faculty/announcements" element={
           <ProtectedRoute allowedRole="faculty">
             <Announcements />
@@ -652,14 +659,22 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <FullscreenButton />
-          <PWAInstallPrompt />
-          <AppRoutes />
-        </BrowserRouter>
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <div className="min-h-screen bg-gray-50 flex flex-col">
+              <div className="flex-1">
+                <AppRoutes />
+              </div>
+              
+              {/* Optional footer can go here */}
+            </div>
+            <PWAInstallPrompt />
+            <FullscreenButton />
+          </BrowserRouter>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

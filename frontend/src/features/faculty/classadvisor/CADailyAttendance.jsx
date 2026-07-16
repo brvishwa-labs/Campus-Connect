@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { CalendarDays, Save, CheckCircle2, AlertCircle, Users, ChevronLeft, ChevronRight, MessageCircle, CalendarOff } from 'lucide-react';
 
@@ -99,6 +99,8 @@ const PERIODS = [
 ];
 
 export const CADailyAttendance = () => {
+  const [searchParams] = useSearchParams();
+  const sectionId = searchParams.get('section_id');
   const today = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(today);
   const [students, setStudents] = useState([]);
@@ -113,7 +115,7 @@ export const CADailyAttendance = () => {
 
   const fetchSettings = useCallback(async () => {
     try {
-      const res = await axios.get('/api/class-advisor/attendance-settings');
+      const res = await axios.get('/api/class-advisor/attendance-settings', { params: { section_id: sectionId } });
       setAttendanceLocked(res.data.attendance_closed);
       setIsHoliday(res.data.is_holiday || false);
       setHolidayName(res.data.holiday_name || null);
@@ -134,12 +136,16 @@ export const CADailyAttendance = () => {
     setError(null);
     setSaved(false);
     let url = `/api/class-advisor/attendance?date=${dateStr}`;
+    if (sectionId) url += `&section_id=${sectionId}`;
     
     axios.get(url)
       .then(r => setStudents(r.data))
-      .catch(() => setError('Failed to load students'))
+      .catch((err) => {
+        const msg = err.response?.data?.detail || 'Failed to load students';
+        setError(msg);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [sectionId]);
 
   useEffect(() => {
     fetchAttendance(selectedDate);
@@ -166,7 +172,7 @@ export const CADailyAttendance = () => {
       await axios.post('/api/class-advisor/attendance', {
         date: selectedDate,
         records: students.filter(s => s.status).map(s => ({ student_id: s.student_id, status: s.status }))
-      });
+      }, { params: { section_id: sectionId } });
       setSaved(true);
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to save attendance');
