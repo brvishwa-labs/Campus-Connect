@@ -821,11 +821,23 @@ export const LMSLogbookReport = () => {
         </>
       );
 
-      case 'seminars': return (
-        <>
-          <SectionHeader title={sectionTitle} />
-          <div style={{ marginBottom: '18px' }}>
-            {seminars.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No seminar records available.</p> : (
+      case 'seminars': {
+        const sampleSeminars = [
+          { register_number: '21CSE001', name: 'Sample Student 1', topic: 'Machine Learning in Healthcare', date: '—', rubric: { rubric_content_relevance: 4, rubric_presentation_skills: 4, rubric_resources_used: 4, rubric_time_management: 3, rubric_question_handling: 2, rubric_team_coordination: 1 }, total: 18 },
+          { register_number: '21CSE002', name: 'Sample Student 2', topic: 'Internet of Things Applications', date: '—', rubric: { rubric_content_relevance: 5, rubric_presentation_skills: 3, rubric_resources_used: 4, rubric_time_management: 4, rubric_question_handling: 2, rubric_team_coordination: 1 }, total: 19 },
+          { register_number: '21CSE003', name: 'Sample Student 3', topic: 'Cloud Computing Security', date: '—', rubric: { rubric_content_relevance: 5, rubric_presentation_skills: 5, rubric_resources_used: 3, rubric_time_management: 3, rubric_question_handling: 1, rubric_team_coordination: 1 }, total: 18 },
+        ];
+        const displaySeminars = seminars.length > 0 ? seminars : sampleSeminars;
+        const isSample = seminars.length === 0;
+        return (
+          <>
+            <SectionHeader title={sectionTitle} />
+            <div style={{ marginBottom: '18px' }}>
+              {isSample && (
+                <p style={{ fontStyle: 'italic', color: '#94a3b8', fontSize: '8.5pt', marginBottom: '8px', padding: '4px 8px', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '4px' }}>
+                  ⚠ Sample table shown — actual seminar data will appear once seminars are recorded.
+                </p>
+              )}
               <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
@@ -836,7 +848,16 @@ export const LMSLogbookReport = () => {
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Total</th>
                 </tr></thead>
                 <tbody>
-                  {seminars.map(s => (
+                  {isSample ? displaySeminars.map((s, i) => (
+                    <tr key={i} className="report-table-row" style={{ color: '#94a3b8' }}>
+                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.register_number}</td>
+                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.name}</td>
+                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.topic}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{s.date}</td>
+                      {SEMINAR_RUBRIC.map(c => <td key={c.key} style={{ ...tdStyle, fontSize: '9pt' }}>{s.rubric?.[c.key] ?? '\u2014'}</td>)}
+                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{s.total}</td>
+                    </tr>
+                  )) : seminars.map(s => (
                     <tr key={s.student_id} className="report-table-row">
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.register_number}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.first_name + ' ' + s.last_name}</td>
@@ -848,10 +869,10 @@ export const LMSLogbookReport = () => {
                   ))}
                 </tbody>
               </table>
-            )}
-          </div>
-        </>
-      );
+            </div>
+          </>
+        );
+      }
 
       case 'assignments': return (
         <>
@@ -894,11 +915,23 @@ export const LMSLogbookReport = () => {
         </>
       );
 
-      case 'gradebook': return (
-        <>
-          <SectionHeader title={sectionTitle} />
-          <div style={{ marginBottom: '18px' }}>
-            {gradebook.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student roster records available.</p> : (
+      case 'gradebook': {
+        const sampleGradebook = [
+          { student_id: 'S1', register_number: '21CSE001', name: 'Sample Student 1', cia_1: 38, cia_1_retest: null, cia_2: 42, cia_2_retest: null, model_exam: 65, model_exam_retest: null },
+          { student_id: 'S2', register_number: '21CSE002', name: 'Sample Student 2', cia_1: 30, cia_1_retest: 35, cia_2: 40, cia_2_retest: null, model_exam: 58, model_exam_retest: 62 },
+          { student_id: 'S3', register_number: '21CSE003', name: 'Sample Student 3', cia_1: 45, cia_1_retest: null, cia_2: 44, cia_2_retest: null, model_exam: 72, model_exam_retest: null },
+        ];
+        const displayGradebook = gradebook.length > 0 ? gradebook : sampleGradebook;
+        const isSample = gradebook.length === 0;
+        return (
+          <>
+            <SectionHeader title={sectionTitle} />
+            <div style={{ marginBottom: '18px' }}>
+              {isSample && (
+                <p style={{ fontStyle: 'italic', color: '#94a3b8', fontSize: '8.5pt', marginBottom: '8px', padding: '4px 8px', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '4px' }}>
+                  ⚠ Sample table shown — actual marks will appear once CIA / Model Exam grades are entered.
+                </p>
+              )}
               <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
@@ -920,8 +953,8 @@ export const LMSLogbookReport = () => {
                   <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest Model</th>
                 </tr></thead>
                 <tbody>
-                  {gradebook.map(stu => (
-                    <tr key={stu.student_id} className="report-table-row">
+                  {displayGradebook.map(stu => (
+                    <tr key={stu.student_id} className="report-table-row" style={isSample ? { color: '#94a3b8' } : {}}>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.register_number}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.name}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_1 ?? '\u2014'}</td>
@@ -934,11 +967,10 @@ export const LMSLogbookReport = () => {
                   ))}
                 </tbody>
               </table>
-            )}
-          </div>
-        </>
-      );
-
+            </div>
+          </>
+        );
+      }
       case 'footer': return (
         <div style={{ marginTop: '48px', paddingTop: '24px', borderTop: '1px solid #94a3b8', display: 'flex', justifyContent: 'space-between' }}>
           {['Faculty Signature', 'HOD Signature', 'Principal Signature'].map(label => (
