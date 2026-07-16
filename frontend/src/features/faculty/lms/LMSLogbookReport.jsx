@@ -281,7 +281,7 @@ export const LMSLogbookReport = () => {
         if (Array.isArray(order)) return order;
       }
     } catch (e) { console.error(e); }
-    return null;
+    return [];
   });
   const [layoutMap, setLayoutMap] = useState(() => {
     try {
@@ -291,7 +291,7 @@ export const LMSLogbookReport = () => {
         if (map) return map;
       }
     } catch (e) { console.error(e); }
-    return null;
+    return {};
   });
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [saveLayoutSuccess, setSaveLayoutSuccess] = useState(false);
@@ -504,6 +504,7 @@ export const LMSLogbookReport = () => {
 
   // ── Section renderers ────────────────────────────────────────────────────────
   const renderSection = (id) => {
+    const sectionTitle = isLab ? (LAB_SECTION_LABELS[id] || SECTION_LABELS[id] || id) : (SECTION_LABELS[id] || id);
     switch (id) {
       case 'cover': return (
         <div style={{ textAlign: 'center', marginBottom: '28px', borderBottom: '3px solid #1e293b', paddingBottom: '20px' }}>
@@ -525,25 +526,25 @@ export const LMSLogbookReport = () => {
         </div>
       );
 
-      case 'dept-vision': return (<><SectionHeader title="1. Department Vision" /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.vision)}</div></>);
-      case 'dept-mission': return (<><SectionHeader title="2. Department Mission" /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.mission)}</div></>);
-      case 'peos': return (<><SectionHeader title="3. Programme Educational Objectives (PEOs)" /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.peos)}</div></>);
-      case 'pos': return (<><SectionHeader title="4. Programme Outcomes (POs)" /><div style={{ marginBottom: '18px' }}>{highlightReportText(programOutcomes?.outcomes)}</div></>);
-      case 'psos': return (<><SectionHeader title="5. Programme Specific Outcomes (PSOs)" /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.psos)}</div></>);
-      case 'course-objectives': return (<><SectionHeader title="6. Course Objectives" /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.objectives)}</div></>);
+      case 'dept-vision': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.vision)}</div></>);
+      case 'dept-mission': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.mission)}</div></>);
+      case 'peos': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.peos)}</div></>);
+      case 'pos': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(programOutcomes?.outcomes)}</div></>);
+      case 'psos': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.psos)}</div></>);
+      case 'course-objectives': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.objectives)}</div></>);
 
       case 'course-outcomes': return (
         <>
-          <SectionHeader title="7. Course Outcomes" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
-            <table><thead><tr>
+            <table className="report-table"><thead><tr>
               <th style={{ ...thStyle, width: '50px', textAlign: 'center' }}>CO</th>
               <th style={{ ...thStyle, textAlign: 'left' }}>Course Outcome Description</th>
               <th style={{ ...thStyle, width: '180px' }}>Bloom's Taxonomy Level(s)</th>
             </tr></thead>
             <tbody>
               {coUnitRows.map((row) => (
-                <tr key={row.co}>
+                <tr key={row.co} className="report-table-row">
                   <td style={{ ...tdStyle, fontWeight: 'bold' }}><span className="highlight-label">{row.co}</span></td>
                   <td style={tdLeftStyle}>{row.outcomeText}</td>
                   <td style={tdStyle}>
@@ -581,9 +582,9 @@ export const LMSLogbookReport = () => {
 
       case 'po-co-mapping': return (
         <>
-          <SectionHeader title="8. PO\u2013CO Mapping" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px', overflowX: 'auto' }}>
-            <table style={{ fontSize: '9pt', width: '100%' }}>
+            <table className="report-table" style={{ fontSize: '9pt', width: '100%' }}>
               <thead>
                 <tr>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '48px', verticalAlign: 'middle' }} rowSpan={2}>CO</th>
@@ -601,7 +602,7 @@ export const LMSLogbookReport = () => {
                 {coUnitRows.map((row) => {
                   const kDisplay = row.kLevels.length > 0 ? row.kLevels.join(', ') : '\u2014';
                   return (
-                    <tr key={row.co}>
+                    <tr key={row.co} className="report-table-row">
                       <td style={{ ...tdStyle, fontWeight: 'bold', backgroundColor: '#f8fafc' }}><span className="highlight-label">{row.co}</span></td>
                       <td style={{ ...tdStyle, backgroundColor: '#f8fafc' }}>Unit {row.unitNo}</td>
                       <td style={{ ...tdStyle, fontWeight: 'bold', backgroundColor: '#f8fafc', fontSize: '9pt' }}>{kDisplay}</td>
@@ -619,18 +620,18 @@ export const LMSLogbookReport = () => {
         </>
       );
 
-      case 'syllabus': return (<><SectionHeader title="9. Syllabus" /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.syllabus)}</div></>);
-      case 'textbooks': return (<><SectionHeader title="10. Textbooks" /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.textbooks)}</div></>);
-      case 'references': return (<><SectionHeader title="11. References" /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.references)}</div></>);
+      case 'syllabus': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.syllabus)}</div></>);
+      case 'textbooks': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.textbooks)}</div></>);
+      case 'references': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.references)}</div></>);
 
-      case 'list-of-experiments': return (<><SectionHeader title="3. List of Experiments" /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.syllabus)}</div></>);
+      case 'list-of-experiments': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.syllabus)}</div></>);
 
       case 'practical-schedule': return (
         <>
-          <SectionHeader title="5. Practical Schedule" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
             {coursePlan.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No schedule coverage data available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Seq</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Unit</th>
@@ -644,7 +645,7 @@ export const LMSLogbookReport = () => {
                 </tr></thead>
                 <tbody>
                   {coursePlan.map(tp => (
-                    <tr key={tp.id}>
+                    <tr key={tp.id} className="report-table-row">
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.unit}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.topic}</td>
@@ -665,10 +666,10 @@ export const LMSLogbookReport = () => {
 
       case 'lab-marks': return (
         <>
-          <SectionHeader title="7. Lab Mark Entry" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
             {labMarks.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student lab marks available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Student Name</th>
@@ -683,7 +684,7 @@ export const LMSLogbookReport = () => {
                 </tr></thead>
                 <tbody>
                   {labMarks.map(stu => (
-                    <tr key={stu.student_id}>
+                    <tr key={stu.student_id} className="report-table-row">
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.register_number}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.first_name} {stu.last_name}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.record_marks ?? '\u2014'}</td>
@@ -705,10 +706,10 @@ export const LMSLogbookReport = () => {
 
       case 'course-plan': return (
         <>
-          <SectionHeader title="12. Course Plan / Lesson Plan Coverage" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
             {coursePlan.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No lesson plan coverage data available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Seq</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Unit</th>
@@ -722,7 +723,7 @@ export const LMSLogbookReport = () => {
                 </tr></thead>
                 <tbody>
                   {coursePlan.map(tp => (
-                    <tr key={tp.id}>
+                    <tr key={tp.id} className="report-table-row">
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.unit}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.topic}</td>
@@ -743,10 +744,10 @@ export const LMSLogbookReport = () => {
 
       case 'attendance': return (
         <>
-          <SectionHeader title="13. Student Attendance Summary" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
             {gradebook.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student records available.</p> : (
-              <table style={{ fontSize: '10pt' }}>
+              <table className="report-table" style={{ fontSize: '10pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, textAlign: 'left', width: '110px' }}>Reg No.</th>
                   <th style={{ ...thStyle, textAlign: 'left' }}>Student Name</th>
@@ -758,7 +759,7 @@ export const LMSLogbookReport = () => {
                   {gradebook.map(stu => {
                     const { conducted, attended, percentage } = getStudentAttendanceSummary(stu.student_id);
                     return (
-                      <tr key={stu.student_id}>
+                      <tr key={stu.student_id} className="report-table-row">
                         <td style={tdLeftStyle}>{stu.register_number}</td>
                         <td style={tdLeftStyle}>{stu.name}</td>
                         <td style={tdStyle}>{conducted}</td>
@@ -776,10 +777,10 @@ export const LMSLogbookReport = () => {
 
       case 'seminars': return (
         <>
-          <SectionHeader title="14. Student Seminar Report" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
             {seminars.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No seminar records available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '140px' }}>Student Name</th>
@@ -790,7 +791,7 @@ export const LMSLogbookReport = () => {
                 </tr></thead>
                 <tbody>
                   {seminars.map(s => (
-                    <tr key={s.student_id}>
+                    <tr key={s.student_id} className="report-table-row">
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.register_number}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.first_name + ' ' + s.last_name}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.seminar_topic || 'Not Assigned'}</td>
@@ -808,16 +809,16 @@ export const LMSLogbookReport = () => {
 
       case 'assignments': return (
         <>
-          <SectionHeader title="15. Assignments Marks Report" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
             {assignmentMeta.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No assignment records available.</p> : (
               assignmentMeta.map((asgn, aIdx) => {
                 const roster = assignmentRosters[asgn.id] || [];
                 return (
-                  <div key={asgn.id} style={{ marginBottom: '20px' }}>
-                    <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '13pt', fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>Assignment {aIdx + 1}: {asgn.title}</p>
+                  <div key={asgn.id} className="assignment-block" style={{ marginBottom: '20px' }}>
+                    <p className="assignment-title" style={{ fontFamily: 'Times New Roman, serif', fontSize: '13pt', fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>Assignment {aIdx + 1}: {asgn.title}</p>
                     {roster.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b', fontSize: '10pt' }}>No student data available.</p> : (
-                      <table style={{ fontSize: '9pt' }}>
+                      <table className="report-table" style={{ fontSize: '9pt' }}>
                         <thead><tr>
                           <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
                           <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Student Name</th>
@@ -828,7 +829,7 @@ export const LMSLogbookReport = () => {
                           {roster.map(g => {
                             const rubric = parseRubric(g.remarks);
                             return (
-                              <tr key={g.student_id}>
+                              <tr key={g.student_id} className="report-table-row">
                                 <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.register_number}</td>
                                 <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.first_name} {g.last_name}</td>
                                 <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{g.marks_obtained != null ? g.marks_obtained : '\u2014'}</td>
@@ -849,10 +850,10 @@ export const LMSLogbookReport = () => {
 
       case 'gradebook': return (
         <>
-          <SectionHeader title="16. Internal Assessments Grade Book" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
             {gradebook.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student roster records available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Student Name</th>
@@ -874,7 +875,7 @@ export const LMSLogbookReport = () => {
                 </tr></thead>
                 <tbody>
                   {gradebook.map(stu => (
-                    <tr key={stu.student_id}>
+                    <tr key={stu.student_id} className="report-table-row">
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.register_number}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.name}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_1 ?? '\u2014'}</td>
@@ -920,7 +921,7 @@ export const LMSLogbookReport = () => {
             <SectionHeader title={isFirst ? "12. Course Plan / Lesson Plan Coverage" : "12. Course Plan / Lesson Plan Coverage (Continued)"} />
             <div style={{ marginBottom: '14px' }}>
               {!data ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No lesson plan coverage data available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Seq</th>
@@ -936,7 +937,7 @@ export const LMSLogbookReport = () => {
                 </thead>
                 <tbody>
                   {data.map(tp => (
-                    <tr key={tp.id}>
+                    <tr key={tp.id} className="report-table-row">
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.unit}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.topic}</td>
@@ -962,7 +963,7 @@ export const LMSLogbookReport = () => {
             <SectionHeader title={isFirst ? "13. Student Attendance Summary" : "13. Student Attendance Summary (Continued)"} />
             <div style={{ marginBottom: '14px' }}>
               {!data ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student records available.</p> : (
-              <table style={{ fontSize: '10pt' }}>
+              <table className="report-table" style={{ fontSize: '10pt' }}>
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, textAlign: 'left', width: '110px' }}>Reg No.</th>
@@ -976,7 +977,7 @@ export const LMSLogbookReport = () => {
                   {data.map(stu => {
                     const { conducted, attended, percentage } = getStudentAttendanceSummary(stu.student_id);
                     return (
-                      <tr key={stu.student_id}>
+                      <tr key={stu.student_id} className="report-table-row">
                         <td style={tdLeftStyle}>{stu.register_number}</td>
                         <td style={tdLeftStyle}>{stu.name}</td>
                         <td style={tdStyle}>{conducted}</td>
@@ -999,7 +1000,7 @@ export const LMSLogbookReport = () => {
             <SectionHeader title={isFirst ? "14. Student Seminar Report" : "14. Student Seminar Report (Continued)"} />
             <div style={{ marginBottom: '14px' }}>
               {!data ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No seminar records available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
@@ -1012,7 +1013,7 @@ export const LMSLogbookReport = () => {
                 </thead>
                 <tbody>
                   {data.map(s => (
-                    <tr key={s.student_id}>
+                    <tr key={s.student_id} className="report-table-row">
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.register_number}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.first_name + ' ' + s.last_name}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.seminar_topic || 'Not Assigned'}</td>
@@ -1035,7 +1036,7 @@ export const LMSLogbookReport = () => {
             <SectionHeader title={isFirst ? "16. Internal Assessments Grade Book" : "16. Internal Assessments Grade Book (Continued)"} />
             <div style={{ marginBottom: '14px' }}>
               {!data ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student roster records available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
@@ -1059,7 +1060,7 @@ export const LMSLogbookReport = () => {
                 </thead>
                 <tbody>
                   {data.map(stu => (
-                    <tr key={stu.student_id}>
+                    <tr key={stu.student_id} className="report-table-row">
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.register_number}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.name}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_1 ?? '—'}</td>
@@ -1097,7 +1098,7 @@ export const LMSLogbookReport = () => {
             <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '13pt', fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>
               Assignment {idx1 + 1}: {asgn.title} {!isFirstChunkForAsg && '(Continued)'}
             </p>
-            <table style={{ fontSize: '9pt' }}>
+            <table className="report-table" style={{ fontSize: '9pt' }}>
               <thead>
                 <tr>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
@@ -1110,7 +1111,7 @@ export const LMSLogbookReport = () => {
                 {chunk.map(g => {
                   const rubric = parseRubric(g.remarks);
                   return (
-                    <tr key={g.student_id}>
+                    <tr key={g.student_id} className="report-table-row">
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.register_number}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.first_name} {g.last_name}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{g.marks_obtained != null ? g.marks_obtained : '—'}</td>
@@ -1136,7 +1137,31 @@ export const LMSLogbookReport = () => {
   };
 
   const renderTableHeader = (baseId) => {
-    if (baseId === 'course-plan') {
+    if (baseId === 'course-outcomes') {
+      return (
+        <tr>
+          <th style={{ ...thStyle, width: '50px', textAlign: 'center' }}>CO</th>
+          <th style={{ ...thStyle, textAlign: 'left' }}>Course Outcome Description</th>
+          <th style={{ ...thStyle, width: '180px' }}>Bloom's Taxonomy Level(s)</th>
+        </tr>
+      );
+    } else if (baseId === 'po-co-mapping') {
+      return (
+        <>
+          <tr>
+            <th style={{ ...thStyle, fontSize: '9pt', width: '48px', verticalAlign: 'middle' }} rowSpan={2}>CO</th>
+            <th style={{ ...thStyle, fontSize: '9pt', width: '52px', verticalAlign: 'middle' }} rowSpan={2}>Unit</th>
+            <th style={{ ...thStyle, fontSize: '9pt', width: '60px', verticalAlign: 'middle' }} rowSpan={2}>K-Level</th>
+            <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'center' }} colSpan={12}>Programme Outcomes (POs)</th>
+            <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'center' }} colSpan={2}>PSOs</th>
+          </tr>
+          <tr>
+            {poColumns.map(po => <th key={po} style={{ ...thStyle, fontSize: '8pt', width: '28px', padding: '3px 2px' }}><span className="highlight-label">{po}</span></th>)}
+            {psoColumns.map(pso => <th key={pso} style={{ ...thStyle, fontSize: '8pt', width: '28px', padding: '3px 2px' }}><span className="highlight-label">{pso}</span></th>)}
+          </tr>
+        </>
+      );
+    } else if (baseId === 'course-plan') {
       return (
         <tr>
           <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Seq</th>
@@ -1227,7 +1252,31 @@ export const LMSLogbookReport = () => {
   };
 
   const renderTableRow = (baseId, rowData, rIdx) => {
-    if (baseId === 'course-plan' || baseId === 'practical-schedule') {
+    if (baseId === 'course-outcomes') {
+      const row = rowData;
+      return (
+        <tr key={row.co} className="report-table-row">
+          <td style={{ ...tdStyle, fontWeight: 'bold' }}><span className="highlight-label">{row.co}</span></td>
+          <td style={tdLeftStyle}>{row.outcomeText}</td>
+          <td style={tdStyle}>
+            <div style={{ fontWeight: 'bold', textAlign: 'center' }}>
+              {row.kLevels.length > 0 ? row.kLevels.map(k => k + ' \u2013 ' + K_LABELS[k]).join(', ') : '\u2014'}
+            </div>
+          </td>
+        </tr>
+      );
+    } else if (baseId === 'po-co-mapping') {
+      const row = rowData;
+      const kDisplay = row.kLevels.length > 0 ? row.kLevels.join(', ') : '\u2014';
+      return (
+        <tr key={row.co} className="report-table-row">
+          <td style={{ ...tdStyle, fontWeight: 'bold', backgroundColor: '#f8fafc' }}><span className="highlight-label">{row.co}</span></td>
+          <td style={{ ...tdStyle, backgroundColor: '#f8fafc' }}>Unit {row.unitNo}</td>
+          <td style={{ ...tdStyle, fontWeight: 'bold', backgroundColor: '#f8fafc', fontSize: '9pt' }}>{kDisplay}</td>
+          {allCols.map(col => { const val = getMappingValue(row.co, col); return <td key={col} style={{ ...tdStyle, fontSize: '9pt', fontWeight: val ? 'bold' : 'normal' }}>{val || '-'}</td>; })}
+        </tr>
+      );
+    } else if (baseId === 'course-plan' || baseId === 'practical-schedule') {
       const tp = rowData;
       return (
         <tr key={tp.id} className="report-table-row">
@@ -1359,7 +1408,7 @@ export const LMSLogbookReport = () => {
               {group.length === 0 && isFirst ? (
                 <p style={{ fontStyle: 'italic', color: '#64748b' }}>No records available.</p>
               ) : (
-                <table style={{ fontSize: baseId === 'attendance' ? '10pt' : '9pt' }}>
+                <table className="report-table" style={{ fontSize: baseId === 'attendance' ? '10pt' : '9pt' }}>
                   <thead>
                     {renderTableHeader(baseId)}
                   </thead>
@@ -1398,7 +1447,7 @@ export const LMSLogbookReport = () => {
             {group.length === 0 && isFirst ? (
               <p style={{ fontStyle: 'italic', color: '#64748b', fontSize: '10pt' }}>No student data available.</p>
             ) : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
@@ -1411,7 +1460,7 @@ export const LMSLogbookReport = () => {
                   {group.map((g, rIdx) => {
                     const rubric = parseRubric(g.remarks);
                     return (
-                      <tr key={g.student_id}>
+                      <tr key={g.student_id} className="report-table-row">
                         <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.register_number}</td>
                         <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.first_name} {g.last_name}</td>
                         <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{g.marks_obtained != null ? g.marks_obtained : '—'}</td>
@@ -1450,7 +1499,7 @@ export const LMSLogbookReport = () => {
     const pagesList = [];
     let currentPage = [];
     let accumulatedHeight = 0;
-    const maxHeight = 1005; // content height limits within A4 297mm page in pixels
+    const maxHeight = 950; // content height limits within A4 297mm page in pixels (reduced for safety)
 
     if (!useDOM) {
       sectionOrder.forEach((id) => {
@@ -1500,7 +1549,7 @@ export const LMSLogbookReport = () => {
         return;
       }
 
-      if (['dept-vision', 'dept-mission', 'peos', 'pos', 'psos', 'course-objectives', 'course-outcomes', 'syllabus', 'textbooks', 'references', 'list-of-experiments'].includes(id)) {
+      if (['dept-vision', 'dept-mission', 'peos', 'pos', 'psos', 'course-objectives', 'syllabus', 'textbooks', 'references', 'list-of-experiments'].includes(id)) {
         const headerEl = measureEl.querySelector('.section-header');
         const headerHeight = (headerEl?.offsetHeight || 40) + spacingTop;
         const lines = Array.from(measureEl.querySelectorAll('.prose-line'));
@@ -1562,13 +1611,14 @@ export const LMSLogbookReport = () => {
             }
           }
         }
-      } else if (['course-plan', 'attendance', 'seminars', 'gradebook', 'practical-schedule', 'lab-marks'].includes(id)) {
+      } else if (['course-outcomes', 'po-co-mapping', 'course-plan', 'attendance', 'seminars', 'gradebook', 'practical-schedule', 'lab-marks'].includes(id)) {
         const headerEl = measureEl.querySelector('.section-header');
         const headerHeight = (headerEl?.offsetHeight || 40) + spacingTop;
         const tableHeaderEl = measureEl.querySelector('thead');
         const tableHeaderHeight = tableHeaderEl?.offsetHeight || 35;
         const rows = Array.from(measureEl.querySelectorAll('.report-table-row'));
-        const rowDataArray = (id === 'course-plan' || id === 'practical-schedule' ? coursePlan :
+        const rowDataArray = (id === 'course-outcomes' || id === 'po-co-mapping' ? coUnitRows :
+                              id === 'course-plan' || id === 'practical-schedule' ? coursePlan :
                               id === 'attendance' ? gradebook :
                               id === 'seminars' ? seminars :
                               id === 'lab-marks' ? labMarks :
