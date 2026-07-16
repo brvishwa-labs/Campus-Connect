@@ -85,6 +85,7 @@ export default function DashboardLayout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCAOpen, setIsCAOpen] = useState(location.pathname.startsWith('/faculty/class-advisor'));
+  const [isHRLeavesOpen, setIsHRLeavesOpen] = useState(location.pathname.startsWith('/hr/leaves'));
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [userMenuVisible, setUserMenuVisible] = useState(false);
   const userMenuRef = useRef(null);
@@ -415,6 +416,64 @@ export default function DashboardLayout() {
                                   {badgeCounts[sublink.path]}
                                 </span>
                               )}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </React.Fragment>
+              );
+            }
+
+            if (link.name === 'Faculty Leaves' && user.role === 'authority') {
+              const HR_LEAVES_SUB_LINKS = [
+                { name: 'Leave Tracking', path: '/hr/leaves', icon: Calendar },
+                { name: 'Set Limits', path: '/hr/leaves/set-limits', icon: Settings },
+              ];
+              return (
+                <React.Fragment key={link.name}>
+                  <div>
+                    <button
+                      onClick={() => setIsHRLeavesOpen(prev => !prev)}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all font-medium ${
+                        location.pathname.startsWith('/hr/leaves')
+                          ? 'bg-indigo-50 dark:bg-gray-100 text-indigo-700 dark:text-gray-900 font-bold'
+                          : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-100/50 hover:text-gray-900 dark:hover:text-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Calendar className={`w-5 h-5 ${location.pathname.startsWith('/hr/leaves') ? 'text-indigo-600 dark:text-gray-900' : 'text-gray-400 dark:text-gray-500'}`} />
+                        <span className="text-[15px]">Faculty Leaves</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {isHRLeavesOpen
+                          ? <ChevronDown className="w-4 h-4 text-gray-400" />
+                          : <ChevronRight className="w-4 h-4 text-gray-400" />
+                        }
+                      </div>
+                    </button>
+
+                    {isHRLeavesOpen && (
+                      <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-indigo-100 dark:border-indigo-500/50 pl-3">
+                        {HR_LEAVES_SUB_LINKS.map(sublink => {
+                          const SubIcon = sublink.icon;
+                          const isSubActive = location.pathname === sublink.path;
+                          return (
+                            <Link
+                              key={sublink.path}
+                              to={sublink.path}
+                              onClick={() => setIsMobileMenuOpen(false)}
+                              className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-[14px] ${
+                                isSubActive
+                                  ? 'bg-indigo-50 dark:bg-gray-100 text-indigo-700 dark:text-gray-900 font-bold'
+                                  : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-100/50 hover:text-gray-800 dark:hover:text-gray-100 font-medium'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-2.5">
+                                <SubIcon className={`w-4 h-4 ${isSubActive ? 'text-indigo-600 dark:text-gray-900' : 'text-gray-400 dark:text-gray-500'}`} />
+                                <span>{sublink.name}</span>
+                              </div>
                             </Link>
                           );
                         })}
