@@ -591,6 +591,7 @@ export const LMSSyllabus = () => {
 
   const courseCode = courseDetails?.course?.code || "N/A";
   const courseTitle = courseDetails?.course?.name || "N/A";
+  const isLab = courseDetails?.course?.course_type === 'lab';
 
   // 1. LANDING DASHBOARD CARD VIEW
   if (viewMode === "selection") {
@@ -607,8 +608,8 @@ export const LMSSyllabus = () => {
               <ArrowLeft className="w-4 h-4" /> Back to My Courses
             </Link>
           </div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Lesson Plan</h1>
-          <p className="text-sm text-gray-500 mt-1 font-medium">Manage lesson planning and coverage records</p>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">{isLab ? 'Practical Schedule' : 'Lesson Plan'}</h1>
+          <p className="text-sm text-gray-500 mt-1 font-medium">Manage {isLab ? 'practical schedule' : 'lesson planning'} and coverage records</p>
         </div>
 
         {/* Selection Cards (mockup styling matching Course Dashboard) */}
@@ -627,7 +628,7 @@ export const LMSSyllabus = () => {
             </div>
             
             <h3 className="text-xl font-bold text-gray-900 mb-2 relative z-10">
-              Write Lesson Plan
+              {isLab ? 'Write Practical Schedule' : 'Write Lesson Plan'}
             </h3>
             
             <p className="text-gray-500 text-sm font-medium leading-relaxed relative z-10">
@@ -635,7 +636,7 @@ export const LMSSyllabus = () => {
             </p>
             
             <div className="mt-auto pt-6 flex items-center text-sm font-bold text-gray-400 group-hover:text-gray-950 transition-colors relative z-10">
-              Manage Write Lesson Plan <ArrowLeft className="w-4 h-4 ml-1 rotate-180 transition-transform group-hover:translate-x-1" />
+              {isLab ? 'Write Practical Schedule' : 'Write Lesson Plan'} <ArrowLeft className="w-4 h-4 ml-1 rotate-180 transition-transform group-hover:translate-x-1" />
             </div>
           </div>
 
@@ -949,7 +950,7 @@ export const LMSSyllabus = () => {
       {/* Simplified Header Title and Metadata */}
       <div>
         <h1 className="text-2xl font-extrabold text-gray-955 tracking-tight flex items-center gap-2">
-          {viewMode === "write" ? "Write Lesson Plan" : "Coverage Record (Work Done)"}
+          {viewMode === "write" ? (isLab ? "Write Practical Schedule" : "Write Lesson Plan") : "Coverage Record (Work Done)"}
         </h1>
         <p className="text-xs font-semibold text-gray-500 mt-1">
           Course: <span className="font-mono text-gray-800">{courseCode}</span> &nbsp;·&nbsp; <span className="uppercase text-gray-800">{courseTitle}</span>
@@ -973,7 +974,7 @@ export const LMSSyllabus = () => {
         <div className="space-y-4">
           
           <div className="flex items-center justify-between pb-1">
-            <span className="text-xs font-extrabold text-gray-500 uppercase tracking-wider">Lesson Plan Sheet</span>
+            <span className="text-xs font-extrabold text-gray-500 uppercase tracking-wider">{isLab ? 'Practical Schedule Sheet' : 'Lesson Plan Sheet'}</span>
             <span className="text-xs text-gray-400 font-medium">* Fill out proposed dates, period, units and topics below</span>
           </div>
 
@@ -985,12 +986,14 @@ export const LMSSyllabus = () => {
                   <th className="py-2.5 px-3 w-16 text-center border-r border-gray-300">S.No.</th>
                   <th className="py-2.5 px-3 w-36 border-r border-gray-300">Proposed Date</th>
                   <th className="py-2.5 px-3 w-28 border-r border-gray-300">Hour/Period</th>
-                  <th className="py-2.5 px-3 w-20 border-r border-gray-300">Unit</th>
-                  <th className="py-2.5 px-4 border-r border-gray-300">Topic(s)</th>
+                  <th className="py-2.5 px-3 w-20 border-r border-gray-300">{isLab ? 'Experiment' : 'Unit'}</th>
+                  {isLab && <th className="py-2.5 px-4 border-r border-gray-300">Experiment Name</th>}
+                  {!isLab && <th className="py-2.5 px-4 border-r border-gray-300">Topic(s)</th>}
                   <th className="py-2.5 px-3 w-32 border-r border-gray-300">Blooms Level</th>
-                  <th className="py-2.5 px-3 w-32 border-r border-gray-300">COs</th>
+                  {!isLab && <th className="py-2.5 px-3 w-32 border-r border-gray-300">COs</th>}
                   <th className="py-2.5 px-3 w-36 border-r border-gray-300">PO</th>
                   <th className="py-2.5 px-3 w-36 border-r border-gray-300">Mode of Delivery</th>
+                  {isLab && <th className="py-2.5 px-3 w-36 border-r border-gray-300">Resources</th>}
                   <th className="py-2.5 px-2 w-12 text-center"></th>
                 </tr>
               </thead>
@@ -1031,18 +1034,32 @@ export const LMSSyllabus = () => {
                       </select>
                     </td>
 
-                    {/* Unit */}
+                    {/* Unit / Experiment */}
                     <td className="py-2 px-3 border-r border-gray-200">
                       <input
                         type="text"
                         value={t.unit}
                         onChange={(e) => handleRowChange(t.sequence_no, 'unit', e.target.value)}
-                        placeholder="e.g. 1"
+                        placeholder={isLab ? "e.g. Exp 1" : "e.g. 1"}
                         className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-orange-500 focus:outline-none"
                       />
                     </td>
 
-                    {/* Topic */}
+                    {/* Experiment Name - Lab only */}
+                    {isLab && (
+                    <td className="py-2 px-3 border-r border-gray-200">
+                      <input
+                        type="text"
+                        value={t.experiment_name || ''}
+                        onChange={(e) => handleRowChange(t.sequence_no, 'experiment_name', e.target.value)}
+                        placeholder="Enter experiment name..."
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                      />
+                    </td>
+                    )}
+
+                    {/* Topic - Theory only */}
+                    {!isLab && (
                     <td className="py-2 px-3 border-r border-gray-200">
                       <input
                         type="text"
@@ -1052,6 +1069,7 @@ export const LMSSyllabus = () => {
                         className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-orange-500 focus:outline-none"
                       />
                     </td>
+                    )}
 
                     {/* Blooms Level (cognitive_level) */}
                     <td className="py-2 px-3 border-r border-gray-200">
@@ -1065,7 +1083,8 @@ export const LMSSyllabus = () => {
                       />
                     </td>
 
-                    {/* COs */}
+                    {/* COs - Theory only */}
+                    {!isLab && (
                     <td className="py-2 px-3 border-r border-gray-200">
                       <DropdownSelectInput
                         value={t.co}
@@ -1076,6 +1095,7 @@ export const LMSSyllabus = () => {
                         color="emerald"
                       />
                     </td>
+                    )}
 
                     {/* PO */}
                     <td className="py-2 px-3 border-r border-gray-200">
@@ -1108,6 +1128,19 @@ export const LMSSyllabus = () => {
                         <option value="CS">Case Study (CS)</option>
                       </select>
                     </td>
+
+                    {/* Resources - Lab only */}
+                    {isLab && (
+                    <td className="py-2 px-3 border-r border-gray-200">
+                      <input
+                        type="text"
+                        value={t.resources || ''}
+                        onChange={(e) => handleRowChange(t.sequence_no, 'resources', e.target.value)}
+                        placeholder="Enter resources..."
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                      />
+                    </td>
+                    )}
 
                     {/* Delete button */}
                     <td className="py-2 px-2 text-center">
@@ -1179,15 +1212,27 @@ export const LMSSyllabus = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Unit</label>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">{isLab ? 'Experiment' : 'Unit'}</label>
                     <input
                       type="text"
                       value={t.unit}
                       onChange={(e) => handleRowChange(t.sequence_no, 'unit', e.target.value)}
-                      placeholder="e.g. 1"
+                      placeholder={isLab ? "e.g. Exp 1" : "e.g. 1"}
                       className="w-full px-2 py-1.5 border border-gray-300 rounded-lg font-semibold focus:ring-1 focus:ring-orange-500 focus:outline-none"
                     />
                   </div>
+                  {isLab && (
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Experiment Name</label>
+                    <input
+                      type="text"
+                      value={t.experiment_name || ''}
+                      onChange={(e) => handleRowChange(t.sequence_no, 'experiment_name', e.target.value)}
+                      placeholder="Enter experiment name..."
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg font-semibold focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                    />
+                  </div>
+                  )}
                   <div>
                     <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Blooms Level</label>
                     <DropdownSelectInput
@@ -1199,6 +1244,7 @@ export const LMSSyllabus = () => {
                       color="blue"
                     />
                   </div>
+                  {!isLab && (
                   <div>
                     <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">COs</label>
                     <DropdownSelectInput
@@ -1210,6 +1256,7 @@ export const LMSSyllabus = () => {
                       color="emerald"
                     />
                   </div>
+                  )}
                   <div className="col-span-2">
                     <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">PO</label>
                     <DropdownSelectInput
@@ -1240,8 +1287,21 @@ export const LMSSyllabus = () => {
                       <option value="CS">Case Study (CS)</option>
                     </select>
                   </div>
+                  {isLab && (
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Resources</label>
+                    <input
+                      type="text"
+                      value={t.resources || ''}
+                      onChange={(e) => handleRowChange(t.sequence_no, 'resources', e.target.value)}
+                      placeholder="Enter resources..."
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg font-semibold focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                    />
+                  </div>
+                  )}
                 </div>
                 
+                {!isLab && (
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Topic(s)</label>
                   <textarea
@@ -1252,6 +1312,7 @@ export const LMSSyllabus = () => {
                     className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-orange-500 focus:outline-none bg-white text-gray-800"
                   />
                 </div>
+                )}
               </div>
             ))}
             
@@ -1275,7 +1336,7 @@ export const LMSSyllabus = () => {
               disabled={saving}
               className="flex items-center gap-1.5 px-6 py-2 rounded-xl text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 transition-colors disabled:bg-orange-400 w-full sm:w-auto justify-center"
             >
-              <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save Lesson Plan"}
+              <Save className="w-4 h-4" /> {saving ? "Saving..." : isLab ? "Save Schedule" : "Save Lesson Plan"}
             </button>
           </div>
 
@@ -1299,12 +1360,14 @@ export const LMSSyllabus = () => {
                   <th className="py-2.5 px-3 w-16 text-center border-r border-gray-300">S.No.</th>
                   <th className="py-2.5 px-3 w-28 border-r border-gray-300">Proposed Date</th>
                   <th className="py-2.5 px-3 w-28 text-center border-r border-gray-300">Hour / Period</th>
-                  <th className="py-2.5 px-2 w-16 border-r border-gray-300">Unit</th>
-                  <th className="py-2.5 px-4 border-r border-gray-300">Topic(s)</th>
+                  <th className="py-2.5 px-2 w-16 border-r border-gray-300">{isLab ? 'Experiment' : 'Unit'}</th>
+                  {isLab && <th className="py-2.5 px-4 border-r border-gray-300">Experiment Name</th>}
+                  {!isLab && <th className="py-2.5 px-4 border-r border-gray-300">Topic(s)</th>}
                   <th className="py-2.5 px-3 w-32 border-r border-gray-300">Blooms Level</th>
-                  <th className="py-2.5 px-3 w-32 border-r border-gray-300">COs</th>
+                  {!isLab && <th className="py-2.5 px-3 w-32 border-r border-gray-300">COs</th>}
                   <th className="py-2.5 px-3 w-36 border-r border-gray-300">PO</th>
                   <th className="py-2.5 px-3 w-36 border-r border-gray-300">Mode of Delivery</th>
+                  {isLab && <th className="py-2.5 px-3 w-36 border-r border-gray-300">Resources</th>}
                   <th className="py-2.5 px-3 w-32 border-r border-gray-300">Actual Date Covered</th>
                   <th className="py-2.5 px-4">Reason for Deviation (if any)</th>
                 </tr>
@@ -1338,15 +1401,24 @@ export const LMSSyllabus = () => {
                          t.hours === 8 ? "8th Hour" : `${t.hours} Hour`}
                       </td>
 
-                      {/* Unit */}
+                      {/* Unit / Experiment */}
                       <td className="py-2.5 px-2 text-center border-r border-gray-200 font-semibold text-gray-700">
                         {t.unit}
                       </td>
 
-                      {/* Topic */}
+                      {/* Experiment Name - Lab only */}
+                      {isLab && (
+                      <td className="py-2.5 px-4 border-r border-gray-200 text-gray-700 font-medium">
+                        {t.experiment_name || ''}
+                      </td>
+                      )}
+
+                      {/* Topic - Theory only */}
+                      {!isLab && (
                       <td className="py-2.5 px-4 border-r border-gray-200 text-gray-700 font-medium">
                         {t.topic}
                       </td>
+                      )}
 
                       {/* Blooms Level (cognitive_level) */}
                       <td className="py-2 px-3 border-r border-gray-200">
@@ -1361,7 +1433,8 @@ export const LMSSyllabus = () => {
                         />
                       </td>
 
-                      {/* COs */}
+                      {/* COs - Theory only */}
+                      {!isLab && (
                       <td className="py-2 px-3 border-r border-gray-200">
                         <DropdownSelectInput
                           value={t.co}
@@ -1373,6 +1446,7 @@ export const LMSSyllabus = () => {
                           color="emerald"
                         />
                       </td>
+                      )}
 
                       {/* PO */}
                       <td className="py-2 px-3 border-r border-gray-200">
@@ -1400,6 +1474,13 @@ export const LMSSyllabus = () => {
                          t.mode_of_delivery === "TUT" ? "Tutorial (TUT)" :
                          t.mode_of_delivery === "CS" ? "Case Study (CS)" : t.mode_of_delivery}
                       </td>
+
+                      {/* Resources - Lab only */}
+                      {isLab && (
+                      <td className="py-2.5 px-3 border-r border-gray-200 font-semibold text-gray-600">
+                        {t.resources || ''}
+                      </td>
+                      )}
 
                       {/* Actual Date Covered */}
                       <td className="py-2 px-3 border-r border-gray-200">
@@ -1459,19 +1540,20 @@ export const LMSSyllabus = () => {
               return (
                 <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3 bg-green-50/5">
                   <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                    <span className="text-xs font-bold text-gray-700">Topic #{t.sequence_no} · Unit {t.unit}</span>
+                    <span className="text-xs font-bold text-gray-700">Topic #{t.sequence_no} · {isLab ? 'Exp' : 'Unit'} {t.unit}</span>
                     <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">Covered</span>
                   </div>
 
                   <div className="text-xs space-y-1 bg-gray-50 p-3 rounded-lg border border-gray-100">
-                    <p className="font-semibold text-gray-800">{t.topic}</p>
+                    <p className="font-semibold text-gray-800">{isLab ? (t.experiment_name || t.topic || '') : t.topic}</p>
                     <div className="grid grid-cols-2 gap-2 pt-2 text-[10px] text-gray-500 font-medium">
                       <p>Proposed: {t.proposed_date ? new Date(t.proposed_date).toLocaleDateString() : 'N/A'}</p>
                       <p>Hour/Period: {t.hours === 1 ? "1st Hour" : t.hours === 2 ? "2nd Hour" : t.hours === 3 ? "3rd Hour" : t.hours === 4 ? "4th Hour" : t.hours === 5 ? "5th Hour" : t.hours === 6 ? "6th Hour" : t.hours === 7 ? "7th Hour" : t.hours === 8 ? "8th Hour" : `${t.hours} Hour`}</p>
                       <p>Blooms: {t.cognitive_level || 'N/A'}</p>
-                      <p>COs: {t.co || 'N/A'}</p>
+                      {!isLab && <p>COs: {t.co || 'N/A'}</p>}
                       <p>PO: {t.po || 'N/A'}</p>
                       <p>Mode: {t.mode_of_delivery}</p>
+                      {isLab && <p>Resources: {t.resources || 'N/A'}</p>}
                     </div>
                   </div>
 

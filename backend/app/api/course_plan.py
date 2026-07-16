@@ -98,6 +98,8 @@ def save_course_plan(
             co=topic_in.co,
             po=topic_in.po,
             mode_of_delivery=topic_in.mode_of_delivery,
+            experiment_name=topic_in.experiment_name,
+            resources=topic_in.resources,
             actual_date=topic_in.actual_date,
             reason_for_deviation=topic_in.reason_for_deviation,
             is_signed=topic_in.is_signed,
