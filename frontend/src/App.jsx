@@ -76,12 +76,12 @@ import { GatePass } from './features/student/GatePass';
 import { StudentLeave } from './features/student/StudentLeave';
 import { MenteeGatePasses } from './features/faculty/MenteeGatePasses';
 import { GatePassApprovals as HodGatePassApprovals } from './features/hod/GatePassApprovals';
-import { LeaveApprovals } from './features/hod/LeaveApprovals';
+// import { LeaveApprovals } from './features/hod/LeaveApprovals';
 import { OMGatePassApprovals } from './features/authority/OMGatePassApprovals';
 import FacultyGatePass from './features/faculty/FacultyGatePass';
 import HODFacultyGatePass from './features/hod/HODFacultyGatePass';
 import AuthorityFacultyGatePass from './features/authority/AuthorityFacultyGatePass';
-import { AuthorityLeaveApprovals } from './features/authority/AuthorityLeaveApprovals';
+// import { AuthorityLeaveApprovals } from './features/authority/AuthorityLeaveApprovals';
 import { Profile } from './features/profile/Profile';
 import LateEntryNotification from './features/student/LateEntryNotification';
 import PrincipalDashboard from './features/authority/PrincipalDashboard';
@@ -254,11 +254,11 @@ function AppRoutes() {
             <HODFacultyGatePass />
           </ProtectedRoute>
         } />
-        <Route path="/hod/leave" element={
+        {/* <Route path="/hod/leave" element={
           <ProtectedRoute allowedRole="hod">
             <LeaveApprovals />
           </ProtectedRoute>
-        } />
+        } /> */}
         <Route path="/hod/latetracker" element={
           <ProtectedRoute allowedRole="hod">
             <LateManagement />
@@ -583,11 +583,11 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         
-        <Route path="/authority/leave" element={
+        {/* <Route path="/authority/leave" element={
           <ProtectedRoute allowedRole="authority">
             <AuthorityLeaveApprovals />
           </ProtectedRoute>
-        } />
+        } /> */}
         <Route path="/authority/discipline" element={
           <ProtectedRoute allowedRole="authority">
             <AuthorityDiscipline />
