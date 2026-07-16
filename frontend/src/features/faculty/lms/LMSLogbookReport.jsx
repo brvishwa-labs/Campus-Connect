@@ -1937,6 +1937,19 @@ export const LMSLogbookReport = () => {
             width: clone.offsetWidth,
             height: clone.offsetHeight,
             windowWidth: clone.offsetWidth,
+            onclone: (clonedDoc) => {
+              // Strip stylesheets containing oklch color functions to prevent html2canvas crash
+              clonedDoc.querySelectorAll('style').forEach(el => {
+                if (el.textContent && el.textContent.includes('oklch')) {
+                  el.remove();
+                }
+              });
+              clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach(el => {
+                if (el.href && !el.href.includes('fonts.googleapis.com')) {
+                  el.remove();
+                }
+              });
+            }
           });
 
           const imgData = canvas.toDataURL('image/jpeg', 0.95);
