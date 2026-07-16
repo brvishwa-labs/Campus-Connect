@@ -474,7 +474,7 @@ export const LMSLogbookReport = () => {
   // ── Data prep ────────────────────────────────────────────────────────────────
   const course      = courseAssignment?.course || {};
   const coPoMapping = parseJSON(course.co_po_mapping);
-  const coRows      = ['CO1','CO2','CO3','CO4','CO5'];
+  const coRows      = isLab ? ['CO1', 'CO2'] : ['CO1','CO2','CO3','CO4','CO5'];
   const poColumns   = ['PO1','PO2','PO3','PO4','PO5','PO6','PO7','PO8','PO9','PO10','PO11','PO12'];
   const psoColumns  = ['PSO1','PSO2'];
   const allCols     = [...poColumns, ...psoColumns];
@@ -1493,7 +1493,7 @@ export const LMSLogbookReport = () => {
     const pagesList = [];
     let currentPage = [];
     let accumulatedHeight = 0;
-    const maxHeight = 950; // content height limits within A4 297mm page in pixels (reduced for safety)
+    const maxHeight = 860; // content height limits within A4 297mm page in pixels (reduced to prevent bottom overflow)
 
     if (!useDOM) {
       sectionOrder.forEach((id) => {
@@ -2081,7 +2081,7 @@ export const LMSLogbookReport = () => {
                                 <GripVertical size={15} />
                               </div>
                               <div style={{ flex: 1, fontSize: '11px', fontWeight: '600', color: isVisible ? '#f1f5f9' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {SECTION_LABELS[id] || id}
+                                {isLab ? (LAB_SECTION_LABELS[id] || id) : (SECTION_LABELS[id] || id)}
                               </div>
                               <span style={{ flexShrink: 0, fontSize: '9px', background: 'rgba(99,102,241,0.25)', color: '#a5b4fc', borderRadius: '4px', padding: '1px 5px', fontWeight: 'bold' }}>
                                 {pageLabel}
@@ -2362,7 +2362,7 @@ export const LMSLogbookReport = () => {
       {/* Measure container: rendered offscreen so offsetHeight can be read accurately */}
       <div
         id="report-measure-container"
-        className="print-ui-hide"
+        className="print-ui-hide report-body"
         style={{
           position: 'absolute',
           left: '-9999px',
