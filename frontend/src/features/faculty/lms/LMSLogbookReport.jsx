@@ -234,8 +234,8 @@ const LAB_SECTION_LABELS = {
   'list-of-experiments':'3. List of Experiments',
   'po-co-mapping':      '4. PO-CO Mapping',
   'practical-schedule': '5. Practical Schedule',
-  'attendance':         '5. Student Attendance Summary',
-  'lab-marks':          '6. Lab Mark Entry',
+  'attendance':         '6. Student Attendance Summary',
+  'lab-marks':          '7. Lab Mark Entry',
   'footer':             'Signatures Footer',
 };
 
@@ -267,26 +267,8 @@ export const LMSLogbookReport = () => {
   const [isLab, setIsLab] = useState(false);
   const [labMarks, setLabMarks] = useState([]);
 
-  const [sectionOrder, setSectionOrder] = useState(() => {
-    try {
-      const saved = localStorage.getItem('logbook_layout_' + assignmentId);
-      if (saved) {
-        const { order } = JSON.parse(saved);
-        if (Array.isArray(order)) return order;
-      }
-    } catch (e) { console.error(e); }
-    return [];
-  });
-  const [layoutMap, setLayoutMap] = useState(() => {
-    try {
-      const saved = localStorage.getItem('logbook_layout_' + assignmentId);
-      if (saved) {
-        const { map } = JSON.parse(saved);
-        if (map) return map;
-      }
-    } catch (e) { console.error(e); }
-    return {};
-  });
+  const [sectionOrder, setSectionOrder] = useState([]);
+  const [layoutMap, setLayoutMap] = useState({});
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [saveLayoutSuccess, setSaveLayoutSuccess] = useState(false);
 
@@ -302,9 +284,31 @@ export const LMSLogbookReport = () => {
       const isLabCourse = foundCourse.course?.course_type === 'lab';
       setIsLab(isLabCourse);
 
-      if (!localStorage.getItem('logbook_layout_' + assignmentId)) {
+      const savedLayout = localStorage.getItem('logbook_layout_' + assignmentId);
+      let loadedOrder = null;
+      let loadedMap = null;
+      if (savedLayout) {
+        try {
+          const { order, map } = JSON.parse(savedLayout);
+          const expectedIds = isLabCourse ? LAB_SECTION_IDS : DEFAULT_SECTION_IDS;
+          const orderKeys = new Set(order || []);
+          const hasMismatch = expectedIds.some(id => !orderKeys.has(id)) || (order || []).some(id => !expectedIds.includes(id));
+          if (!hasMismatch) {
+            loadedOrder = order;
+            loadedMap = map;
+          }
+        } catch (e) {
+          console.error('Error loading layout:', e);
+        }
+      }
+
+      if (loadedOrder && loadedMap) {
+        setSectionOrder(loadedOrder);
+        setLayoutMap(loadedMap);
+      } else {
         setSectionOrder(isLabCourse ? [...LAB_SECTION_IDS] : [...DEFAULT_SECTION_IDS]);
         setLayoutMap(DEFAULT_LAYOUT(isLabCourse));
+        localStorage.removeItem('logbook_layout_' + assignmentId);
       }
 
       const promises = [
@@ -457,8 +461,8 @@ export const LMSLogbookReport = () => {
         if (order) setSectionOrder(order);
         if (map) setLayoutMap(map);
       } else {
-        setSectionOrder([...DEFAULT_SECTION_IDS]);
-        setLayoutMap(DEFAULT_LAYOUT());
+        setSectionOrder(isLab ? [...LAB_SECTION_IDS] : [...DEFAULT_SECTION_IDS]);
+        setLayoutMap(DEFAULT_LAYOUT(isLab));
       }
     } catch (e) {
       console.error(e);
@@ -466,8 +470,8 @@ export const LMSLogbookReport = () => {
   };
 
   const resetLayout = () => {
-    setSectionOrder([...DEFAULT_SECTION_IDS]);
-    setLayoutMap(DEFAULT_LAYOUT());
+    setSectionOrder(isLab ? [...LAB_SECTION_IDS] : [...DEFAULT_SECTION_IDS]);
+    setLayoutMap(DEFAULT_LAYOUT(isLab));
     localStorage.removeItem('logbook_layout_' + assignmentId);
   };
 
