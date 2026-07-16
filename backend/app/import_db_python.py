@@ -3,7 +3,8 @@ import io
 import os
 
 def run_import():
-    url = os.environ.get("DATABASE_URL")
+    from app.core.config import get_settings
+    url = get_settings().DATABASE_URL.replace("+pg8000", "")
     if not url:
         return "DATABASE_URL environment variable is missing"
         
@@ -11,7 +12,7 @@ def run_import():
         conn = psycopg2.connect(url)
         cursor = conn.cursor()
         
-        with open("new.sql", "r", encoding="utf-8") as f:
+        with open("new.sql", "r", encoding="utf-16") as f:
             lines = f.readlines()
             
         buffer = []

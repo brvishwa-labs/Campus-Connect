@@ -900,25 +900,31 @@ export const LMSSyllabus = () => {
               </div>
 
               <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-2">Syllabus</h3>
+                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-2">
+                  {isLab ? 'List of Experiments' : 'Syllabus'}
+                </h3>
                 <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
-                  {course?.syllabus || <span className="text-gray-400 italic">No syllabus defined.</span>}
+                  {course?.syllabus || <span className="text-gray-400 italic">{isLab ? 'No experiments defined.' : 'No syllabus defined.'}</span>}
                 </div>
               </div>
 
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-2">Textbooks</h3>
-                <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
-                  {course?.textbooks || <span className="text-gray-400 italic">No textbooks defined.</span>}
+              {!isLab && (
+                <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
+                  <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-2">Textbooks</h3>
+                  <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                    {course?.textbooks || <span className="text-gray-400 italic">No textbooks defined.</span>}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-2">References</h3>
-                <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
-                  {course?.references || <span className="text-gray-400 italic">No references defined.</span>}
+              {!isLab && (
+                <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
+                  <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-2">References</h3>
+                  <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                    {course?.references || <span className="text-gray-400 italic">No references defined.</span>}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* CO–PO/PSO Mapping – view mode */}
               <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
@@ -983,37 +989,43 @@ export const LMSSyllabus = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Syllabus</label>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                {isLab ? 'List of Experiments' : 'Syllabus'}
+              </label>
               <textarea
                 rows={6}
                 value={detailsForm.syllabus}
                 onChange={(e) => setDetailsForm({ ...detailsForm, syllabus: e.target.value })}
-                placeholder="Enter syllabus details..."
+                placeholder={isLab ? 'Enter list of experiments...' : 'Enter syllabus details...'}
                 className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[120px]"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Textbooks</label>
-              <textarea
-                rows={4}
-                value={detailsForm.textbooks}
-                onChange={(e) => setDetailsForm({ ...detailsForm, textbooks: e.target.value })}
-                placeholder="Enter textbooks..."
-                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
-              />
-            </div>
+            {!isLab && (
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Textbooks</label>
+                <textarea
+                  rows={4}
+                  value={detailsForm.textbooks}
+                  onChange={(e) => setDetailsForm({ ...detailsForm, textbooks: e.target.value })}
+                  placeholder="Enter textbooks..."
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
+                />
+              </div>
+            )}
 
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">References</label>
-              <textarea
-                rows={4}
-                value={detailsForm.references}
-                onChange={(e) => setDetailsForm({ ...detailsForm, references: e.target.value })}
-                placeholder="Enter reference books..."
-                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
-              />
-            </div>
+            {!isLab && (
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">References</label>
+                <textarea
+                  rows={4}
+                  value={detailsForm.references}
+                  onChange={(e) => setDetailsForm({ ...detailsForm, references: e.target.value })}
+                  placeholder="Enter reference books..."
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
+                />
+              </div>
+            )}
 
             {/* CO–PO/PSO Mapping – edit mode */}
             <div className="border border-indigo-100 rounded-2xl p-5 bg-indigo-50/30">
