@@ -19,7 +19,10 @@ router = APIRouter()
 def apply_view_filter(query, model, sector_name, views_dict):
     last_view = views_dict.get(sector_name)
     if last_view:
-        return query.filter(func.coalesce(model.updated_at, model.created_at) > last_view)
+        if hasattr(model, 'updated_at'):
+            return query.filter(func.coalesce(model.updated_at, model.created_at) > last_view)
+        else:
+            return query.filter(model.created_at > last_view)
     return query
 
 @router.get("/badge-counts", response_model=Dict[str, int])
