@@ -501,6 +501,52 @@ export const LMSLogbookReport = () => {
   const tdLeftStyle = { ...tdStyle, textAlign: 'left' };
   const facultyName = courseAssignment?.faculty ? (courseAssignment.faculty.first_name + ' ' + courseAssignment.faculty.last_name) : 'N/A';
 
+  // Derived robust student list from attendance, labMarks, gradebook, or seminars to show attendance logs regardless of empty gradebook
+  const studentsList = useMemo(() => {
+    const studentsMap = {};
+    attendance.forEach(session => {
+      session.records?.forEach(r => {
+        if (r.student_id && !studentsMap[r.student_id]) {
+          studentsMap[r.student_id] = {
+            student_id: r.student_id,
+            register_number: r.register_number,
+            name: r.name
+          };
+        }
+      });
+    });
+    if (isLab) {
+      labMarks.forEach(r => {
+        if (r.student_id && !studentsMap[r.student_id]) {
+          studentsMap[r.student_id] = {
+            student_id: r.student_id,
+            register_number: r.register_number,
+            name: r.first_name + ' ' + r.last_name
+          };
+        }
+      });
+    }
+    gradebook.forEach(r => {
+      if (r.student_id && !studentsMap[r.student_id]) {
+        studentsMap[r.student_id] = {
+          student_id: r.student_id,
+          register_number: r.register_number,
+          name: r.name
+        };
+      }
+    });
+    seminars.forEach(r => {
+      if (r.student_id && !studentsMap[r.student_id]) {
+        studentsMap[r.student_id] = {
+          student_id: r.student_id,
+          register_number: r.register_number,
+          name: r.first_name + ' ' + r.last_name
+        };
+      }
+    });
+    return Object.values(studentsMap).sort((a, b) => (a.register_number || '').localeCompare(b.register_number || ''));
+  }, [attendance, labMarks, gradebook, seminars, isLab]);
+
   // ── Section renderers ────────────────────────────────────────────────────────
   const renderSection = (id) => {
     const sectionTitle = isLab ? (LAB_SECTION_LABELS[id] || SECTION_LABELS[id] || id) : (SECTION_LABELS[id] || id);
@@ -648,7 +694,7 @@ export const LMSLogbookReport = () => {
                     <tr key={tp.id} className="report-table-row">
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.unit}</td>
-                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.topic}</td>
+                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{isLab ? tp.experiment_name : tp.topic}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.hours}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '\u2014'}</td>
@@ -746,7 +792,7 @@ export const LMSLogbookReport = () => {
         <>
           <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
-            {gradebook.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student records available.</p> : (
+            {studentsList.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student records available.</p> : (
               <table className="report-table" style={{ fontSize: '10pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, textAlign: 'left', width: '110px' }}>Reg No.</th>
@@ -756,7 +802,7 @@ export const LMSLogbookReport = () => {
                   <th style={{ ...thStyle, width: '110px' }}>Percentage</th>
                 </tr></thead>
                 <tbody>
-                  {gradebook.map(stu => {
+                  {studentsList.map(stu => {
                     const { conducted, attended, percentage } = getStudentAttendanceSummary(stu.student_id);
                     return (
                       <tr key={stu.student_id} className="report-table-row">
@@ -1282,7 +1328,7 @@ export const LMSLogbookReport = () => {
         <tr key={tp.id} className="report-table-row">
           <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.unit}</td>
-          <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.topic}</td>
+          <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{isLab ? tp.experiment_name : tp.topic}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.hours}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '—'}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '—'}</td>
@@ -1621,7 +1667,7 @@ export const LMSLogbookReport = () => {
         const rows = Array.from(measureEl.querySelectorAll('.report-table-row'));
         const rowDataArray = (id === 'course-outcomes' || id === 'po-co-mapping' ? coUnitRows :
                               id === 'course-plan' || id === 'practical-schedule' ? coursePlan :
-                              id === 'attendance' ? gradebook :
+                              id === 'attendance' ? studentsList :
                               id === 'seminars' ? seminars :
                               id === 'lab-marks' ? labMarks :
                               gradebook);
@@ -2400,7 +2446,7 @@ export const LMSLogbookReport = () => {
         {visibleSections.map(id => (
           <div key={id} id={`measure-${id}`} className="measure-section">
             {id === 'cover' && renderSection('cover')}
-            {['dept-vision', 'dept-mission', 'peos', 'pos', 'psos', 'course-prerequisites', 'course-objectives', 'syllabus', 'textbooks', 'references'].includes(id) && (
+            {['dept-vision', 'dept-mission', 'peos', 'pos', 'psos', 'course-prerequisites', 'course-objectives', 'syllabus', 'textbooks', 'references', 'list-of-experiments'].includes(id) && (
               <div className="measure-prose">
                 <div className="section-header">
                   <SectionHeader title={isLab ? (LAB_SECTION_LABELS[id] || SECTION_LABELS[id] || id) : (SECTION_LABELS[id] || LAB_SECTION_LABELS[id] || id)} />
@@ -2413,6 +2459,7 @@ export const LMSLogbookReport = () => {
                   id === 'psos' ? department?.psos :
                   id === 'course-prerequisites' ? course.prerequisites :
                   id === 'course-objectives' ? course.objectives :
+                  id === 'list-of-experiments' ? course.syllabus :
                   id === 'syllabus' ? course.syllabus :
                   id === 'textbooks' ? course.textbooks :
                   course.references
@@ -2421,66 +2468,20 @@ export const LMSLogbookReport = () => {
             )}
             {id === 'course-outcomes' && renderSection('course-outcomes')}
             {id === 'po-co-mapping' && renderSection('po-co-mapping')}
-            {['course-plan', 'attendance', 'seminars', 'gradebook'].includes(id) && (
+            {['course-plan', 'attendance', 'seminars', 'gradebook', 'practical-schedule', 'lab-marks'].includes(id) && (
               <div className="measure-table">
                 <div className="section-header">
-                  <SectionHeader title={SECTION_LABELS[id]} />
+                  <SectionHeader title={isLab ? (LAB_SECTION_LABELS[id] || SECTION_LABELS[id] || id) : (SECTION_LABELS[id] || LAB_SECTION_LABELS[id] || id)} />
                 </div>
                 <table className="report-table">
                   <thead>{renderTableHeader(id)}</thead>
                   <tbody>
-                    {(id === 'course-plan' ? coursePlan :
-                      id === 'attendance' ? gradebook :
+                    {(id === 'course-plan' || id === 'practical-schedule' ? coursePlan :
+                      id === 'attendance' ? studentsList :
                       id === 'seminars' ? seminars :
+                      id === 'lab-marks' ? labMarks :
                       gradebook
-                    ).map((item, idx) => (
-                      <tr key={idx} className="report-table-row">
-                        {id === 'course-plan' && (
-                          <>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{item.sequence_no}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.unit}</td>
-                            <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{item.topic}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.hours}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.proposed_date ? formatDate(item.proposed_date) : '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.actual_date ? formatDate(item.actual_date) : '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.cognitive_level || '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.mode_of_delivery || '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{item.is_signed ? 'Signed' : item.actual_date ? 'Done' : 'Pending'}</td>
-                          </>
-                        )}
-                        {id === 'attendance' && (
-                          <>
-                            <td style={tdLeftStyle}>{item.register_number}</td>
-                            <td style={tdLeftStyle}>{item.name}</td>
-                            <td style={tdStyle}>{getStudentAttendanceSummary(item.student_id).conducted}</td>
-                            <td style={tdStyle}>{getStudentAttendanceSummary(item.student_id).attended}</td>
-                            <td style={{ ...tdStyle, fontWeight: 'bold' }}>{getStudentAttendanceSummary(item.student_id).percentage}</td>
-                          </>
-                        )}
-                        {id === 'seminars' && (
-                          <>
-                            <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{item.register_number}</td>
-                            <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{item.first_name + ' ' + item.last_name}</td>
-                            <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{item.seminar_topic || 'Not Assigned'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.seminar_date ? formatDate(item.seminar_date) : '—'}</td>
-                            {SEMINAR_RUBRIC.map(c => <td key={c.key} style={{ ...tdStyle, fontSize: '9pt' }}>{item[c.key] != null ? item[c.key] : '—'}</td>)}
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{item.marks_obtained != null ? item.marks_obtained : '—'}</td>
-                          </>
-                        )}
-                        {id === 'gradebook' && (
-                          <>
-                            <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{item.register_number}</td>
-                            <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{item.name}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{item.cia_1 ?? '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{item.cia_1_retest ?? '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{item.cia_2 ?? '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{item.cia_2_retest ?? '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{item.model_exam ?? '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{item.model_exam_retest ?? '—'}</td>
-                          </>
-                        )}
-                      </tr>
-                    ))}
+                    ).map((item, idx) => renderTableRow(id, item, idx))}
                   </tbody>
                 </table>
               </div>
