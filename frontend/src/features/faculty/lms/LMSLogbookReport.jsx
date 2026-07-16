@@ -229,14 +229,14 @@ const SECTION_LABELS = {
 
 const LAB_SECTION_LABELS = {
   'cover':              'Cover / Header',
-  'course-prerequisites':'Course Prerequisites',
-  'course-objectives':  '1. Course Objectives',
-  'course-outcomes':    '2. Course Outcomes',
-  'list-of-experiments':'3. List of Experiments',
-  'po-co-mapping':      '4. PO-CO Mapping',
-  'practical-schedule': '5. Practical Schedule',
-  'attendance':         '6. Student Attendance Summary',
-  'lab-marks':          '7. Lab Mark Entry',
+  'course-prerequisites':'1. Course Prerequisites',
+  'course-objectives':  '2. Course Objectives',
+  'course-outcomes':    '3. Course Outcomes',
+  'list-of-experiments':'4. List of Experiments',
+  'po-co-mapping':      '5. PO-CO Mapping',
+  'practical-schedule': '6. Practical Schedule',
+  'attendance':         '7. Student Attendance Summary',
+  'lab-marks':          '8. Lab Mark Entry',
   'footer':             'Signatures Footer',
 };
 
