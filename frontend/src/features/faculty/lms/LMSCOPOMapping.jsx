@@ -13,8 +13,8 @@ const BADGE_STYLES = {
   H: 'bg-green-100 text-green-700 border-green-200',
 };
 
-const getConfig = () => ({
-  coCount: 5,
+const getConfig = (courseType) => ({
+  coCount: courseType === 'lab' ? 2 : 5,
   psoCount: 2,
 });
 
