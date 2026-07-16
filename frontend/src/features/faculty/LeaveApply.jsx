@@ -83,7 +83,7 @@ export const LeaveApply = () => {
           reason: requestData.reason
         });
         if (requestData.arrangements && requestData.arrangements.length > 0) {
-          setArrangements(requestData.arrangements.map(a => ({
+          const loadedArrangements = requestData.arrangements.map(a => ({
             substitute_faculty_id: a.substitute_faculty_id.toString(),
             subject: a.subject,
             class_section: a.class_section,
@@ -91,7 +91,8 @@ export const LeaveApply = () => {
             day: a.day || '',
             compensation_date: a.compensation_date || '',
             compensation_period: a.compensation_period || ''
-          })));
+          }));
+          fetchLeaveData(requestData.from_date, requestData.to_date, loadedArrangements);
         }
       }
     } catch (err) {
@@ -100,14 +101,14 @@ export const LeaveApply = () => {
   };
 
   // Fetch leave-specific data when dates are selected
-  const fetchLeaveData = async () => {
-    if (!formData.from_date || !formData.to_date) return;
+  const fetchLeaveData = async (from = formData.from_date, to = formData.to_date, existingArrangements = null) => {
+    if (!from || !to) return;
     
     try {
       const res = await axios.get('/api/leave/leave-preparation-data', {
         params: {
-          from_date: formData.from_date,
-          to_date: formData.to_date
+          from_date: from,
+          to_date: to
         }
       });
       setLeaveData(res.data);
@@ -118,6 +119,7 @@ export const LeaveApply = () => {
         const autoArrangements = res.data.my_schedule.map(slot => ({
           substitute_faculty_id: '',
           subject: slot.course_code,
+          original_subject: slot.course_code,
           class_section: slot.class_section,
           period: slot.period_display,
           day: slot.day,
@@ -132,6 +134,7 @@ export const LeaveApply = () => {
             autoArrangements.push({
               substitute_faculty_id: '',
               subject: 'Class Advisor',
+              original_subject: 'Class Advisor',
               class_section: duty.class_display,
               period: 'All Periods',
               day: 'All Days',
@@ -142,7 +145,26 @@ export const LeaveApply = () => {
           });
         }
         
-        setArrangements(autoArrangements);
+        if (existingArrangements) {
+          // Merge available_substitutes and original_subject into existing arrangements
+          const merged = existingArrangements.map(existing => {
+            const matchingSlot = autoArrangements.find(a => 
+              a.day.toLowerCase() === (existing.day || '').toLowerCase() &&
+              a.period === existing.period &&
+              a.class_section === existing.class_section
+            );
+            return {
+              ...existing,
+              original_subject: matchingSlot ? matchingSlot.original_subject : existing.subject,
+              available_substitutes: matchingSlot ? matchingSlot.available_substitutes : null
+            };
+          });
+          setArrangements(merged);
+        } else {
+          setArrangements(autoArrangements);
+        }
+      } else if (existingArrangements) {
+        setArrangements(existingArrangements);
       }
     } catch (err) {
       console.error(err);
@@ -212,19 +234,39 @@ export const LeaveApply = () => {
     }
   }, [formData.to_date]);
 
-  const handleArrangementChange = (index, field, value) => {
-    const newArr = [...arrangements];
-    newArr[index][field] = value;
-    
-    if (field === 'substitute_faculty_id') {
-      updateCompensations(newArr);
-    } else {
-      setArrangements(newArr);
-    }
-  };
+  const handleArrangementChange = async (index, field, value) => {
+  const newArr = [...arrangements];
+  newArr[index][field] = value;
 
-  const addArrangementRow = () => {
-    setArrangements([...arrangements, { substitute_faculty_id: '', subject: '', class_section: '', period: '', day: '', available_substitutes: null, compensation_date: '', compensation_period: '' }]);
+  if (field === 'substitute_faculty_id') {
+    if (value && newArr[index].subject !== 'Class Advisor') {
+      try {
+        const res = await axios.get(`/api/leave/faculty/${value}/active-courses`);
+        const courses = res.data;
+        newArr[index]['active_courses'] = courses;
+
+        const matching = courses.find(
+          c => c.class_section === newArr[index].class_section
+        );
+        newArr[index]['subject'] = matching
+          ? matching.course_code
+          : (courses[0]?.course_code || '');
+      } catch (err) {
+        console.error('Failed to fetch substitute courses:', err);
+        newArr[index]['active_courses'] = [];
+      }
+    } else if (!value && newArr[index].subject !== 'Class Advisor') {
+      newArr[index]['subject'] = newArr[index].original_subject || '';
+      newArr[index]['active_courses'] = null;
+    }
+    setArrangements(newArr);
+    updateCompensations(newArr);
+  } else {
+    setArrangements(newArr);
+  }
+};
+const addArrangementRow = () => {
+    setArrangements([...arrangements, { substitute_faculty_id: '', subject: '', class_section: '', period: '', day: '', available_substitutes: null, active_courses: null, compensation_date: '', compensation_period: '' }]);
   };
 
   const removeArrangementRow = (index) => {
@@ -491,15 +533,30 @@ export const LeaveApply = () => {
                         </div>
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Subject / Assignment</label>
-                          <input 
-                            type="text" 
-                            placeholder="e.g. CS-402"
-                            value={arr.subject} 
-                            onChange={(e) => handleArrangementChange(idx, 'subject', e.target.value)}
-                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
-                            readOnly={arr.subject === 'Class Advisor'}
-                            required
-                          />
+                          {arr.active_courses && arr.active_courses.length > 0 ? (
+                            <select
+                              value={arr.subject}
+                              onChange={(e) => handleArrangementChange(idx, 'subject', e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
+                              required
+                            >
+                              {arr.active_courses.map(c => (
+                                <option key={c.assignment_id} value={c.course_code}>
+                                  {c.course_code} — {c.class_section}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input 
+                              type="text" 
+                              placeholder="e.g. CS-402"
+                              value={arr.subject} 
+                              onChange={(e) => handleArrangementChange(idx, 'subject', e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
+                              readOnly={arr.subject === 'Class Advisor'}
+                              required
+                            />
+                          )}
                         </div>
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Class / Section</label>
