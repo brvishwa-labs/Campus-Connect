@@ -71,6 +71,12 @@ export const LeaveRequests = () => {
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Link 
+            to="/faculty/compensation-registry" 
+            className="flex-1 sm:flex-none text-center bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold py-2 px-4 rounded-xl text-sm transition-colors shadow-sm"
+          >
+            Compensation Registry
+          </Link>
+          <Link 
             to="/faculty/leave/substitutes" 
             className="flex-1 sm:flex-none text-center bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold py-2 px-4 rounded-xl text-sm transition-colors shadow-sm"
           >

@@ -356,8 +356,7 @@ export const FacultyProfileModal = ({ faculty, department, leaves = [], gatepass
                     { label: 'Restricted Leave', key_total: 'restricted_leaves_total', key_used: 'restricted_leaves_used' },
                     { label: 'Earned Leave', key_total: 'earned_leaves_total', key_used: 'earned_leaves_used' },
                     { label: 'Vacation Leave', key_total: 'vacation_leaves_total', key_used: 'vacation_leaves_used' },
-                    { label: 'Academic Leave', key_total: 'academic_leaves_total', key_used: 'academic_leaves_used' },
-                    { label: 'Compensation Leave', key_total: 'compensation_leaves_total', key_used: 'compensation_leaves_used' }
+                    { label: 'Academic Leave', key_total: 'academic_leaves_total', key_used: 'academic_leaves_used' }
                   ].map((leave) => (
                     <div key={leave.label} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex flex-col justify-between">
                       <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">{leave.label}</p>
@@ -375,6 +374,23 @@ export const FacultyProfileModal = ({ faculty, department, leaves = [], gatepass
                       </div>
                     </div>
                   ))}
+                </div>
+                
+                {/* Separated Compensation Leave */}
+                <div className="mt-4 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 flex flex-col justify-between">
+                  <p className="text-[12px] font-bold text-indigo-900 uppercase tracking-wide mb-2">Compensation Leave (Earned via Registry)</p>
+                  <div className="flex items-end justify-between mt-auto">
+                    <div className="text-sm font-semibold text-indigo-700">
+                      <span className="text-indigo-400">Used:</span> {leaveBalances.compensation_leaves_used}
+                    </div>
+                    <div className="flex items-center text-lg font-bold text-indigo-900">
+                      <span className="text-indigo-600 mr-1">
+                        {leaveBalances.compensation_leaves_total - leaveBalances.compensation_leaves_used}
+                      </span>
+                      <span className="text-indigo-300 mx-1">/</span>
+                      <span>{leaveBalances.compensation_leaves_total}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

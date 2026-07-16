@@ -61,6 +61,7 @@ import { LeaveRequests } from './features/faculty/LeaveRequests';
 import { LeaveApply } from './features/faculty/LeaveApply';
 import { LeaveDetails } from './features/faculty/LeaveDetails';
 import { SubstituteApprovals } from './features/faculty/SubstituteApprovals';
+import { CompensationRegistry } from './features/faculty/CompensationRegistry';
 import LateEntryNotifications from './features/faculty/LateEntryNotifications';
 import { CADashboard } from './features/faculty/classadvisor/CADashboard';
 import { CAStudentList } from './features/faculty/classadvisor/CAStudentList';
@@ -369,6 +370,11 @@ function AppRoutes() {
         <Route path="/faculty/leave/:id" element={
           <ProtectedRoute allowedRole="faculty">
             <LeaveDetails />
+          </ProtectedRoute>
+        } />
+        <Route path="/faculty/compensation-registry" element={
+          <ProtectedRoute allowedRole="faculty">
+            <CompensationRegistry />
           </ProtectedRoute>
         } />
         {/* Class Advisor Routes */}

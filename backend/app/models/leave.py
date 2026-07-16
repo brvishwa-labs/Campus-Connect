@@ -43,6 +43,7 @@ class FacultyLeaveRequest(Base):
     compensation_verifier_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     compensation_date = Column(Date, nullable=True)
     compensation_purpose = Column(String(500), nullable=True)
+    compensation_registry_id = Column(Integer, ForeignKey("compensation_registry_requests.id"), nullable=True)
     
     # Hour Permission
     hour_permission_session = Column(String(10), nullable=True)
@@ -174,3 +175,20 @@ class FacultyLeaveBalance(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     faculty = relationship("Faculty", foreign_keys=[faculty_id])
+
+
+class CompensationRegistryRequest(Base):
+    __tablename__ = "compensation_registry_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    faculty_id = Column(Integer, ForeignKey("faculty.id"), nullable=False)
+    peer_faculty_id = Column(Integer, ForeignKey("faculty.id"), nullable=False)
+    date_worked = Column(Date, nullable=False)
+    classes_substituted = Column(String(500), nullable=True)
+    status = Column(String(50), default="pending_peer_approval") # pending, approved, rejected
+    is_used = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    faculty = relationship("Faculty", foreign_keys=[faculty_id])
+    peer_faculty = relationship("Faculty", foreign_keys=[peer_faculty_id])

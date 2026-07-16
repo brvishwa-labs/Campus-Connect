@@ -120,6 +120,7 @@ export const LeaveApply = () => {
   const [facultyProfile, setFacultyProfile] = useState(null);
   const [allFaculty, setAllFaculty] = useState([]);
   const [allVerifiers, setAllVerifiers] = useState([]);
+  const [availableRegistries, setAvailableRegistries] = useState([]);
   const [leaveData, setLeaveData] = useState(null); // New: holds schedule + faculty + advisor duties
   
   const [formData, setFormData] = useState({
@@ -127,9 +128,7 @@ export const LeaveApply = () => {
     from_date: '',
     to_date: '',
     reason: '',
-    compensation_verifier_id: '',
-    compensation_date: '',
-    compensation_purpose: '',
+    compensation_registry_id: '',
     hour_permission_start_time: '',
     hour_permission_end_time: '',
     proof_link: ''
@@ -154,14 +153,16 @@ export const LeaveApply = () => {
 
   const fetchData = async () => {
     try {
-      const [balRes, facRes, verifiersRes] = await Promise.all([
+      const [balRes, facRes, verifiersRes, registryRes] = await Promise.all([
         axios.get('/api/leave/balances'),
         axios.get('/api/auth/profile'),
-        axios.get('/api/leave/all-verifiers')
+        axios.get('/api/leave/all-verifiers'),
+        axios.get('/api/leave/compensation-registry/available')
       ]);
       setBalance(balRes.data);
       setFacultyProfile(facRes.data);
       setAllVerifiers(verifiersRes.data || []);
+      setAvailableRegistries(registryRes.data || []);
 
       if (editId) {
         const editRes = await axios.get(`/api/leave/requests/${editId}`);
@@ -171,9 +172,7 @@ export const LeaveApply = () => {
           from_date: requestData.from_date,
           to_date: requestData.to_date,
           reason: requestData.reason,
-          compensation_verifier_id: requestData.compensation_verifier_id || '',
-          compensation_date: requestData.compensation_date || '',
-          compensation_purpose: requestData.compensation_purpose || '',
+          compensation_registry_id: requestData.compensation_registry_id || '',
           hour_permission_start_time: requestData.hour_permission_session || '',
           hour_permission_end_time: requestData.hour_permission_period || '',
           proof_link: requestData.proof_link || ''
@@ -468,8 +467,9 @@ const addArrangementRow = () => {
         ...restFormData,
         hour_permission_session: formData.leave_type === 'Hour Permission' ? hour_permission_start_time : null,
         hour_permission_period: formData.leave_type === 'Hour Permission' ? hour_permission_end_time : null,
-        compensation_verifier_id: formData.compensation_verifier_id ? parseInt(formData.compensation_verifier_id) : null,
-        compensation_date: formData.compensation_date || null,
+        compensation_registry_id: formData.leave_type === 'Compensation Leave' && formData.compensation_registry_id 
+          ? parseInt(formData.compensation_registry_id) 
+          : null,
         arrangements: validArrangements
       };
       if (editId) {
@@ -704,40 +704,28 @@ const addArrangementRow = () => {
 
                 {formData.leave_type === 'Compensation Leave' && (
                   <div className="pt-4 mt-4 border-t border-gray-100 space-y-5">
-                    <h3 className="text-sm font-bold text-gray-700 mb-3">Compensation Verification Details</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Overtime Date</label>
-                        <input 
-                          type="date" 
-                          name="compensation_date"
-                          value={formData.compensation_date}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
-                          required={formData.leave_type === 'Compensation Leave'}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Verifier (Faculty/Authority)</label>
-                        <SearchableVerifierSelect
-                          value={formData.compensation_verifier_id}
-                          onChange={(val) => setFormData({...formData, compensation_verifier_id: val})}
-                          options={allVerifiers}
-                          placeholder="Select Verifier..."
-                        />
-                      </div>
-                    </div>
+                    <h3 className="text-sm font-bold text-gray-700 mb-3">Select Verified Compensation</h3>
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Purpose of Overtime</label>
-                      <input 
-                        type="text"
-                        name="compensation_purpose"
-                        value={formData.compensation_purpose}
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Approved Compensation Work</label>
+                      <select 
+                        name="compensation_registry_id"
+                        value={formData.compensation_registry_id}
                         onChange={handleInputChange}
-                        placeholder="Why did you do overtime? (e.g. Special Class, Event coordination)"
                         className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                         required={formData.leave_type === 'Compensation Leave'}
-                      />
+                      >
+                        <option value="">Select an approved compensation work...</option>
+                        {availableRegistries.map(reg => (
+                          <option key={reg.id} value={reg.id}>
+                            {new Date(reg.date_worked).toLocaleDateString()} - {reg.classes_substituted || 'General Duty'} (Verified by: {reg.peer_faculty_name})
+                          </option>
+                        ))}
+                      </select>
+                      {availableRegistries.length === 0 && (
+                        <p className="text-xs text-red-500 mt-2 font-medium">
+                          You do not have any approved unused compensation work. Please register compensation work first.
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
