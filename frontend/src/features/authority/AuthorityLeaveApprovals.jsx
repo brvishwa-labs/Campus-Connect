@@ -9,7 +9,8 @@ const STATUS_CFG = {
   pending_substitute: { label: 'Awaiting Substitutes', color: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200'   },
   pending_hod:        { label: 'Pending HOD',          color: 'text-violet-700',  bg: 'bg-violet-50',  border: 'border-violet-200'  },
   pending_dean:       { label: 'Pending Dean',         color: 'text-blue-700',    bg: 'bg-blue-50',    border: 'border-blue-200'    },
-  pending_om:         { label: 'Pending Principal',    color: 'text-orange-700',  bg: 'bg-orange-50',  border: 'border-orange-200'  },
+  pending_om:         { label: 'Pending OM',           color: 'text-orange-700',  bg: 'bg-orange-50',  border: 'border-orange-200'  },
+  pending_principal:  { label: 'Pending Principal',    color: 'text-pink-700',    bg: 'bg-pink-50',    border: 'border-pink-200'    },
   approved:           { label: 'Approved',             color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
   rejected:           { label: 'Rejected',             color: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-200'     },
 };
@@ -171,7 +172,7 @@ export const AuthorityLeaveApprovals = () => {
       const res = await axios.get('/api/leave/requests');
       setRequests(res.data);
       // Detect the pending stage relevant to this authority
-      const pending = res.data.find(r => r.status === 'pending_om' || r.status === 'pending_dean');
+      const pending = res.data.find(r => r.status === 'pending_om' || r.status === 'pending_dean' || r.status === 'pending_principal');
       if (pending) setPendingStatus(pending.status);
     } catch (err) {
       setError('Failed to load leave requests.');

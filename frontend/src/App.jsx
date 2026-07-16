@@ -6,6 +6,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import Login from './features/auth/Login';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import FullscreenButton from './components/FullscreenButton';
+import ErrorBoundary from './components/ErrorBoundary';
 import { 
   AdminDashboard, 
   FacultyDashboard, 
@@ -71,17 +72,18 @@ import { CASubjects } from './features/faculty/classadvisor/CASubjects';
 import { CACourseProgress } from './features/faculty/classadvisor/CACourseProgress';
 import { CAClassInfo } from './features/faculty/classadvisor/CAClassInfo';
 import { CALeaveRequests } from './features/faculty/classadvisor/CALeaveRequests';
+import { AlteredClassAdvisor } from './features/faculty/AlteredClassAdvisor';
 import { Mentorship } from './features/faculty/Mentorship';
 import { GatePass } from './features/student/GatePass';
 import { StudentLeave } from './features/student/StudentLeave';
 import { MenteeGatePasses } from './features/faculty/MenteeGatePasses';
 import { GatePassApprovals as HodGatePassApprovals } from './features/hod/GatePassApprovals';
-import { LeaveApprovals } from './features/hod/LeaveApprovals';
+// import { LeaveApprovals } from './features/hod/LeaveApprovals';
 import { OMGatePassApprovals } from './features/authority/OMGatePassApprovals';
 import FacultyGatePass from './features/faculty/FacultyGatePass';
 import HODFacultyGatePass from './features/hod/HODFacultyGatePass';
 import AuthorityFacultyGatePass from './features/authority/AuthorityFacultyGatePass';
-import { AuthorityLeaveApprovals } from './features/authority/AuthorityLeaveApprovals';
+// import { AuthorityLeaveApprovals } from './features/authority/AuthorityLeaveApprovals';
 import { Profile } from './features/profile/Profile';
 import LateEntryNotification from './features/student/LateEntryNotification';
 import PrincipalDashboard from './features/authority/PrincipalDashboard';
@@ -89,6 +91,7 @@ import DeanDashboard from './features/authority/DeanDashboard';
 import OMDashboard from './features/authority/OMDashboard';
 import HRDashboard from './features/authority/HRDashboard';
 import HRLeavePortal from './features/authority/HRLeavePortal';
+import HRSetLeaveLimits from './features/authority/HRSetLeaveLimits';
 import HRGatepassPortal from './features/authority/HRGatepassPortal';
 import HRFacultyDirectory from './features/authority/HRFacultyDirectory';
 import AuthorityAnalytics from './features/authority/AuthorityAnalytics';
@@ -253,11 +256,11 @@ function AppRoutes() {
             <HODFacultyGatePass />
           </ProtectedRoute>
         } />
-        <Route path="/hod/leave" element={
+        {/* <Route path="/hod/leave" element={
           <ProtectedRoute allowedRole="hod">
             <LeaveApprovals />
           </ProtectedRoute>
-        } />
+        } /> */}
         <Route path="/hod/latetracker" element={
           <ProtectedRoute allowedRole="hod">
             <LateManagement />
@@ -398,6 +401,11 @@ function AppRoutes() {
         } />
         <Route path="/faculty/class-advisor/leave" element={
           <ProtectedRoute allowedRole="faculty"><CALeaveRequests /></ProtectedRoute>
+        } />
+        <Route path="/faculty/altered-class-advisor" element={
+          <ProtectedRoute allowedRole="faculty">
+            <AlteredClassAdvisor />
+          </ProtectedRoute>
         } />
         <Route path="/faculty/announcements" element={
           <ProtectedRoute allowedRole="faculty">
@@ -566,6 +574,11 @@ function AppRoutes() {
             <HRLeavePortal />
           </ProtectedRoute>
         } />
+        <Route path="/hr/leaves/set-limits" element={
+          <ProtectedRoute allowedRole="authority">
+            <HRSetLeaveLimits />
+          </ProtectedRoute>
+        } />
         <Route path="/hr/gatepass" element={
           <ProtectedRoute allowedRole="authority">
             <HRGatepassPortal />
@@ -577,11 +590,11 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         
-        <Route path="/authority/leave" element={
+        {/* <Route path="/authority/leave" element={
           <ProtectedRoute allowedRole="authority">
             <AuthorityLeaveApprovals />
           </ProtectedRoute>
-        } />
+        } /> */}
         <Route path="/authority/discipline" element={
           <ProtectedRoute allowedRole="authority">
             <AuthorityDiscipline />
@@ -646,14 +659,22 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <FullscreenButton />
-          <PWAInstallPrompt />
-          <AppRoutes />
-        </BrowserRouter>
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <div className="min-h-screen bg-gray-50 flex flex-col">
+              <div className="flex-1">
+                <AppRoutes />
+              </div>
+              
+              {/* Optional footer can go here */}
+            </div>
+            <PWAInstallPrompt />
+            <FullscreenButton />
+          </BrowserRouter>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

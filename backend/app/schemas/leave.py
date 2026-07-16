@@ -7,6 +7,7 @@ class FacultyDutyArrangementBase(BaseModel):
     substitute_faculty_id: int
     subject: str
     class_section: str
+    section_id: Optional[int] = None
     period: str
     day: Optional[str] = None
     compensation_date: Optional[date] = None
@@ -36,6 +37,9 @@ class FacultyLeaveRequestBase(BaseModel):
     compensation_verifier_id: Optional[int] = None
     compensation_date: Optional[date] = None
     compensation_purpose: Optional[str] = None
+    hour_permission_session: Optional[str] = None
+    hour_permission_period: Optional[str] = None
+    proof_link: Optional[str] = None
 
 class FacultyLeaveRequestCreate(FacultyLeaveRequestBase):
     arrangements: List[FacultyDutyArrangementCreate] = []
@@ -50,7 +54,11 @@ class FacultyLeaveRequestResponse(FacultyLeaveRequestBase):
     hod_approved_by: Optional[int] = None
     dean_approved_by: Optional[int] = None
     om_approved_by: Optional[int] = None
+    principal_approved_by: Optional[int] = None
     rejection_reason: Optional[str] = None
+    hour_permission_session: Optional[str] = None
+    hour_permission_period: Optional[str] = None
+    proof_link: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     
@@ -82,6 +90,15 @@ class FacultyLeaveBalanceResponse(FacultyLeaveBalanceBase):
 
     class Config:
         from_attributes = True
+
+class FacultyLeaveBalanceUpdate(BaseModel):
+    casual_leaves_total: Optional[int] = None
+    sick_leaves_total: Optional[int] = None
+    earned_leaves_total: Optional[int] = None
+    restricted_leaves_total: Optional[int] = None
+    vacation_leaves_total: Optional[int] = None
+    compensation_leaves_total: Optional[int] = None
+    academic_leaves_total: Optional[int] = None
 
 
 # ── Student Leave Schemas ──────────────────────────────────────────────────
