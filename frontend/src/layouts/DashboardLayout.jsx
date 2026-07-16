@@ -129,24 +129,62 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (user) {
       fetchBadgeCounts();
-      const interval = setInterval(fetchBadgeCounts, 30000);
+      const interval = setInterval(fetchBadgeCounts, 10000); // poll every 10s for near real-time
       return () => clearInterval(interval);
     }
   }, [user]);
 
   useEffect(() => {
     window.addEventListener('refetch-badges', fetchBadgeCounts);
-    return () => window.removeEventListener('refetch-badges', fetchBadgeCounts);
+    // Refresh badges instantly when user switches back to the tab
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchBadgeCounts();
+    };
+    // Refresh badges when the browser window regains focus
+    const handleFocus = () => fetchBadgeCounts();
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('refetch-badges', fetchBadgeCounts);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   useEffect(() => {
     const markAsViewed = async () => {
       const pathToSector = {
-        '/faculty/faculty-gatepass': 'faculty-gatepass-own',
-        '/faculty/late-entry': 'late-entry',
-        '/student/leave': 'student-leave',
-        '/student/gatepass': 'student-gatepass',
+        // Faculty
+        '/faculty/leave':               'faculty-leave',
+        '/faculty/mentorship':          'faculty-mentorship',
+        '/faculty/gatepass':            'faculty-gatepass',
+        '/faculty/faculty-gatepass':    'faculty-gatepass-own',
+        '/faculty/late-entry':          'late-entry',
+        '/faculty/announcements':       'faculty-announcements',
+        '/faculty/class-advisor/leave': 'faculty-ca-leave',
+        // HOD
+        '/hod/leave':                   'hod-leave',
+        '/hod/gatepass':                'hod-gatepass',
+        '/hod/faculty-gatepass':        'hod-faculty-gatepass',
+        '/hod/discipline':              'hod-discipline',
+        '/hod/latetracker':             'hod-latetracker',
+        '/hod/announcements':           'hod-announcements',
+        // Authority / Dean / OM / Principal
+        '/authority/leave':             'authority-leave',
+        '/authority/gatepass':          'authority-gatepass',
+        '/authority/faculty-gatepass':  'authority-faculty-gatepass',
+        '/authority/announcements':     'authority-announcements',
+        // Student
+        '/student/leave':               'student-leave',
+        '/student/gatepass':            'student-gatepass',
+        '/student/late-entry':          'student-late-entry',
+        '/student/announcements':       'student-announcements',
+        // Admin
+        '/admin/discipline':            'admin-discipline',
+        '/admin/latetracker':           'admin-latetracker',
+        '/admin/announcements':         'admin-announcements',
       };
+
       const sector = pathToSector[location.pathname];
 
       if (sector) {

@@ -4,7 +4,7 @@ echo   Campus Connect - Starting Frontend
 echo ============================================
 echo.
 
-cd /d "C:\Users\ADVANCED COMPUTING\Desktop\Campus-Connect\frontend"
+cd /d "%~dp0frontend"
 
 echo Starting development server...
 echo Frontend will be available at: http://localhost:5173
