@@ -1587,7 +1587,7 @@ export const LMSLogbookReport = () => {
         if (!isVisible) return;
         
         let estHeight = estimateHeight(id);
-        if (accumulatedHeight + estHeight > maxHeight || DEFAULT_PAGE_BREAKS.has(id)) {
+        if (accumulatedHeight + estHeight > maxHeight || layoutMap[id]?.pageBreakBefore || DEFAULT_PAGE_BREAKS.has(id)) {
           if (currentPage.length > 0) {
             pagesList.push([...currentPage]);
             currentPage = [];
