@@ -666,6 +666,20 @@ def create_leave_request(
         comp_available = balance.compensation_leaves_total - balance.compensation_leaves_used
         if duration > comp_available:
             raise HTTPException(status_code=400, detail=f"Insufficient Compensation Leave balance. Available: {comp_available} days.")
+        
+        if request.compensation_registry_id:
+            from app.models.leave import CompensationRegistryRequest
+            registry = db.query(CompensationRegistryRequest).filter(
+                CompensationRegistryRequest.id == request.compensation_registry_id,
+                CompensationRegistryRequest.faculty_id == faculty.id,
+                CompensationRegistryRequest.status == "approved",
+                CompensationRegistryRequest.is_used == False
+            ).first()
+            if not registry:
+                raise HTTPException(status_code=400, detail="Invalid, unapproved, or already used Compensation Registry ID.")
+            
+            # Mark the registry request as used (we can commit this later or right away, it will be committed with the main transaction)
+            registry.is_used = True
     
     elif "sick" in leave_type_lower or "medical" in leave_type_lower:
         sick_available = balance.sick_leaves_total - balance.sick_leaves_used
@@ -673,8 +687,6 @@ def create_leave_request(
             raise HTTPException(status_code=400, detail=f"Insufficient Sick Leave balance. Available: {sick_available} days.")
 
     initial_status = LeaveStatus.PENDING_SUBSTITUTE
-    if request.leave_type == "Compensation Leave":
-        initial_status = LeaveStatus.PENDING_COMPENSATION_VERIFICATION
 
     # Create the request with appropriate initial status
     leave_req = FacultyLeaveRequest(
@@ -687,6 +699,7 @@ def create_leave_request(
         attachment_url=request.attachment_url,
         compensation_verifier_id=request.compensation_verifier_id,
         compensation_purpose=request.compensation_purpose,
+        compensation_registry_id=request.compensation_registry_id,
         hour_permission_session=request.hour_permission_session,
         hour_permission_period=request.hour_permission_period,
         proof_link=request.proof_link,
@@ -1414,3 +1427,159 @@ def is_effective_class_advisor(faculty_id: int, section_id: int, on_date, db: Se
         FacultyLeaveRequest.to_date >= on_date,
         FacultyLeaveRequest.status.notin_([LeaveStatus.REJECTED, LeaveStatus.WITHDRAWN])
     ).first() is not None
+
+
+# ── Compensation Registry Endpoints ─────────────────────────────────────────
+
+from app.schemas.leave import CompensationRegistryCreate, CompensationRegistryResponse
+from app.models.leave import CompensationRegistryRequest
+
+@router.post("/compensation-registry", response_model=CompensationRegistryResponse)
+def create_compensation_registry(
+    request: CompensationRegistryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.FACULTY:
+        raise HTTPException(status_code=403, detail="Only faculty can submit compensation registry")
+        
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not faculty:
+        raise HTTPException(status_code=404, detail="Faculty profile not found")
+        
+    registry = CompensationRegistryRequest(
+        faculty_id=faculty.id,
+        peer_faculty_id=request.peer_faculty_id,
+        date_worked=request.date_worked,
+        classes_substituted=request.classes_substituted,
+        status="pending_peer_approval"
+    )
+    db.add(registry)
+    db.commit()
+    db.refresh(registry)
+    
+    # Return with names
+    peer = db.query(Faculty).filter(Faculty.id == registry.peer_faculty_id).first()
+    peer_name = peer.name if peer else None
+    
+    resp = CompensationRegistryResponse.model_validate(registry)
+    resp.faculty_name = faculty.name
+    resp.peer_faculty_name = peer_name
+    return resp
+
+@router.get("/compensation-registry/peer", response_model=List[CompensationRegistryResponse])
+def get_incoming_compensation_registries(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.FACULTY:
+        raise HTTPException(status_code=403, detail="Only faculty can view peer requests")
+        
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not faculty:
+        raise HTTPException(status_code=404, detail="Faculty profile not found")
+        
+    requests = db.query(CompensationRegistryRequest).filter(
+        CompensationRegistryRequest.peer_faculty_id == faculty.id,
+        CompensationRegistryRequest.status == "pending_peer_approval"
+    ).all()
+    
+    results = []
+    for req in requests:
+        req_faculty = db.query(Faculty).filter(Faculty.id == req.faculty_id).first()
+        resp = CompensationRegistryResponse.model_validate(req)
+        resp.faculty_name = req_faculty.name if req_faculty else None
+        resp.peer_faculty_name = faculty.name
+        results.append(resp)
+        
+    return results
+
+@router.put("/compensation-registry/{registry_id}/status")
+def update_compensation_registry_status(
+    registry_id: int,
+    status: str, # "approved" or "rejected"
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.FACULTY:
+        raise HTTPException(status_code=403, detail="Only faculty can update peer requests")
+        
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    
+    req = db.query(CompensationRegistryRequest).filter(
+        CompensationRegistryRequest.id == registry_id,
+        CompensationRegistryRequest.peer_faculty_id == faculty.id
+    ).first()
+    
+    if not req:
+        raise HTTPException(status_code=404, detail="Registry request not found or not assigned to you")
+        
+    if req.status != "pending_peer_approval":
+        raise HTTPException(status_code=400, detail=f"Cannot change status from {req.status}")
+        
+    if status not in ["approved", "rejected"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+        
+    req.status = status
+    
+    if status == "approved":
+        # Increment the compensation_leaves_total for the requesting faculty
+        balance = db.query(FacultyLeaveBalance).filter(
+            FacultyLeaveBalance.faculty_id == req.faculty_id
+        ).first()
+        
+        if balance:
+            balance.compensation_leaves_total += 1
+            
+    db.commit()
+    return {"message": f"Compensation registry {status} successfully"}
+
+@router.get("/compensation-registry/my-requests", response_model=List[CompensationRegistryResponse])
+def get_my_compensation_registries(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.FACULTY:
+        raise HTTPException(status_code=403, detail="Only faculty can view requests")
+        
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    
+    requests = db.query(CompensationRegistryRequest).filter(
+        CompensationRegistryRequest.faculty_id == faculty.id
+    ).order_by(CompensationRegistryRequest.created_at.desc()).all()
+    
+    results = []
+    for req in requests:
+        peer = db.query(Faculty).filter(Faculty.id == req.peer_faculty_id).first()
+        resp = CompensationRegistryResponse.model_validate(req)
+        resp.faculty_name = faculty.name
+        resp.peer_faculty_name = peer.name if peer else None
+        results.append(resp)
+        
+    return results
+
+@router.get("/compensation-registry/available", response_model=List[CompensationRegistryResponse])
+def get_available_compensation_registries(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.FACULTY:
+        raise HTTPException(status_code=403, detail="Only faculty can view requests")
+        
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    
+    requests = db.query(CompensationRegistryRequest).filter(
+        CompensationRegistryRequest.faculty_id == faculty.id,
+        CompensationRegistryRequest.status == "approved",
+        CompensationRegistryRequest.is_used == False
+    ).all()
+    
+    results = []
+    for req in requests:
+        peer = db.query(Faculty).filter(Faculty.id == req.peer_faculty_id).first()
+        resp = CompensationRegistryResponse.model_validate(req)
+        resp.faculty_name = faculty.name
+        resp.peer_faculty_name = peer.name if peer else None
+        results.append(resp)
+        
+    return results

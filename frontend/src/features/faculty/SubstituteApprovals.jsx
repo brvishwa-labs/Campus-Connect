@@ -17,7 +17,7 @@ export const SubstituteApprovals = () => {
     try {
       const [res1, res2] = await Promise.all([
         axios.get('/api/leave/substitute-requests'),
-        axios.get('/api/leave/compensation-verifications')
+        axios.get('/api/leave/compensation-registry/peer')
       ]);
       setRequests(res1.data);
       setCompRequests(res2.data);
@@ -50,7 +50,7 @@ export const SubstituteApprovals = () => {
   const handleCompAction = async (req_id, status) => {
     setActionLoading(`comp-${req_id}`);
     try {
-      const res = await axios.put(`/api/leave/compensation-verifications/${req_id}?action=${status}`);
+      const res = await axios.put(`/api/leave/compensation-registry/${req_id}/status?status=${status}`);
       alert(res.data?.message || 'Status updated successfully');
       fetchRequests();
     } catch (err) {
@@ -159,26 +159,26 @@ export const SubstituteApprovals = () => {
                 <div key={`comp-${req.id}`} className="bg-white rounded-xl shadow-sm border border-purple-200 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-2">
-                      <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">{req.leave_type}</span>
-                      <span className="text-sm text-gray-500 font-medium"><Calendar className="w-4 h-4 inline mr-1" />{new Date(req.from_date).toLocaleDateString()} to {new Date(req.to_date).toLocaleDateString()}</span>
+                      <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">COMPENSATION REGISTRY</span>
+                      <span className="text-sm text-gray-500 font-medium"><Calendar className="w-4 h-4 inline mr-1" />{new Date(req.created_at).toLocaleDateString()}</span>
                     </div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-1">{req.faculty_name} claims Overtime</h3>
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">{req.faculty_name} logged Compensation Work</h3>
                     <div className="mt-4 bg-[#fcfaff] border border-purple-100 rounded-lg p-4">
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">Details</p>
-                      <p className="text-sm font-bold text-gray-800">Date: {new Date(req.compensation_date).toLocaleDateString()}</p>
-                      <p className="text-sm text-gray-700 mt-1">Purpose: {req.compensation_purpose}</p>
+                      <p className="text-sm font-bold text-gray-800">Date Worked: {new Date(req.date_worked).toLocaleDateString()}</p>
+                      <p className="text-sm text-gray-700 mt-1">Duties: {req.classes_substituted || 'No details'}</p>
                     </div>
                   </div>
                   <div className="flex space-x-2 w-full md:w-auto mt-4 md:mt-0">
                     <button 
-                      onClick={() => handleCompAction(req.id, 'approve')}
+                      onClick={() => handleCompAction(req.id, 'approved')}
                       disabled={actionLoading === `comp-${req.id}`}
                       className="flex-1 md:flex-none justify-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center"
                     >
                       <CheckCircle className="w-4 h-4 mr-1.5" /> Verify & Confirm
                     </button>
                     <button 
-                      onClick={() => handleCompAction(req.id, 'reject')}
+                      onClick={() => handleCompAction(req.id, 'rejected')}
                       disabled={actionLoading === `comp-${req.id}`}
                       className="flex-1 md:flex-none justify-center bg-red-50 hover:bg-red-100 text-red-600 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center border border-red-200"
                     >

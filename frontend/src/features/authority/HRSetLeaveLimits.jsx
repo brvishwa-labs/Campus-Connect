@@ -17,8 +17,7 @@ const HRSetLeaveLimits = () => {
       restricted_leaves_total: 2,
       earned_leaves_total: 30,
       vacation_leaves_total: 12,
-      academic_leaves_total: 10,
-      compensation_leaves_total: 5
+      academic_leaves_total: 10
     };
   });
 
@@ -59,8 +58,7 @@ const HRSetLeaveLimits = () => {
     { label: 'Restricted Leave', key: 'restricted_leaves_total', desc: 'Restricted holiday allowance' },
     { label: 'Earned Leave', key: 'earned_leaves_total', desc: 'Accrued earned leaves' },
     { label: 'Vacation Leave', key: 'vacation_leaves_total', desc: 'Vacation period allowance' },
-    { label: 'Academic Leave', key: 'academic_leaves_total', desc: 'For academic conferences/workshops' },
-    { label: 'Compensation Leave', key: 'compensation_leaves_total', desc: 'Compensatory off allowance' }
+    { label: 'Academic Leave', key: 'academic_leaves_total', desc: 'For academic conferences/workshops' }
   ];
 
   return (
