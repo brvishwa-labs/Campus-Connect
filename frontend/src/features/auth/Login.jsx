@@ -149,7 +149,7 @@ export default function Login() {
                 type="submit"
                 disabled={isLoading}
                 className={`w-full flex justify-center items-center py-3.5 px-4 rounded-xl text-[15px] font-bold text-white transition-all shadow-md ${
-                  isLoading ? 'bg-primary-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-500/30 shadow-primary-500/20'
+                  isLoading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/30 shadow-blue-500/20'
                 }`}
               >
                 {isLoading ? 'Signing in...' : 'Sign in \u2192'}

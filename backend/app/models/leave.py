@@ -17,6 +17,7 @@ class LeaveStatus(str, enum.Enum):
     PENDING_HOD = "pending_hod"
     PENDING_DEAN = "pending_dean"
     PENDING_OM = "pending_om"
+    PENDING_PRINCIPAL = "pending_principal"
     APPROVED = "approved"
     REJECTED = "rejected"
     WITHDRAWN = "withdrawn"
@@ -43,12 +44,20 @@ class FacultyLeaveRequest(Base):
     compensation_date = Column(Date, nullable=True)
     compensation_purpose = Column(String(500), nullable=True)
     
+    # Hour Permission
+    hour_permission_session = Column(String(10), nullable=True)
+    hour_permission_period = Column(String(50), nullable=True)
+    
+    # On Duty
+    proof_link = Column(String(500), nullable=True)
+    
     status = Column(SQLEnum(LeaveStatus, values_callable=lambda obj: [e.value for e in obj]), default=LeaveStatus.PENDING_SUBSTITUTE)
     
     # Audit tracking
     hod_approved_by = Column(Integer, ForeignKey("faculty.id"), nullable=True) # HOD is a faculty
     dean_approved_by = Column(Integer, ForeignKey("authorities.id"), nullable=True)
     om_approved_by = Column(Integer, ForeignKey("authorities.id"), nullable=True)
+    principal_approved_by = Column(Integer, ForeignKey("authorities.id"), nullable=True)
     rejection_reason = Column(String(500), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -67,6 +76,7 @@ class FacultyDutyArrangement(Base):
     substitute_faculty_id = Column(Integer, ForeignKey("faculty.id"), nullable=False)
     subject = Column(String(100), nullable=False)
     class_section = Column(String(50), nullable=False)
+    section_id = Column(Integer, ForeignKey("sections.id"), nullable=True)
     period = Column(String(50), nullable=False)
     day = Column(String(10), nullable=True)
     compensation_date = Column(Date, nullable=True)

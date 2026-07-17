@@ -39,11 +39,21 @@ router = APIRouter()
 
 # ── Helper ────────────────────────────────────────────────
 
-def get_advisor_section(current_user: User, db: Session):
+def get_advisor_section(current_user: User, db: Session, target_section_id: Optional[int] = None):
     """Resolve the Section this faculty is assigned as class advisor for."""
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
     if not faculty:
         raise HTTPException(status_code=404, detail="Faculty profile not found")
+
+    from app.api.leave import is_effective_class_advisor
+    from datetime import date
+
+    if target_section_id:
+        if is_effective_class_advisor(faculty.id, target_section_id, date.today(), db):
+            section = db.query(Section).filter(Section.id == target_section_id).first()
+            if section:
+                return faculty, section
+        raise HTTPException(status_code=403, detail="You are not authorized for this section today")
 
     section = db.query(Section).filter(
         Section.class_advisor_id == faculty.id,
@@ -101,20 +111,20 @@ def build_class_info(faculty: Faculty, section: Section, db: Session) -> ClassIn
 # ── Dashboard ─────────────────────────────────────────────
 
 @router.get("/my-class", response_model=ClassInfoResponse)
-def get_my_class(
+def get_my_class(    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    faculty, section = get_advisor_section(current_user, db)
+    faculty, section = get_advisor_section(current_user, db, section_id)
     return build_class_info(faculty, section, db)
 
 
 @router.get("/dashboard", response_model=CADashboardResponse)
-def get_dashboard(
+def get_dashboard(    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    faculty, section = get_advisor_section(current_user, db)
+    faculty, section = get_advisor_section(current_user, db, section_id)
     class_info = build_class_info(faculty, section, db)
     today = date.today()
 
@@ -158,11 +168,11 @@ def get_dashboard(
 
 @router.get("/students", response_model=List[CAStudentListItem])
 def get_students(
-    search: Optional[str] = None,
+    search: Optional[str] = None,    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    _, section = get_advisor_section(current_user, db)
+    _, section = get_advisor_section(current_user, db, section_id)
 
     query = db.query(Student).filter(
         Student.section_id == section.id,
@@ -197,11 +207,11 @@ def get_students(
 @router.get("/students/report")
 def generate_student_report(
     format: str = 'pdf',
-    columns: str = 'register_number,name,phone,gender',
+    columns: str = 'register_number,name,phone,gender',    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    faculty, section = get_advisor_section(current_user, db)
+    faculty, section = get_advisor_section(current_user, db, section_id)
 
     students = db.query(Student).filter(
         Student.section_id == section.id,
@@ -319,11 +329,11 @@ def generate_student_report(
 
 @router.get("/students/{student_id}", response_model=CAStudentProfileResponse)
 def get_student_profile(
-    student_id: int,
+    student_id: int,    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    _, section = get_advisor_section(current_user, db)
+    _, section = get_advisor_section(current_user, db, section_id)
 
     student = db.query(Student).filter(
         Student.id == student_id,
@@ -420,11 +430,11 @@ def get_student_profile(
 # ── Daily Attendance ──────────────────────────────────────
 
 @router.get("/attendance-settings")
-def get_attendance_settings(
+def get_attendance_settings(    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    _, section = get_advisor_section(current_user, db)
+    _, section = get_advisor_section(current_user, db, section_id)
     department = db.query(Department).filter(Department.id == section.department_id).first()
 
     from datetime import date as date_type
@@ -442,11 +452,11 @@ def get_attendance_settings(
 def get_attendance_for_date(
     date: date,
     course_id: Optional[int] = None,
-    hour: Optional[int] = None,
+    hour: Optional[int] = None,    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    _, section = get_advisor_section(current_user, db)
+    _, section = get_advisor_section(current_user, db, section_id)
 
     students = db.query(Student).filter(
         Student.section_id == section.id,
@@ -488,11 +498,11 @@ def get_attendance_for_date(
 @router.get("/attendance-report")
 def get_attendance_report(
     start_date: date,
-    end_date: date,
+    end_date: date,    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    _, section = get_advisor_section(current_user, db)
+    _, section = get_advisor_section(current_user, db, section_id)
 
     students = db.query(Student).filter(
         Student.section_id == section.id,
@@ -540,11 +550,11 @@ def get_attendance_report(
 
 @router.post("/attendance", response_model=AttendanceSaveResponse)
 def save_attendance(
-    payload: AttendanceSaveRequest,
+    payload: AttendanceSaveRequest,    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    faculty, section = get_advisor_section(current_user, db)
+    faculty, section = get_advisor_section(current_user, db, section_id)
 
     # Check if attendance is locked/closed for the department
     department = db.query(Department).filter(Department.id == section.department_id).first()
@@ -641,11 +651,11 @@ def save_attendance(
 # ── Attendance Summary ────────────────────────────────────
 
 @router.get("/attendance-summary", response_model=List[AttendanceSummaryItem])
-def get_attendance_summary(
+def get_attendance_summary(    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    _, section = get_advisor_section(current_user, db)
+    _, section = get_advisor_section(current_user, db, section_id)
 
     students = db.query(Student).filter(
         Student.section_id == section.id,
@@ -708,11 +718,11 @@ def get_attendance_summary(
 
 @router.get("/timetable", response_model=List[CATimetableSlot])
 def get_timetable(
-    date: Optional[str] = None,
+    date: Optional[str] = None,    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    _, section = get_advisor_section(current_user, db)
+    _, section = get_advisor_section(current_user, db, section_id)
 
     assignments = db.query(CourseAssignment).options(
         joinedload(CourseAssignment.course),
@@ -855,11 +865,11 @@ def get_timetable(
 # ── Class Subjects ────────────────────────────────────────
 
 @router.get("/subjects", response_model=List[CASubjectItem])
-def get_subjects(
+def get_subjects(    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    _, section = get_advisor_section(current_user, db)
+    _, section = get_advisor_section(current_user, db, section_id)
 
     assignments = db.query(CourseAssignment).options(
         joinedload(CourseAssignment.course),
@@ -886,11 +896,11 @@ def get_subjects(
 # ── Course Progress ───────────────────────────────────────
 
 @router.get("/course-progress", response_model=List[CACourseProgressItem])
-def get_course_progress(
+def get_course_progress(    section_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    _, section = get_advisor_section(current_user, db)
+    _, section = get_advisor_section(current_user, db, section_id)
 
     assignments = db.query(CourseAssignment).options(
         joinedload(CourseAssignment.course),
