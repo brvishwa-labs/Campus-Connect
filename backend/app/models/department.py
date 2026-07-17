@@ -25,6 +25,7 @@ class Department(Base):
     psos = Column(Text, nullable=True)                               # Programme Specific Outcomes
     current_sem_start_date = Column(DateTime(timezone=True), nullable=True)
     attendance_closed = Column(Boolean, default=False)
+    is_common_first_year = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -32,7 +33,7 @@ class Department(Base):
     # Relationships
     hod = relationship("Faculty", foreign_keys=[hod_id], back_populates="headed_department")
     faculty_members = relationship("Faculty", foreign_keys="Faculty.department_id", back_populates="department")
-    students = relationship("Student", back_populates="department")
+    students = relationship("Student", foreign_keys="Student.department_id", back_populates="department")
     courses = relationship("Course", back_populates="department")
     sections = relationship("Section", back_populates="department")
 

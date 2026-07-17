@@ -237,6 +237,9 @@ def create_section(
     if existing:
         raise HTTPException(status_code=400, detail="This section already exists")
 
+    if department.is_common_first_year and section_in.year != 1:
+        raise HTTPException(status_code=400, detail="Science & Humanities can only have Year 1 sections")
+
     new_section = Section(
         department_id=department.id,
         name=section_in.name,

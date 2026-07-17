@@ -47,6 +47,7 @@ class StudentResponse(StudentBase):
     id: int
     user_id: int
     is_active: bool
+    intended_department_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     section: Optional[SectionSimple] = None
