@@ -182,6 +182,25 @@ class FacultyLeaveBalance(Base):
     faculty = relationship("Faculty", foreign_keys=[faculty_id])
 
 
+class RestrictedHoliday(Base):
+    """
+    Restricted Holidays configured by HR.
+    Faculty can only apply Restricted Leave on these specific dates.
+    """
+    __tablename__ = "restricted_holidays"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    date = Column(Date, nullable=False)
+    description = Column(String(500), nullable=True)
+    academic_year = Column(String(20), nullable=False)  # e.g. "2025-2026"
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    created_by = relationship("User")
+
+
 class CompensationRegistryRequest(Base):
     __tablename__ = "compensation_registry_requests"
 

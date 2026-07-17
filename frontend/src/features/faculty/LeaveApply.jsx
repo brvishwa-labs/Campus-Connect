@@ -115,13 +115,16 @@ export const LeaveApply = () => {
     vacation_leaves_total: 12, vacation_leaves_used: 0,
     compensation_leaves_total: 5, compensation_leaves_used: 0,
     academic_leaves_total: 10, academic_leaves_used: 0,
-    restricted_leaves_total: 1, restricted_leaves_used: 0
+    restricted_leaves_total: 1, restricted_leaves_used: 0,
+    restricted_used_this_sem: 0
   });
+  const [showRestrictedLimitModal, setShowRestrictedLimitModal] = useState(false);
   const [facultyProfile, setFacultyProfile] = useState(null);
   const [allFaculty, setAllFaculty] = useState([]);
   const [allVerifiers, setAllVerifiers] = useState([]);
   const [availableRegistries, setAvailableRegistries] = useState([]);
   const [leaveData, setLeaveData] = useState(null); // New: holds schedule + faculty + advisor duties
+  const [restrictedHolidays, setRestrictedHolidays] = useState([]);
   
   const [formData, setFormData] = useState({
     leave_type: 'Casual Leave',
@@ -140,29 +143,31 @@ export const LeaveApply = () => {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-
+  
   useEffect(() => {
     fetchData();
   }, []);
-
+  
   useEffect(() => {
     if (formData.from_date && formData.to_date && !editId) {
       fetchLeaveData();
     }
   }, [formData.from_date, formData.to_date, formData.leave_type, formData.hour_permission_start_time, formData.hour_permission_end_time]);
-
+  
   const fetchData = async () => {
     try {
-      const [balRes, facRes, verifiersRes, registryRes] = await Promise.all([
+      const [balRes, facRes, verifiersRes, registryRes, rhRes] = await Promise.all([
         axios.get('/api/leave/balances'),
         axios.get('/api/auth/profile'),
         axios.get('/api/leave/all-verifiers'),
-        axios.get('/api/leave/compensation-registry/available')
+        axios.get('/api/leave/compensation-registry/available'),
+        axios.get('/api/leave/restricted-holidays').catch(() => ({ data: [] }))
       ]);
       setBalance(balRes.data);
       setFacultyProfile(facRes.data);
       setAllVerifiers(verifiersRes.data || []);
       setAvailableRegistries(registryRes.data || []);
+      setRestrictedHolidays(rhRes.data || []);
 
       if (editId) {
         const editRes = await axios.get(`/api/leave/requests/${editId}`);
@@ -316,15 +321,33 @@ export const LeaveApply = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    // Check semester limit when switching TO Restricted Leave
+    if (name === 'leave_type' && value === 'Restricted Leave') {
+      const used = balance.restricted_used_this_sem || 0;
+      const total = balance.restricted_leaves_total || 1;
+      if (used >= total) {
+        setShowRestrictedLimitModal(true);
+        // Don't actually change the leave type — user must dismiss
+        return;
+      }
+    }
+
     setFormData(prev => {
       const updated = { ...prev, [name]: value };
+      let newError = '';
       if (updated.from_date && updated.to_date) {
         if (new Date(updated.from_date) > new Date(updated.to_date)) {
-          setError('To Date cannot be earlier than From Date.');
-        } else {
-          setError('');
+          newError = 'To Date cannot be earlier than From Date.';
         }
       }
+      if (updated.leave_type === 'Restricted Leave' && updated.from_date) {
+        const hasMatchingHoliday = restrictedHolidays.some(h => h.date === updated.from_date);
+        if (!hasMatchingHoliday) {
+          newError = 'Restricted Leave can only be applied on HR-approved Restricted Holiday dates.';
+        }
+      }
+      setError(newError);
       return updated;
     });
   };
@@ -430,6 +453,22 @@ const addArrangementRow = () => {
         return;
       }
     }
+
+    if (formData.leave_type === 'Restricted Leave') {
+      const selectedDate = formData.from_date;
+      if (!selectedDate) {
+        setError('Date is required for Restricted Leave.');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      const hasMatchingHoliday = restrictedHolidays.some(h => h.date === selectedDate);
+      if (!hasMatchingHoliday) {
+        setError('Restricted Leave can only be applied on HR-approved Restricted Holiday dates.');
+        setIsSubmitting(false);
+        return;
+      }
+    }
     
     // Validate that at least one substitute arrangement is provided
     const validArrangements = arrangements
@@ -494,6 +533,7 @@ const addArrangementRow = () => {
   };
 
   return (
+    <>
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="mb-6">
         <Link to="/faculty/leave" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors mb-4">
@@ -574,6 +614,66 @@ const addArrangementRow = () => {
                       </div>
                     </div>
                   )}
+
+                {formData.leave_type === 'Restricted Leave' && (() => {
+                    // Filter holidays to current month only
+                    const now = new Date();
+                    const currentMonthHolidays = restrictedHolidays.filter(h => {
+                      const d = new Date(h.date + 'T00:00:00');
+                      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+                    });
+                    const semUsed = balance.restricted_used_this_sem || 0;
+                    const semTotal = balance.restricted_leaves_total || 1;
+
+                    return (
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex flex-col gap-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <AlertCircle className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <h4 className="text-[13px] font-bold text-indigo-900">Restricted Holidays — This Month</h4>
+                              <p className="text-xs text-indigo-700 mt-1">
+                                Click a date below to auto-fill it. Only HR-approved holidays are shown.
+                              </p>
+                            </div>
+                          </div>
+                          {/* Semester usage pill */}
+                          <span className={`flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                            semUsed >= semTotal
+                              ? 'bg-red-50 text-red-700 border-red-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}>
+                            {semUsed}/{semTotal} used
+                          </span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {currentMonthHolidays.length > 0 ? (
+                            currentMonthHolidays.map((holiday) => (
+                              <span
+                                key={holiday.id}
+                                onClick={() => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    from_date: holiday.date,
+                                    to_date: holiday.date
+                                  }));
+                                  setError('');
+                                }}
+                                className="px-2.5 py-1 text-xs bg-white text-indigo-700 border border-indigo-200 rounded-md font-semibold cursor-pointer hover:bg-indigo-100/50 transition-colors"
+                                title={holiday.description}
+                              >
+                                {holiday.name} ({dayjs(holiday.date).format('DD MMM YYYY')})
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-indigo-600 italic">
+                              No restricted holidays configured for this month. Please contact HR.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                 {formData.leave_type === 'Hour Permission' ? (
                   <div>
@@ -1031,5 +1131,48 @@ const addArrangementRow = () => {
         </div>
       </div>
     </div>
+
+    {/* ── Restricted Leave Limit Exceeded Modal ─────────────────────── */}
+    {showRestrictedLimitModal && (
+      <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl border border-red-100 w-full max-w-[420px] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          {/* Red top accent */}
+          <div className="h-1.5 w-full bg-gradient-to-r from-red-500 to-rose-500" />
+
+          <div className="p-6 text-center">
+            {/* Icon */}
+            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-red-50 border-2 border-red-100 flex items-center justify-center">
+              <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+
+            <h3 className="text-lg font-extrabold text-gray-900 mb-2">
+              Restricted Leave Limit Reached
+            </h3>
+            <p className="text-sm text-gray-500 leading-relaxed mb-2">
+              You have already utilized your{' '}
+              <span className="font-bold text-red-600">
+                {balance.restricted_used_this_sem || 0}/{balance.restricted_leaves_total || 1} Restricted Leave
+              </span>{' '}
+              for this semester.
+            </p>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Each employee is entitled to only <strong>1 Restricted Leave per semester</strong>. 
+              Your quota will reset at the start of the next semester.
+            </p>
+
+            <button
+              onClick={() => setShowRestrictedLimitModal(false)}
+              className="mt-6 w-full px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition-all shadow-sm"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };

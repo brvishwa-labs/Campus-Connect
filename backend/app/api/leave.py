@@ -11,7 +11,7 @@ from app.models.leave import FacultyLeaveRequest, FacultyDutyArrangement, Facult
 from app.models.academic import CourseAssignment, Course, Section
 from app.models.lms import TimetableSlot, DayOfWeek
 from app.models.department import Department
-from app.schemas.leave import FacultyLeaveRequestCreate, FacultyLeaveRequestResponse, FacultyDutyArrangementResponse, FacultyLeaveBalanceResponse, FacultyLeaveBalanceUpdate, HODLeaveRequestCreate
+from app.schemas.leave import FacultyLeaveRequestCreate, FacultyLeaveRequestResponse, FacultyDutyArrangementResponse, FacultyLeaveBalanceResponse, FacultyLeaveBalanceUpdate, HODLeaveRequestCreate, RestrictedHolidayCreate, RestrictedHolidayUpdate, RestrictedHolidayResponse
 
 router = APIRouter()
 
@@ -555,6 +555,7 @@ def get_leave_balances(
         "casual_leaves_used": balance.casual_leaves_used,
         "restricted_leaves_total": balance.restricted_leaves_total,
         "restricted_leaves_used": balance.restricted_leaves_used,
+        "restricted_used_this_sem": restricted_used_this_sem,
         "sick_leaves_total": balance.sick_leaves_total,
         "sick_leaves_used": balance.sick_leaves_used,
         "earned_leaves_total": balance.earned_leaves_total,
@@ -655,8 +656,20 @@ def create_leave_request(
         if casual_used_this_month + duration > 1:
             raise HTTPException(status_code=400, detail=f"Insufficient Casual Leave balance. You have already used {casual_used_this_month} day(s) this month. Only 1 day per month is allowed.")
     
-    # Check Restricted Leave (1 per semester)
+    # Check Restricted Leave (1 per semester, only on HR-configured dates)
     elif "restricted" in leave_type_lower or "rh" in leave_type_lower:
+        from app.models.leave import RestrictedHoliday
+        # Validate that from_date is an HR-configured restricted holiday
+        matching_holiday = db.query(RestrictedHoliday).filter(
+            RestrictedHoliday.date == request.from_date
+        ).first()
+        if not matching_holiday:
+            raise HTTPException(
+                status_code=400,
+                detail="Restricted Leave can only be applied on HR-approved Restricted Holiday dates."
+            )
+
+        # Check semester cap (1 per semester)
         if today.month <= 6:
             start_of_sem = datetime.date(today.year, 1, 1)
             end_of_sem = datetime.date(today.year, 7, 1)
@@ -674,7 +687,8 @@ def create_leave_request(
         restricted_used_this_sem = sum(r.duration_days for r in sem_restricted_reqs)
         
         if restricted_used_this_sem + duration > 1:
-            raise HTTPException(status_code=400, detail=f"Insufficient Restricted Leave balance. You have already used {restricted_used_this_sem} day(s) this semester. Only 1 day per semester is allowed.")
+            raise HTTPException(status_code=400, detail="You have already utilized your Restricted Leave for this semester.")
+
     
     # Check Earned Leave (accrued monthly)
     elif "earned" in leave_type_lower:
@@ -1867,3 +1881,100 @@ def respond_to_hod_duty(
         return {"message": "Rejected. The HOD leave request has been cancelled."}
     else:
         raise HTTPException(status_code=400, detail="Invalid status. Use 'accepted' or 'rejected'.")
+
+
+# ── Restricted Holidays CRUD ───────────────────────────────────────────────
+
+@router.post("/restricted-holidays", response_model=RestrictedHolidayResponse)
+def create_restricted_holiday(
+    holiday_in: RestrictedHolidayCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from app.models.authority import Authority as AuthorityModel
+    auth_profile = db.query(AuthorityModel).filter(AuthorityModel.user_id == current_user.id).first()
+    if current_user.role != UserRole.AUTHORITY or not auth_profile or auth_profile.title.upper().strip() != 'HR':
+        raise HTTPException(status_code=403, detail="Only HR can manage Restricted Holidays")
+    
+    from app.models.leave import RestrictedHoliday
+    existing = db.query(RestrictedHoliday).filter(RestrictedHoliday.date == holiday_in.date).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="A restricted holiday already exists on this date")
+
+    new_holiday = RestrictedHoliday(
+        name=holiday_in.name,
+        date=holiday_in.date,
+        academic_year=holiday_in.academic_year,
+        description=holiday_in.description,
+        created_by_id=current_user.id
+    )
+    db.add(new_holiday)
+    db.commit()
+    db.refresh(new_holiday)
+    return new_holiday
+
+@router.get("/restricted-holidays", response_model=List[RestrictedHolidayResponse])
+def get_restricted_holidays(
+    academic_year: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from app.models.leave import RestrictedHoliday
+    query = db.query(RestrictedHoliday)
+    if academic_year:
+        query = query.filter(RestrictedHoliday.academic_year == academic_year)
+    return query.order_by(RestrictedHoliday.date).all()
+
+@router.put("/restricted-holidays/{holiday_id}", response_model=RestrictedHolidayResponse)
+def update_restricted_holiday(
+    holiday_id: int,
+    holiday_in: RestrictedHolidayUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from app.models.authority import Authority as AuthorityModel
+    auth_profile = db.query(AuthorityModel).filter(AuthorityModel.user_id == current_user.id).first()
+    if current_user.role != UserRole.AUTHORITY or not auth_profile or auth_profile.title.upper().strip() != 'HR':
+        raise HTTPException(status_code=403, detail="Only HR can manage Restricted Holidays")
+    
+    from app.models.leave import RestrictedHoliday
+    holiday = db.query(RestrictedHoliday).filter(RestrictedHoliday.id == holiday_id).first()
+    if not holiday:
+        raise HTTPException(status_code=404, detail="Restricted holiday not found")
+        
+    update_data = holiday_in.model_dump(exclude_unset=True)
+    if "date" in update_data:
+        existing = db.query(RestrictedHoliday).filter(
+            RestrictedHoliday.date == update_data["date"],
+            RestrictedHoliday.id != holiday_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="A restricted holiday already exists on this date")
+            
+    for field, value in update_data.items():
+        setattr(holiday, field, value)
+        
+    db.commit()
+    db.refresh(holiday)
+    return holiday
+
+@router.delete("/restricted-holidays/{holiday_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_restricted_holiday(
+    holiday_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from app.models.authority import Authority as AuthorityModel
+    auth_profile = db.query(AuthorityModel).filter(AuthorityModel.user_id == current_user.id).first()
+    if current_user.role != UserRole.AUTHORITY or not auth_profile or auth_profile.title.upper().strip() != 'HR':
+        raise HTTPException(status_code=403, detail="Only HR can manage Restricted Holidays")
+    
+    from app.models.leave import RestrictedHoliday
+    holiday = db.query(RestrictedHoliday).filter(RestrictedHoliday.id == holiday_id).first()
+    if not holiday:
+        raise HTTPException(status_code=404, detail="Restricted holiday not found")
+        
+    db.delete(holiday)
+    db.commit()
+    return None
+
