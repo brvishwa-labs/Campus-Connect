@@ -15,6 +15,34 @@ from app.schemas.leave import FacultyLeaveRequestCreate, FacultyLeaveRequestResp
 
 router = APIRouter()
 
+@router.get("/faculty")
+def get_leave_faculty(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all active faculty members for selecting peers for compensation/leave approvals.
+    """
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
+        raise HTTPException(status_code=403, detail="Only faculty can access this")
+        
+    current_faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    
+    query = db.query(Faculty).filter(Faculty.is_active == True)
+    if current_faculty:
+        query = query.filter(Faculty.id != current_faculty.id)
+        
+    faculty_list = query.all()
+    
+    return [
+        {
+            "id": f.id,
+            "name": f"{f.first_name} {f.last_name}",
+            "employee_id": f.employee_id
+        }
+        for f in faculty_list
+    ]
+
 @router.get("/leave-preparation-data")
 def get_leave_preparation_data(
     from_date: str,
@@ -28,7 +56,7 @@ def get_leave_preparation_data(
     2. All other faculty who can substitute
     3. Class advisor responsibilities if any
     """
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Only faculty can access this")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
@@ -461,7 +489,7 @@ def get_leave_balances(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Only faculty can view leave balances")
     
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
@@ -546,7 +574,7 @@ def create_leave_request(
     current_user: User = Depends(get_current_user)
 ):
     import datetime
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Only faculty can request leave")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
@@ -735,7 +763,7 @@ def withdraw_leave_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Only faculty can withdraw their own requests")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
@@ -760,7 +788,7 @@ def update_leave_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Access denied")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
@@ -818,7 +846,7 @@ def get_my_leave_requests(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Access denied")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
@@ -1440,7 +1468,7 @@ def create_compensation_registry(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Only faculty can submit compensation registry")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
@@ -1460,10 +1488,10 @@ def create_compensation_registry(
     
     # Return with names
     peer = db.query(Faculty).filter(Faculty.id == registry.peer_faculty_id).first()
-    peer_name = peer.name if peer else None
+    peer_name = f"{peer.first_name} {peer.last_name}" if peer else None
     
     resp = CompensationRegistryResponse.model_validate(registry)
-    resp.faculty_name = faculty.name
+    resp.faculty_name = f"{faculty.first_name} {faculty.last_name}" if faculty else None
     resp.peer_faculty_name = peer_name
     return resp
 
@@ -1472,7 +1500,7 @@ def get_incoming_compensation_registries(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Only faculty can view peer requests")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
@@ -1488,8 +1516,8 @@ def get_incoming_compensation_registries(
     for req in requests:
         req_faculty = db.query(Faculty).filter(Faculty.id == req.faculty_id).first()
         resp = CompensationRegistryResponse.model_validate(req)
-        resp.faculty_name = req_faculty.name if req_faculty else None
-        resp.peer_faculty_name = faculty.name
+        resp.faculty_name = f"{req_faculty.first_name} {req_faculty.last_name}" if req_faculty else None
+        resp.peer_faculty_name = f"{faculty.first_name} {faculty.last_name}" if faculty else None
         results.append(resp)
         
     return results
@@ -1501,7 +1529,7 @@ def update_compensation_registry_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Only faculty can update peer requests")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
@@ -1539,7 +1567,7 @@ def get_my_compensation_registries(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Only faculty can view requests")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
@@ -1552,8 +1580,8 @@ def get_my_compensation_registries(
     for req in requests:
         peer = db.query(Faculty).filter(Faculty.id == req.peer_faculty_id).first()
         resp = CompensationRegistryResponse.model_validate(req)
-        resp.faculty_name = faculty.name
-        resp.peer_faculty_name = peer.name if peer else None
+        resp.faculty_name = f"{faculty.first_name} {faculty.last_name}" if faculty else None
+        resp.peer_faculty_name = f"{peer.first_name} {peer.last_name}" if peer else None
         results.append(resp)
         
     return results
@@ -1563,7 +1591,7 @@ def get_available_compensation_registries(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.FACULTY:
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
         raise HTTPException(status_code=403, detail="Only faculty can view requests")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
@@ -1578,8 +1606,8 @@ def get_available_compensation_registries(
     for req in requests:
         peer = db.query(Faculty).filter(Faculty.id == req.peer_faculty_id).first()
         resp = CompensationRegistryResponse.model_validate(req)
-        resp.faculty_name = faculty.name
-        resp.peer_faculty_name = peer.name if peer else None
+        resp.faculty_name = f"{faculty.first_name} {faculty.last_name}" if faculty else None
+        resp.peer_faculty_name = f"{peer.first_name} {peer.last_name}" if peer else None
         results.append(resp)
         
     return results

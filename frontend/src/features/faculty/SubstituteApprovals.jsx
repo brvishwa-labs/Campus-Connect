@@ -15,9 +15,10 @@ export const SubstituteApprovals = () => {
 
   const fetchRequests = async () => {
     try {
+      const token = localStorage.getItem('token');
       const [res1, res2] = await Promise.all([
-        axios.get('/api/leave/substitute-requests'),
-        axios.get('/api/leave/compensation-registry/peer')
+        axios.get('/api/leave/substitute-requests', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('/api/leave/compensation-registry/peer', { headers: { Authorization: `Bearer ${token}` } })
       ]);
       setRequests(res1.data);
       setCompRequests(res2.data);
@@ -31,7 +32,8 @@ export const SubstituteApprovals = () => {
   const handleAction = async (arr_id, status) => {
     setActionLoading(arr_id);
     try {
-      const res = await axios.put(`/api/leave/substitute-requests/${arr_id}?status=${status}`);
+      const token = localStorage.getItem('token');
+      const res = await axios.put(`/api/leave/substitute-requests/${arr_id}?status=${status}`, {}, { headers: { Authorization: `Bearer ${token}` } });
       
       // Show success message with appropriate context
       const message = res.data?.message || 'Status updated successfully';
@@ -50,7 +52,8 @@ export const SubstituteApprovals = () => {
   const handleCompAction = async (req_id, status) => {
     setActionLoading(`comp-${req_id}`);
     try {
-      const res = await axios.put(`/api/leave/compensation-registry/${req_id}/status?status=${status}`);
+      const token = localStorage.getItem('token');
+      const res = await axios.put(`/api/leave/compensation-registry/${req_id}/status?status=${status}`, {}, { headers: { Authorization: `Bearer ${token}` } });
       alert(res.data?.message || 'Status updated successfully');
       fetchRequests();
     } catch (err) {

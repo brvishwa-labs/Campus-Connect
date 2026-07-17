@@ -9,6 +9,8 @@ export const CompensationRegistry = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
   const [formData, setFormData] = useState({
     peer_faculty_id: '',
     date_worked: '',
@@ -18,6 +20,11 @@ export const CompensationRegistry = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const filteredFaculty = facultyList.filter(f => 
+    f.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (f.employee_id && f.employee_id.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   const fetchData = async () => {
     try {
@@ -44,6 +51,7 @@ export const CompensationRegistry = () => {
       alert('Compensation request submitted for peer approval.');
       setShowModal(false);
       setFormData({ peer_faculty_id: '', date_worked: '', classes_substituted: '' });
+      setSearchTerm('');
       fetchData();
     } catch (err) {
       console.error(err);
@@ -141,7 +149,7 @@ export const CompensationRegistry = () => {
           <div className="bg-white rounded-3xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900">Add Compensation</h2>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-700">
+              <button onClick={() => { setShowModal(false); setSearchTerm(''); }} className="text-slate-400 hover:text-slate-700">
                 <XCircle className="w-6 h-6" />
               </button>
             </div>
@@ -161,17 +169,46 @@ export const CompensationRegistry = () => {
                 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1.5">Peer Faculty (Approver) <span className="text-red-500">*</span></label>
-                  <select
-                    required
-                    value={formData.peer_faculty_id}
-                    onChange={(e) => setFormData({...formData, peer_faculty_id: e.target.value})}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-slate-700 font-medium bg-white"
-                  >
-                    <option value="">Select Peer...</option>
-                    {facultyList.map(f => (
-                      <option key={f.id} value={f.id}>{f.name} ({f.employee_id})</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required={!formData.peer_faculty_id}
+                      value={searchTerm}
+                      onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setShowDropdown(true);
+                        if (formData.peer_faculty_id) {
+                          setFormData({ ...formData, peer_faculty_id: '' });
+                        }
+                      }}
+                      onFocus={() => setShowDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                      placeholder="Search and select peer..."
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-slate-700 font-medium bg-white"
+                    />
+                    {showDropdown && (
+                      <div className="absolute z-10 mt-1 w-full max-h-60 overflow-auto bg-white border border-slate-200 rounded-xl shadow-lg">
+                        {filteredFaculty.length > 0 ? (
+                          filteredFaculty.map(f => (
+                            <div
+                              key={f.id}
+                              className="px-4 py-2 cursor-pointer hover:bg-indigo-50 text-slate-700 text-sm"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setFormData({ ...formData, peer_faculty_id: f.id });
+                                setSearchTerm(`${f.name} (${f.employee_id})`);
+                                setShowDropdown(false);
+                              }}
+                            >
+                              {f.name} ({f.employee_id})
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-4 py-2 text-slate-500 text-sm">No matches found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500 mt-1.5 font-medium">Select the faculty member who can verify your extra work.</p>
                 </div>
 
@@ -191,7 +228,7 @@ export const CompensationRegistry = () => {
               <div className="mt-8 flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => { setShowModal(false); setSearchTerm(''); }}
                   className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   Cancel
