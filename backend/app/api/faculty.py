@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 import csv
 import io
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import date as date_type
@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.models.faculty import Faculty
 from app.models.user import User
 from app.models.department import Department
-from app.models.academic import CourseAssignment, Section, MentorAssignment
+from app.models.academic import CourseAssignment, Section, MentorAssignment, Enrollment
 from app.models.attendance import Attendance, AttendanceStatus
 from app.models.student import Student
 from app.models.grade import Grade, GradeType, GRADE_MAX_MARKS, GRADE_PASS_MARKS, AssignmentGrade, Seminar
@@ -24,6 +24,15 @@ from app.schemas.faculty import (
     AnnouncementCreate, AnnouncementResponse,
 )
 from app.core.security import get_current_active_user, get_password_hash
+
+def get_student_filter_for_assignment(assignment):
+    from app.models.academic import CourseType
+    if assignment.course and assignment.course.course_type in [CourseType.OPEN_ELECTIVE, CourseType.ELECTIVE]:
+        return Student.enrollments.any(Enrollment.section_id == assignment.section_id)
+    return or_(
+        Student.section_id == assignment.section_id, 
+        Student.enrollments.any(Enrollment.section_id == assignment.section_id)
+    )
 
 router = APIRouter()
 
@@ -80,7 +89,7 @@ def get_faculty_dashboard(
     for assignment in assignments:
         if assignment.section:
             student_count = db.query(Student).filter(
-                Student.section_id == assignment.section_id,
+                get_student_filter_for_assignment(assignment),
                 Student.is_active == True
             ).count()
             total_students += student_count
@@ -385,7 +394,7 @@ def get_faculty_dashboard(
     for assignment in assignments:
         if assignment.section:
             students_in_section = db.query(Student).filter(
-                Student.section_id == assignment.section_id,
+                get_student_filter_for_assignment(assignment),
                 Student.is_active == True
             ).count()
             
@@ -467,7 +476,7 @@ def get_faculty_dashboard(
     for assignment in assignments:
         if assignment.section:
             students = db.query(Student).filter(
-                Student.section_id == assignment.section_id,
+                get_student_filter_for_assignment(assignment),
                 Student.is_active == True
             ).limit(50).all()  # Limit for performance
             
@@ -1387,7 +1396,7 @@ def get_attendance_slots(
     # Roster/section is always the caller's OWN subject assignment's section.
     if assignment.is_active:
         students = db.query(Student).filter(
-            Student.section_id == assignment.section_id,
+            get_student_filter_for_assignment(assignment),
             Student.is_active == True
         ).order_by(Student.register_number).all()
     else:
@@ -1550,7 +1559,7 @@ def save_course_attendance(
     topic_id = payload.get("topic_id")
     if topic_id:
         from app.models.course_plan import CoursePlanTopic
-        from sqlalchemy import func as sa_func
+        from sqlalchemy import func, or_ as sa_func
         topic = db.query(CoursePlanTopic).filter(CoursePlanTopic.id == int(topic_id)).first()
         if topic:
             topic.actual_date = today
@@ -1593,7 +1602,7 @@ def get_attendance_history(
     # All students in section
     if assignment.is_active:
         students = db.query(Student).filter(
-            Student.section_id == assignment.section_id,
+            get_student_filter_for_assignment(assignment),
             Student.is_active == True
         ).order_by(Student.register_number).all()
     else:
@@ -2099,7 +2108,7 @@ def get_gradebook(
 
     # Student roster via section
     students = db.query(Student).filter(
-        Student.section_id == assignment.section_id,
+        get_student_filter_for_assignment(assignment),
         Student.is_active == True
     ).order_by(func.lower(Student.first_name), func.lower(Student.last_name)).all()
 
@@ -2305,7 +2314,7 @@ def export_grades_csv(
         raise HTTPException(status_code=400, detail=f"Invalid grade_type '{grade_type}'")
 
     students = db.query(Student).filter(
-        Student.section_id == assignment.section_id,
+        get_student_filter_for_assignment(assignment),
         Student.is_active == True
     ).order_by(Student.register_number).all()
 
@@ -2624,7 +2633,7 @@ def get_assignment_grades(
 
     # Roster of active students in the section
     students = db.query(Student).filter(
-        Student.section_id == course_assignment.section_id,
+        or_(Student.section_id == course_assignment.section_id, Student.enrollments.any(Enrollment.section_id == course_assignment.section_id)),
         Student.is_active == True
     ).order_by(func.lower(Student.first_name), func.lower(Student.last_name)).all()
 
@@ -2913,7 +2922,7 @@ def get_seminar_roster(
         
     # Get students in the section
     students = db.query(Student).filter(
-        Student.section_id == assignment.section_id,
+        get_student_filter_for_assignment(assignment),
         Student.is_active == True
     ).order_by(func.lower(Student.first_name), func.lower(Student.last_name)).all()
     
@@ -3189,7 +3198,7 @@ def get_lab_marks(
 
     # All enrolled students for this course
     students = db.query(Student).filter(
-        Student.section_id == assignment.section_id,
+        get_student_filter_for_assignment(assignment),
         Student.is_active == True
     ).order_by(Student.register_number).all()
 

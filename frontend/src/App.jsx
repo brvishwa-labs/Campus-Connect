@@ -19,12 +19,14 @@ import { Students } from './features/admin/Students';
 import { Alumni } from './features/admin/Alumni';
 import { Authorities } from './features/admin/Authorities';
 import { Courses } from './features/admin/Courses';
+import PasswordResets from './features/admin/PasswordResets';
 import { HodDashboard } from './features/hod/HodDashboard';
 import { FacultyList } from './features/hod/FacultyList';
 import { FacultyList as AuthorityFacultyList } from './features/authority/FacultyList';
 import FacultyRoster from './features/hod/FacultyRoster';
 import { StudentList } from './features/hod/StudentList';
 import { Sections } from './features/hod/Sections';
+import { OpenElectives } from './features/hod/OpenElectives';
 import { FacultyAssignment } from './features/hod/FacultyAssignment';
 import { MentorAssignment } from './features/hod/MentorAssignment';
 import { Timetable } from './features/hod/Timetable';
@@ -105,6 +107,8 @@ import AuthorityDashboardRouter from './features/authority/AuthorityDashboardRou
 import StudentMessaging from './features/student/StudentMessaging';
 import DeanMessaging from './features/dean/DeanMessaging';
 import MyAttendance from './features/faculty/MyAttendance';
+import ForgotPassword from './features/auth/ForgotPassword';
+
 // A simple protective wrapper that forces login and checks roles
 const ProtectedRoute = ({ children, allowedRole }) => {
   const { user } = useAuth();
@@ -136,6 +140,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       
       <Route element={<DashboardLayout />}>
         {/* Admin Routes */}
@@ -189,6 +194,11 @@ function AppRoutes() {
             <Announcements />
           </ProtectedRoute>
         } />
+        <Route path="/admin/password-resets" element={
+          <ProtectedRoute allowedRole="admin">
+            <PasswordResets />
+          </ProtectedRoute>
+        } />
         
         {/* HOD Routes */}
         <Route path="/hod" element={
@@ -214,6 +224,11 @@ function AppRoutes() {
         <Route path="/hod/sections" element={
           <ProtectedRoute allowedRole="hod">
             <Sections />
+          </ProtectedRoute>
+        } />
+        <Route path="/hod/open-electives" element={
+          <ProtectedRoute allowedRole="hod">
+            <OpenElectives />
           </ProtectedRoute>
         } />
         <Route path="/hod/assignments" element={

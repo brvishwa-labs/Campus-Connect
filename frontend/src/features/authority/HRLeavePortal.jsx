@@ -197,6 +197,8 @@ const HRLeavePortal = () => {
 
   // Get leaves for the selected dates
   const leavesForSelectedDate = leaves.filter(leave => {
+    if (leave.status?.toUpperCase() !== 'APPROVED') return false;
+
     const from = startOfDay(parseISO(leave.from_date));
     const to = endOfDay(parseISO(leave.to_date));
 
@@ -233,7 +235,7 @@ const HRLeavePortal = () => {
   };
 
   return (
-    <div className="max-w-[1200px] mx-auto p-4 md:p-6 lg:p-8">
+    <div className="w-full max-w-[1200px] mx-auto p-4 md:p-6 lg:p-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Leave Tracking</h1>
@@ -247,9 +249,9 @@ const HRLeavePortal = () => {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-[400px_1fr] gap-8 items-start">
+        <div className="grid lg:grid-cols-[400px_1fr] gap-6 lg:gap-8 items-start">
         {/* Left Column: Calendar Widget */}
-        <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-8">
+        <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-5 md:p-6 lg:p-8">
           {renderHeader()}
           {renderDays()}
           {renderCells()}
@@ -262,16 +264,16 @@ const HRLeavePortal = () => {
               </div>
               <div>
                 <p className="font-semibold text-slate-800 text-sm mb-2">Selection Shortcuts</p>
-                <ul className="space-y-2 text-[13px] text-slate-600">
-                  <li className="flex items-center gap-2">
+                <ul className="space-y-3 md:space-y-2 text-[13px] text-slate-600">
+                  <li className="flex flex-wrap items-center gap-1.5 md:gap-2">
                     <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Click</kbd> 
                     <span>Select a single day</span>
                   </li>
-                  <li className="flex items-center gap-2">
+                  <li className="flex flex-wrap items-center gap-1.5 md:gap-2">
                     <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Ctrl</kbd> + <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Click</kbd> 
                     <span>Select multiple specific days</span>
                   </li>
-                  <li className="flex items-center gap-2">
+                  <li className="flex flex-wrap items-center gap-1.5 md:gap-2">
                     <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Ctrl</kbd> + <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Shift</kbd> + <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Click</kbd> 
                     <span>Select a continuous date range</span>
                   </li>
@@ -282,7 +284,7 @@ const HRLeavePortal = () => {
         </div>
 
         {/* Right Column: Leaves List */}
-        <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-8 min-h-[500px] flex flex-col">
+        <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-5 md:p-6 lg:p-8 min-h-[500px] flex flex-col">
           <div className="flex items-start justify-between mb-8 pb-4 border-b border-slate-100">
             <div>
               <h3 className="text-xl font-bold text-slate-900">
@@ -292,7 +294,7 @@ const HRLeavePortal = () => {
                 {leavesForSelectedDate.length} {leavesForSelectedDate.length === 1 ? 'staff member' : 'staff members'} on leave
               </p>
 
-              <div className="flex items-center gap-2 mt-4">
+              <div className="flex flex-wrap items-center gap-2 mt-4">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Filter:</span>
                 <select
                   value={selectedLeaveType}

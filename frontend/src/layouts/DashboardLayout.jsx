@@ -20,6 +20,7 @@ const ROLE_NAV_LINKS = {
     { name: 'Discipline', path: '/admin/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/admin/latetracker', icon: Clock },
     { name: 'Announcements', path: '/admin/announcements', icon: Bell },
+    { name: 'Password Resets', path: '/admin/password-resets', icon: ShieldAlert },
   ],
   hod: [
     { name: 'Dashboard', path: '/hod', icon: LayoutDashboard },
@@ -28,6 +29,7 @@ const ROLE_NAV_LINKS = {
     { name: 'Sections', path: '/hod/sections', icon: Settings },
     { name: 'My Courses', path: '/faculty/courses', icon: BookOpen },
     { name: 'Timetable', path: '/hod/timetable', icon: Calendar },
+    { name: 'Open Electives', path: '/hod/open-electives', icon: Users },
     { name: 'Course Assignment', path: '/hod/assignments', icon: BookOpen },
     { name: 'Mentor Assignment', path: '/hod/mentors', icon: Users },
     { name: 'Attendance', path: '/hod/attendance', icon: ClipboardList },
