@@ -151,26 +151,26 @@ export const StudentList = () => {
                 <p className="text-gray-500 text-sm">No students match your search in this section.</p>
               </div>
             ) : (
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse whitespace-nowrap">
                 <thead>
                   <tr className="bg-gray-50/50 border-b border-gray-100">
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Reg No</th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Batch</th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Semester</th>
-                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                    <th className="px-2 sm:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider">Reg No</th>
+                    <th className="px-2 sm:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                    <th className="hidden sm:table-cell px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Batch</th>
+                    <th className="hidden sm:table-cell px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Semester</th>
+                    <th className="px-2 sm:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredStudents.map(s => (
                     <tr key={s.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-4 font-bold text-gray-900">{s.register_number}</td>
-                      <td className="px-6 py-4 font-medium text-gray-900">{s.first_name} {s.last_name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{s.batch}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{s.current_semester}</td>
-                      <td className="px-6 py-4 text-right">
-                        <button className="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-200 transition-colors">
-                          View Profile
+                      <td className="px-2 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold text-gray-900">{s.register_number}</td>
+                      <td className="px-2 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium text-gray-900">{s.first_name} {s.last_name}</td>
+                      <td className="hidden sm:table-cell px-6 py-4 text-sm text-gray-500">{s.batch}</td>
+                      <td className="hidden sm:table-cell px-6 py-4 text-sm text-gray-900">{s.current_semester}</td>
+                      <td className="px-2 sm:px-6 py-3 sm:py-4 text-right">
+                        <button className="px-2 sm:px-3 py-1 sm:py-1.5 bg-gray-100 text-gray-700 text-[10px] sm:text-xs font-bold rounded-lg hover:bg-gray-200 transition-colors">
+                          View
                         </button>
                       </td>
                     </tr>

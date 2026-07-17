@@ -448,7 +448,7 @@ const HRGatepassPortal = () => {
   const totalMonthlyFaculty = getSummaryData();
 
   return (
-    <div className="max-w-[1200px] mx-auto p-4 md:p-6 lg:p-8">
+    <div className="w-full max-w-[1200px] mx-auto p-4 md:p-6 lg:p-8">
       
       {/* Modal Integration (Only active for range views where grouping happens) */}
       {selectedPerson && (
@@ -471,12 +471,12 @@ const HRGatepassPortal = () => {
         </div>
       )}
 
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-6 lg:gap-8">
         
         {/* Top Section: Split Layout (Calendar | Analysis) */}
-        <div className="grid lg:grid-cols-2 gap-8">
+        <div className="grid lg:grid-cols-2 gap-6 lg:gap-8">
           {/* Left: Calendar Widget */}
-          <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-8 flex flex-col">
+          <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-5 md:p-6 lg:p-8 flex flex-col">
             <div className="max-w-[450px] mx-auto w-full">
               {renderHeader()}
               {renderDays()}
@@ -490,20 +490,20 @@ const HRGatepassPortal = () => {
                   </div>
                   <div>
                     <p className="font-semibold text-slate-800 text-sm mb-2">Selection Shortcuts</p>
-                    <ul className="space-y-2 text-[13px] text-slate-600">
-                      <li className="flex items-center gap-2">
-                        <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Click</kbd> 
-                        <span>Select a single day</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Ctrl</kbd> + <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Click</kbd> 
-                        <span>Select multiple days</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Ctrl</kbd> + <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Shift</kbd> + <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Click</kbd> 
-                        <span>Select a range</span>
-                      </li>
-                    </ul>
+                    <ul className="space-y-3 md:space-y-2 text-[13px] text-slate-600">
+                        <li className="flex flex-wrap items-center gap-1.5 md:gap-2">
+                          <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Click</kbd> 
+                          <span>Select a single day</span>
+                        </li>
+                        <li className="flex flex-wrap items-center gap-1.5 md:gap-2">
+                          <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Ctrl</kbd> + <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Click</kbd> 
+                          <span>Select multiple days</span>
+                        </li>
+                        <li className="flex flex-wrap items-center gap-1.5 md:gap-2">
+                          <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Ctrl</kbd> + <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Shift</kbd> + <kbd className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-mono text-xs">Click</kbd> 
+                          <span>Select a range</span>
+                        </li>
+                      </ul>
                   </div>
                 </div>
               </div>
@@ -511,7 +511,7 @@ const HRGatepassPortal = () => {
           </div>
 
           {/* Right: Graphical Analysis */}
-          <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-8 flex flex-col">
+          <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-5 md:p-6 lg:p-8 flex flex-col">
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h3 className="text-xl font-bold text-slate-900">Monthly Analysis</h3>
@@ -560,7 +560,7 @@ const HRGatepassPortal = () => {
         </div>
 
         {/* Bottom Section: Gatepass / Person List */}
-        <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-8 flex flex-col min-h-[400px]">
+        <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-5 md:p-6 lg:p-8 flex flex-col min-h-[400px]">
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8 pb-6 border-b border-slate-100">
             <div>

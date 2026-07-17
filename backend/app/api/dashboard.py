@@ -424,10 +424,10 @@ def get_dean_dashboard_stats(
     if current_user.role != "authority":
         raise HTTPException(status_code=403, detail="Access denied")
     
-    # Verify user is a Dean
+    # Verify user is an allowed Authority
     authority = db.query(Authority).filter(Authority.user_id == current_user.id).first()
-    if not authority or authority.title != "Dean":
-        raise HTTPException(status_code=403, detail="Access denied: Dean role required")
+    if not authority or authority.title not in ["Office Manager", "Vice Principal", "Principal", "Dean"]:
+        raise HTTPException(status_code=403, detail="Access denied: Higher authority role required")
     
     from datetime import timedelta
     from app.models.academic import Course, Enrollment

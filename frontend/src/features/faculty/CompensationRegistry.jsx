@@ -107,31 +107,31 @@ export const CompensationRegistry = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Date Worked</th>
-                  <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Details</th>
-                  <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Peer Approver</th>
-                  <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Status</th>
+                  <th className="py-2 sm:py-3 px-1.5 sm:px-4 text-[9px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                  <th className="py-2 sm:py-3 px-1.5 sm:px-4 text-[9px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Details</th>
+                  <th className="py-2 sm:py-3 px-1.5 sm:px-4 text-[9px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider leading-tight">Peer<br className="sm:hidden" /> Approver</th>
+                  <th className="py-2 sm:py-3 px-1.5 sm:px-4 text-[9px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {requests.map(req => (
                   <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="text-sm font-bold text-slate-800">
+                    <td className="py-2 sm:py-3 px-1.5 sm:px-4">
+                      <div className="text-[10px] sm:text-sm font-bold text-slate-800">
                         {new Date(req.date_worked).toLocaleDateString()}
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-sm text-slate-600 max-w-xs">
-                      {req.classes_substituted || 'No details provided'}
+                    <td className="py-2 sm:py-3 px-1.5 sm:px-4 text-[10px] sm:text-sm text-slate-600 max-w-[80px] sm:max-w-xs break-words leading-tight">
+                      {req.classes_substituted || 'None'}
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="text-sm font-semibold text-slate-700">{req.peer_faculty_name}</div>
+                    <td className="py-2 sm:py-3 px-1.5 sm:px-4">
+                      <div className="text-[10px] sm:text-sm font-semibold text-slate-700 leading-tight break-words max-w-[70px] sm:max-w-none">{req.peer_faculty_name}</div>
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-2 sm:py-3 px-1.5 sm:px-4 text-right">
                       {getStatusBadge(req.status)}
                       {req.status === 'approved' && (
-                        <div className="text-[10px] font-bold text-indigo-600 mt-1 uppercase">
-                          {req.is_used ? 'Used' : 'Available'}
+                        <div className="text-[8px] sm:text-[10px] font-bold text-indigo-600 mt-1 uppercase">
+                          {req.is_used ? 'Used' : 'Avail'}
                         </div>
                       )}
                     </td>
