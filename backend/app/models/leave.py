@@ -14,6 +14,7 @@ from app.core.database import Base
 class LeaveStatus(str, enum.Enum):
     PENDING_COMPENSATION_VERIFICATION = "pending_compensation_verification"
     PENDING_SUBSTITUTE = "pending_substitute"
+    PENDING_ALTERNATE_HOD = "pending_alternate_hod"  # HOD leave: waiting for alternate staff to accept
     PENDING_HOD = "pending_hod"
     PENDING_DEAN = "pending_dean"
     PENDING_OM = "pending_om"
@@ -54,6 +55,9 @@ class FacultyLeaveRequest(Base):
     
     status = Column(SQLEnum(LeaveStatus, values_callable=lambda obj: [e.value for e in obj]), default=LeaveStatus.PENDING_SUBSTITUTE)
     
+    # HOD Leave — alternate staff chosen to handle HOD duties during absence
+    alternate_hod_faculty_id = Column(Integer, ForeignKey("faculty.id"), nullable=True)
+
     # Audit tracking
     hod_approved_by = Column(Integer, ForeignKey("faculty.id"), nullable=True) # HOD is a faculty
     dean_approved_by = Column(Integer, ForeignKey("authorities.id"), nullable=True)
@@ -66,6 +70,7 @@ class FacultyLeaveRequest(Base):
 
     # Relationships
     faculty = relationship("Faculty", foreign_keys=[faculty_id])
+    alternate_hod_faculty = relationship("Faculty", foreign_keys=[alternate_hod_faculty_id])
     arrangements = relationship("FacultyDutyArrangement", back_populates="leave_request", cascade="all, delete-orphan")
 
 

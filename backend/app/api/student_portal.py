@@ -920,11 +920,12 @@ def get_hod_leave_queue(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    if current_user.role != "hod":
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    if not is_acting_hod(current_user, db):
         raise HTTPException(status_code=403, detail="HOD only")
 
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
-    department = db.query(Department).filter(Department.hod_id == faculty.id).first()
+    department = get_managed_department(faculty.id, db)
     if not department:
         raise HTTPException(status_code=404, detail="No department assigned to this HOD")
 
@@ -964,11 +965,12 @@ def hod_action(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    if current_user.role != "hod":
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    if not is_acting_hod(current_user, db):
         raise HTTPException(status_code=403, detail="HOD only")
 
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
-    department = db.query(Department).filter(Department.hod_id == faculty.id).first()
+    department = get_managed_department(faculty.id, db)
 
     student_ids = [
         s.id for s in db.query(Student.id)
