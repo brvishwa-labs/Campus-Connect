@@ -136,13 +136,13 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     const markAsViewed = async () => {
-      let sector = null;
-      if (location.pathname === '/faculty/gatepass') sector = 'gatepass';
-      else if (location.pathname === '/faculty/late-entry') sector = 'late-entry';
-      else if (location.pathname === '/faculty/class-advisor/leave') sector = 'leave-ca';
-      else if (location.pathname === '/hod/leave') sector = 'leave-hod';
-      else if (location.pathname === '/hod/gatepass') sector = 'gatepass';
-      else if (location.pathname === '/authority/gatepass') sector = 'gatepass';
+      const pathToSector = {
+        '/faculty/faculty-gatepass': 'faculty-gatepass-own',
+        '/faculty/late-entry': 'late-entry',
+        '/student/leave': 'student-leave',
+        '/student/gatepass': 'student-gatepass',
+      };
+      const sector = pathToSector[location.pathname];
 
       if (sector) {
         try {

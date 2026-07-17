@@ -765,7 +765,7 @@ def get_all_leave_requests(
         from app.models.authority import Authority
         auth = db.query(Authority).filter(Authority.user_id == current_user.id).first()
         if "dean" in auth.title.lower():
-            query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_DEAN, LeaveStatus.PENDING_OM, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
+            query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_DEAN, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
         elif "hr" in auth.title.lower():
             # HR sees all leaves
             pass
@@ -952,7 +952,7 @@ def approve_leave_request(
         if "dean" in auth.title.lower() and req.status == LeaveStatus.PENDING_DEAN:
             req.status = LeaveStatus.PENDING_OM
             req.dean_approved_by = auth.id
-        elif req.status == LeaveStatus.PENDING_OM:
+        elif "dean" not in auth.title.lower() and req.status == LeaveStatus.PENDING_OM:
             req.status = LeaveStatus.APPROVED
             req.om_approved_by = auth.id
             
