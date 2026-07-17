@@ -11,7 +11,7 @@ from app.models.leave import FacultyLeaveRequest, FacultyDutyArrangement, Facult
 from app.models.academic import CourseAssignment, Course, Section
 from app.models.lms import TimetableSlot, DayOfWeek
 from app.models.department import Department
-from app.schemas.leave import FacultyLeaveRequestCreate, FacultyLeaveRequestResponse, FacultyDutyArrangementResponse, FacultyLeaveBalanceResponse, FacultyLeaveBalanceUpdate
+from app.schemas.leave import FacultyLeaveRequestCreate, FacultyLeaveRequestResponse, FacultyDutyArrangementResponse, FacultyLeaveBalanceResponse, FacultyLeaveBalanceUpdate, HODLeaveRequestCreate
 
 router = APIRouter()
 
@@ -871,14 +871,21 @@ def get_all_leave_requests(
     current_user: User = Depends(get_current_user)
 ):
     # Depending on role, filter requests
-    if current_user.role not in [UserRole.HOD, UserRole.AUTHORITY]:
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    if not (is_acting_hod(current_user, db) or current_user.role == UserRole.AUTHORITY):
         raise HTTPException(status_code=403, detail="Access denied")
         
     query = db.query(FacultyLeaveRequest)
     
-    if current_user.role == UserRole.HOD:
-        # HOD sees requests pending HOD approval
-        query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_HOD, LeaveStatus.PENDING_DEAN, LeaveStatus.PENDING_OM, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
+    if is_acting_hod(current_user, db):
+        # HOD sees requests pending HOD approval, but not their own requests
+        faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+        dept = get_managed_department(faculty.id, db)
+        query = query.join(Faculty, FacultyLeaveRequest.faculty_id == Faculty.id).filter(
+            Faculty.department_id == dept.id,
+            FacultyLeaveRequest.faculty_id != faculty.id,
+            FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_HOD, LeaveStatus.PENDING_DEAN, LeaveStatus.PENDING_OM, LeaveStatus.APPROVED, LeaveStatus.REJECTED])
+        )
     elif current_user.role == UserRole.AUTHORITY:
         # Authority sees requests pending DEAN or OM depending on their title
         from app.models.authority import Authority
@@ -919,6 +926,13 @@ def get_leave_request_detail(request_id: int, db: Session):
         
     fac = db.query(Faculty).filter(Faculty.id == req.faculty_id).first()
     req.faculty_name = f"{fac.first_name} {fac.last_name}" if fac else "Unknown"
+
+    # Populate alternate HOD staff name if present
+    if getattr(req, 'alternate_hod_faculty_id', None):
+        alt = db.query(Faculty).filter(Faculty.id == req.alternate_hod_faculty_id).first()
+        req.alternate_hod_faculty_name = f"{alt.first_name} {alt.last_name}" if alt else "Unknown"
+    else:
+        req.alternate_hod_faculty_name = None
     
     if getattr(req, "compensation_verifier_id", None):
         verifier = db.query(Faculty).filter(Faculty.id == req.compensation_verifier_id).first()
@@ -1069,6 +1083,9 @@ def approve_leave_request(
     req = db.query(FacultyLeaveRequest).filter(FacultyLeaveRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
+
+    # Detect if this is an HOD leave (has alternate_hod_faculty_id set)
+    is_hod_leave = getattr(req, 'alternate_hod_faculty_id', None) is not None
         
     if action.lower() == "reject":
         req.status = LeaveStatus.REJECTED
@@ -1076,8 +1093,13 @@ def approve_leave_request(
         db.commit()
         return {"message": "Request rejected"}
         
-    if current_user.role == UserRole.HOD and req.status == LeaveStatus.PENDING_HOD:
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    if is_acting_hod(current_user, db) and req.status == LeaveStatus.PENDING_HOD:
         fac = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+        dept = get_managed_department(fac.id, db)
+        req_fac = db.query(Faculty).filter(Faculty.id == req.faculty_id).first()
+        if not req_fac or req_fac.department_id != dept.id:
+            raise HTTPException(status_code=403, detail="Not authorized to approve leaves for this department")
         req.status = LeaveStatus.PENDING_DEAN
         req.hod_approved_by = fac.id
     elif current_user.role == UserRole.AUTHORITY:
@@ -1092,31 +1114,37 @@ def approve_leave_request(
         elif "principal" in auth.title.lower() and req.status == LeaveStatus.PENDING_PRINCIPAL:
             req.status = LeaveStatus.APPROVED
             req.principal_approved_by = auth.id
-            
-            # Deduct leave balance
-            academic_year = "2023-2024"
-            balance = db.query(FacultyLeaveBalance).filter(FacultyLeaveBalance.faculty_id == req.faculty_id, FacultyLeaveBalance.academic_year == academic_year).first()
-            if balance:
-                ltype = req.leave_type.lower()
-                if "casual" in ltype:
-                    balance.casual_leaves_used += req.duration_days
-                elif "restricted" in ltype or "rh" in ltype:
-                    balance.restricted_leaves_used += req.duration_days
-                elif "earned" in ltype:
-                    balance.earned_leaves_used += req.duration_days
-                elif "vacation" in ltype:
-                    balance.vacation_leaves_used += req.duration_days
-                elif "compensation" in ltype:
-                    balance.compensation_leaves_used += req.duration_days
-                elif "academic" in ltype or "od" in ltype or "duty" in ltype:
-                    balance.academic_leaves_used += req.duration_days
-                elif "sick" in ltype or "medical" in ltype:
-                    balance.sick_leaves_used += req.duration_days
+            _deduct_leave_balance(req, db)
     else:
         raise HTTPException(status_code=403, detail="Not authorized to approve at this stage")
         
     db.commit()
     return {"message": "Request approved"}
+
+
+def _deduct_leave_balance(req: FacultyLeaveRequest, db: Session):
+    """Deduct leave balance when a leave is fully approved."""
+    academic_year = "2023-2024"
+    balance = db.query(FacultyLeaveBalance).filter(
+        FacultyLeaveBalance.faculty_id == req.faculty_id,
+        FacultyLeaveBalance.academic_year == academic_year
+    ).first()
+    if balance:
+        ltype = req.leave_type.lower()
+        if "casual" in ltype:
+            balance.casual_leaves_used += req.duration_days
+        elif "restricted" in ltype or "rh" in ltype:
+            balance.restricted_leaves_used += req.duration_days
+        elif "earned" in ltype:
+            balance.earned_leaves_used += req.duration_days
+        elif "vacation" in ltype:
+            balance.vacation_leaves_used += req.duration_days
+        elif "compensation" in ltype:
+            balance.compensation_leaves_used += req.duration_days
+        elif "academic" in ltype or "od" in ltype or "duty" in ltype:
+            balance.academic_leaves_used += req.duration_days
+        elif "sick" in ltype or "medical" in ltype:
+            balance.sick_leaves_used += req.duration_days
 
 @router.get("/compensation-verifications", response_model=List[FacultyLeaveRequestResponse])
 def get_compensation_verifications(
@@ -1611,3 +1639,231 @@ def get_available_compensation_registries(
         results.append(resp)
         
     return results
+
+
+# ===============================================================================
+# HOD LEAVE ENDPOINTS
+# Flow: HOD applies -> selects alternate staff -> alternate accepts ->
+#       Dean approves -> Principal approves -> OM approves -> APPROVED
+# ===============================================================================
+
+@router.get("/hod-leave-preparation-data")
+def get_hod_leave_preparation_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Returns department faculty list + HOD timetable for HOD leave application."""
+    if current_user.role != UserRole.HOD:
+        raise HTTPException(status_code=403, detail="Only HOD can access this endpoint")
+    hod_faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not hod_faculty:
+        raise HTTPException(status_code=404, detail="Faculty profile not found for this HOD")
+    department = db.query(Department).filter(Department.hod_id == hod_faculty.id).first()
+    if not department:
+        raise HTTPException(status_code=404, detail="No department assigned to this HOD")
+    dept_faculty = db.query(Faculty).filter(
+        Faculty.department_id == department.id,
+        Faculty.id != hod_faculty.id,
+        Faculty.is_active == True
+    ).all()
+    alternate_candidates = [
+        {
+            "id": f.id,
+            "name": f"{f.first_name} {f.last_name}",
+            "designation": f.designation or "Faculty",
+            "employee_id": f.employee_id
+        }
+        for f in dept_faculty
+    ]
+    my_assignments = db.query(CourseAssignment).filter(
+        CourseAssignment.faculty_id == hod_faculty.id,
+        CourseAssignment.is_active == True
+    ).all()
+    my_courses = []
+    for a in my_assignments:
+        course = db.query(Course).filter(Course.id == a.course_id).first()
+        section = db.query(Section).filter(Section.id == a.section_id).first()
+        dept2 = db.query(Department).filter(Department.id == section.department_id).first() if section else None
+        if course and section:
+            my_courses.append({
+                "assignment_id": a.id,
+                "course_code": course.code,
+                "course_name": course.name,
+                "class_section": f"{dept2.code if dept2 else 'Dept'} Year-{section.year} {section.name}",
+                "section_id": section.id
+            })
+    return {
+        "department_name": department.name,
+        "department_code": department.code,
+        "alternate_candidates": alternate_candidates,
+        "my_courses": my_courses
+    }
+
+
+@router.post("/hod-leave-request", response_model=FacultyLeaveRequestResponse)
+def create_hod_leave_request(
+    request: HODLeaveRequestCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    HOD submits their own leave request.
+    Status flow: PENDING_ALTERNATE_HOD -> PENDING_DEAN -> PENDING_OM -> PENDING_PRINCIPAL -> APPROVED
+    """
+    if current_user.role != UserRole.HOD:
+        raise HTTPException(status_code=403, detail="Only HOD can use this endpoint")
+    hod_faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not hod_faculty:
+        raise HTTPException(status_code=404, detail="Faculty profile not found")
+    alt_faculty = db.query(Faculty).filter(
+        Faculty.id == request.alternate_hod_faculty_id,
+        Faculty.is_active == True
+    ).first()
+    if not alt_faculty:
+        raise HTTPException(status_code=404, detail="Selected alternate staff not found or inactive")
+    if alt_faculty.department_id != hod_faculty.department_id:
+        raise HTTPException(status_code=400, detail="Alternate staff must be from the same department")
+    duration = (request.to_date - request.from_date).days + 1
+    if duration <= 0:
+        raise HTTPException(status_code=400, detail="Invalid date range")
+    leave_req = FacultyLeaveRequest(
+        faculty_id=hod_faculty.id,
+        leave_type=request.leave_type,
+        from_date=request.from_date,
+        to_date=request.to_date,
+        duration_days=duration,
+        reason=request.reason,
+        attachment_url=request.attachment_url,
+        alternate_hod_faculty_id=request.alternate_hod_faculty_id,
+        status=LeaveStatus.PENDING_ALTERNATE_HOD
+    )
+    db.add(leave_req)
+    db.flush()
+    period_str = (
+        f"{request.from_date.strftime('%d-%b-%Y')} to {request.to_date.strftime('%d-%b-%Y')}"
+        if request.from_date != request.to_date
+        else request.from_date.strftime('%d-%b-%Y')
+    )
+    dept = db.query(Department).filter(Department.id == hod_faculty.department_id).first()
+    hod_duty = FacultyDutyArrangement(
+        leave_request_id=leave_req.id,
+        substitute_faculty_id=request.alternate_hod_faculty_id,
+        subject="HOD Duties",
+        class_section=f"{dept.name if dept else 'Department'} — HOD Duties",
+        period=period_str,
+        day=None,
+        status=ArrangementStatus.PENDING
+    )
+    db.add(hod_duty)
+    for arr in request.arrangements:
+        duty = FacultyDutyArrangement(
+            leave_request_id=leave_req.id,
+            substitute_faculty_id=arr.substitute_faculty_id,
+            subject=arr.subject,
+            class_section=arr.class_section,
+            section_id=arr.section_id,
+            period=arr.period,
+            day=arr.day,
+            compensation_date=arr.compensation_date,
+            compensation_period=arr.compensation_period,
+            status=ArrangementStatus.PENDING
+        )
+        db.add(duty)
+    db.commit()
+    db.refresh(leave_req)
+    return get_leave_request_detail(leave_req.id, db)
+
+
+@router.get("/hod-my-requests", response_model=List[FacultyLeaveRequestResponse])
+def get_hod_my_leave_requests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """HOD views their own submitted leave requests."""
+    if current_user.role != UserRole.HOD:
+        raise HTTPException(status_code=403, detail="Access denied")
+    hod_faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not hod_faculty:
+        return []
+    reqs = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.faculty_id == hod_faculty.id,
+        FacultyLeaveRequest.alternate_hod_faculty_id != None
+    ).order_by(FacultyLeaveRequest.created_at.desc()).all()
+    return [get_leave_request_detail(req.id, db) for req in reqs]
+
+
+@router.get("/hod-substitute-pending", response_model=List[FacultyLeaveRequestResponse])
+def get_hod_substitute_pending(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Returns pending HOD duty assignments for the current faculty member
+    (i.e., they were selected as alternate HOD and need to accept/reject).
+    """
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD, UserRole.AUTHORITY]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not faculty:
+        return []
+    hod_arrangements = db.query(FacultyDutyArrangement).filter(
+        FacultyDutyArrangement.substitute_faculty_id == faculty.id,
+        FacultyDutyArrangement.subject == "HOD Duties",
+        FacultyDutyArrangement.status == ArrangementStatus.PENDING
+    ).all()
+    request_ids = list(set(a.leave_request_id for a in hod_arrangements))
+    if not request_ids:
+        return []
+    leave_requests = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.id.in_(request_ids),
+        FacultyLeaveRequest.status == LeaveStatus.PENDING_ALTERNATE_HOD
+    ).all()
+    return [get_leave_request_detail(req.id, db) for req in leave_requests]
+
+
+@router.put("/hod-duty/{arr_id}")
+def respond_to_hod_duty(
+    arr_id: int,
+    status: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Alternate staff accepts or rejects their HOD duty arrangement.
+    accept -> forwards leave to Dean if all arrangements accepted.
+    reject -> rejects the entire HOD leave request.
+    """
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not faculty:
+        raise HTTPException(status_code=403, detail="Faculty profile not found")
+    arr = db.query(FacultyDutyArrangement).filter(
+        FacultyDutyArrangement.id == arr_id,
+        FacultyDutyArrangement.substitute_faculty_id == faculty.id
+    ).first()
+    if not arr:
+        raise HTTPException(status_code=404, detail="HOD duty arrangement not found or not assigned to you")
+    if arr.status != ArrangementStatus.PENDING:
+        raise HTTPException(status_code=400, detail="This arrangement has already been processed")
+    req = db.query(FacultyLeaveRequest).filter(FacultyLeaveRequest.id == arr.leave_request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Leave request not found")
+    if status.lower() == "accepted":
+        arr.status = ArrangementStatus.ACCEPTED
+        db.commit()
+        db.refresh(req)
+        all_accepted = all(a.status == ArrangementStatus.ACCEPTED for a in req.arrangements)
+        if all_accepted and req.status == LeaveStatus.PENDING_ALTERNATE_HOD:
+            req.status = LeaveStatus.PENDING_DEAN
+            db.commit()
+            return {"message": "Accepted! HOD leave request forwarded to Dean for approval."}
+        return {"message": "Accepted. Waiting for remaining arrangements to be confirmed."}
+    elif status.lower() == "rejected":
+        arr.status = ArrangementStatus.REJECTED
+        req.status = LeaveStatus.REJECTED
+        req.rejection_reason = "Alternate staff rejected the HOD duty arrangement."
+        db.commit()
+        return {"message": "Rejected. The HOD leave request has been cancelled."}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid status. Use 'accepted' or 'rejected'.")

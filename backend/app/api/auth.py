@@ -31,16 +31,24 @@ def login_for_access_token(db: Session = Depends(get_db), form_data: OAuth2Passw
             detail="Inactive user"
         )
         
+    effective_role = user.role.value
+    if user.role.value in ("faculty", "hod"):
+        from app.api.hod_helper import is_acting_hod
+        if is_acting_hod(user, db):
+            effective_role = "hod"
+        else:
+            effective_role = "faculty"
+
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(user.id), "role": user.role.value}, expires_delta=access_token_expires
+        data={"sub": str(user.id), "role": effective_role}, expires_delta=access_token_expires
     )
     
     # Return basic user info with token
     user_data = {
         "id": user.id,
         "email": user.email,
-        "role": user.role.value,
+        "role": effective_role,
         "name": user.email.split('@')[0], # Fallback until profiles are populated
         "is_class_advisor": False,
         "advisor_section_id": None,
@@ -99,6 +107,14 @@ def read_users_me(current_user: User = Depends(get_current_active_user), db: Ses
             ).first() is not None
             extra["is_mentor"] = is_mentor
     
+    effective_role = current_user.role.value
+    if current_user.role.value in ("faculty", "hod"):
+        from app.api.hod_helper import is_acting_hod
+        if is_acting_hod(current_user, db):
+            effective_role = "hod"
+        else:
+            effective_role = "faculty"
+
     # Add title for authority users
     if current_user.role == "authority":
         authority = db.query(Authority).filter(Authority.user_id == current_user.id).first()
@@ -108,7 +124,7 @@ def read_users_me(current_user: User = Depends(get_current_active_user), db: Ses
     return {
         "id": current_user.id,
         "email": current_user.email,
-        "role": current_user.role.value,
+        "role": effective_role,
         "name": current_user.email.split('@')[0],
         **extra
     }

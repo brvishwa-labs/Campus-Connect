@@ -58,6 +58,9 @@ import { Discipline as StudentDiscipline } from './features/student/Discipline';
 import { LateTrackerDashboard } from './features/latetracker/Dashboard';
 import { LateManagement } from './features/hod/LateManagement';
 import { LeaveRequests } from './features/faculty/LeaveRequests';
+import { HODLeaveRequests } from './features/hod/HODLeaveRequests';
+import { HODLeaveApply } from './features/hod/HODLeaveApply';
+import { HODDutySubstitute } from './features/faculty/HODDutySubstitute';
 import { LeaveApply } from './features/faculty/LeaveApply';
 import { LeaveDetails } from './features/faculty/LeaveDetails';
 import { SubstituteApprovals } from './features/faculty/SubstituteApprovals';
@@ -262,6 +265,16 @@ function AppRoutes() {
             <LeaveApprovals />
           </ProtectedRoute>
         } />
+        <Route path="/hod/my-leave" element={
+          <ProtectedRoute allowedRole="hod">
+            <HODLeaveRequests />
+          </ProtectedRoute>
+        } />
+        <Route path="/hod/apply-leave" element={
+          <ProtectedRoute allowedRole="hod">
+            <HODLeaveApply />
+          </ProtectedRoute>
+        } />
         <Route path="/hod/latetracker" element={
           <ProtectedRoute allowedRole="hod">
             <LateManagement />
@@ -282,6 +295,11 @@ function AppRoutes() {
         <Route path="/faculty/courses" element={
           <ProtectedRoute allowedRole="faculty">
             <FacultyCourses />
+          </ProtectedRoute>
+        } />
+        <Route path="/faculty/hod-duty" element={
+          <ProtectedRoute allowedRole="faculty">
+            <HODDutySubstitute />
           </ProtectedRoute>
         } />
         <Route path="/faculty/courses/:assignmentId/lms" element={

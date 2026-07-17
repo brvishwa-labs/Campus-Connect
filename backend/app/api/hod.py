@@ -26,16 +26,17 @@ router = APIRouter()
 
 def get_hod_department(current_user: User, db: Session):
     """
-    Helper: Given the current user (who must be an HOD), return their department.
+    Helper: Given the current user (who must be an HOD or acting HOD), return their department.
     """
-    if current_user.role != "hod":
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    if not is_acting_hod(current_user, db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access restricted to HODs")
 
     faculty_profile = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
     if not faculty_profile:
         raise HTTPException(status_code=404, detail="Faculty profile not found for this HOD user")
 
-    department = db.query(Department).filter(Department.hod_id == faculty_profile.id).first()
+    department = get_managed_department(faculty_profile.id, db)
     if not department:
         raise HTTPException(status_code=404, detail="No department assigned to this HOD")
 
