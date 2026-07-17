@@ -88,15 +88,16 @@ const HRFacultyDirectory = () => {
 
   return (
     <div className="max-w-[1000px] mx-auto p-4 md:p-6 lg:p-8">
-            {selectedFaculty && (
-          <FacultyProfileModal 
-            faculty={selectedFaculty} 
-            department={deptMap[selectedFaculty?.department_id]}
-            leaves={leaves} 
-            gatepasses={gatepasses} 
-            onClose={() => setSelectedFaculty(null)} 
-          />
-        )}{/* Header */}
+          {selectedFaculty && (
+            <FacultyProfileModal 
+              faculty={selectedFaculty} 
+              department={deptMap[selectedFaculty?.department_id]}
+              leaves={leaves} 
+              gatepasses={gatepasses} 
+              onClose={() => setSelectedFaculty(null)} 
+              allowEdit={true}
+            />
+          )}{/* Header */}
       
       <div className="mb-8">
         {!selectedDeptId ? (

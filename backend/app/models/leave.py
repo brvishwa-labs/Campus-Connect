@@ -14,6 +14,7 @@ from app.core.database import Base
 class LeaveStatus(str, enum.Enum):
     PENDING_COMPENSATION_VERIFICATION = "pending_compensation_verification"
     PENDING_SUBSTITUTE = "pending_substitute"
+    PENDING_ALTERNATE_HOD = "pending_alternate_hod"
     PENDING_HOD = "pending_hod"
     PENDING_DEAN = "pending_dean"
     PENDING_OM = "pending_om"
