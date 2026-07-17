@@ -43,8 +43,10 @@ export default function Login() {
   const bgClass = isDarkMode ? 'bg-[#0f1115]' : 'bg-gray-100';
 
   return (
-    <div className={`min-h-screen w-full flex items-center justify-center relative overflow-hidden font-sans transition-colors duration-1000 ${bgClass}`}>
-      
+    <div 
+      className={`min-h-screen w-full flex items-center justify-center relative overflow-hidden font-sans transition-colors duration-1000 ${bgClass} ${!isLampOn ? 'cursor-pointer' : ''}`}
+      onClick={!isLampOn ? handleToggleLamp : undefined}
+    >      
       {/* Cinematic Ambient Beam (Massive background lighting) */}
       <div className={`absolute inset-0 transition-opacity duration-1000 ease-in-out z-0 pointer-events-none ${isLampOn ? 'opacity-100' : 'opacity-0'}`}>
         {/* The ambient room fill that illuminates the whole area behind the login form */}
@@ -142,6 +144,15 @@ export default function Login() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+              <div className="mt-2 text-right">
+                <button
+                  type="button"
+                  onClick={() => navigate('/forgot-password')}
+                  className="text-[13px] font-semibold text-primary-600 hover:text-primary-700 transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
             </div>
 
             <div className="pt-2">
@@ -149,7 +160,7 @@ export default function Login() {
                 type="submit"
                 disabled={isLoading}
                 className={`w-full flex justify-center items-center py-3.5 px-4 rounded-xl text-[15px] font-bold text-white transition-all shadow-md ${
-                  isLoading ? 'bg-primary-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-500/30 shadow-primary-500/20'
+                  isLoading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/30 shadow-blue-500/20'
                 }`}
               >
                 {isLoading ? 'Signing in...' : 'Sign in \u2192'}

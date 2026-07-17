@@ -107,7 +107,8 @@ def get_hod_gatepasses(
     current_user: User = Depends(get_current_active_user)
 ):
     """HOD fetches pending gate passes from students in their department."""
-    if current_user.role != UserRole.HOD:
+    from app.api.hod_helper import is_acting_hod
+    if not is_acting_hod(current_user, db):
         raise HTTPException(status_code=403, detail="Only HODs can view department gate passes")
     
     faculty = get_faculty_profile(db, current_user.id)
@@ -180,7 +181,8 @@ def approve_gatepass(
             gatepass.mentor_id = faculty.id
             gatepass.mentor_approved_at = now
             
-    elif current_user.role == UserRole.HOD and gatepass.status == GatePassStatus.PENDING_HOD:
+    from app.api.hod_helper import is_acting_hod
+    if is_acting_hod(current_user, db) and gatepass.status == GatePassStatus.PENDING_HOD:
         faculty = get_faculty_profile(db, current_user.id)
         if is_reject:
             gatepass.status = GatePassStatus.REJECTED

@@ -20,6 +20,7 @@ const ROLE_NAV_LINKS = {
     { name: 'Discipline', path: '/admin/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/admin/latetracker', icon: Clock },
     { name: 'Announcements', path: '/admin/announcements', icon: Bell },
+    { name: 'Password Resets', path: '/admin/password-resets', icon: ShieldAlert },
   ],
   hod: [
     { name: 'Dashboard', path: '/hod', icon: LayoutDashboard },
@@ -28,12 +29,16 @@ const ROLE_NAV_LINKS = {
     { name: 'Sections', path: '/hod/sections', icon: Settings },
     { name: 'My Courses', path: '/faculty/courses', icon: BookOpen },
     { name: 'Timetable', path: '/hod/timetable', icon: Calendar },
+    { name: 'Open Electives', path: '/hod/open-electives', icon: Users },
     { name: 'Course Assignment', path: '/hod/assignments', icon: BookOpen },
     { name: 'Mentor Assignment', path: '/hod/mentors', icon: Users },
     { name: 'Attendance', path: '/hod/attendance', icon: ClipboardList },
     { name: 'Results', path: '/hod/results', icon: BarChart2 },
     { name: 'Announcements', path: '/hod/announcements', icon: Bell },
+    { name: 'My Leave', path: '/hod/my-leave', icon: Calendar },
     { name: 'Leave Approvals', path: '/hod/leave', icon: Calendar },
+    { name: 'Peer Approvals', path: '/faculty/leave/substitutes', icon: Users },
+    { name: 'HOD Duty Requests', path: '/faculty/hod-duty', icon: Users },
     { name: 'Discipline', path: '/hod/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/hod/latetracker', icon: Clock },
     { name: 'Gate Pass Approvals', path: '/hod/gatepass', icon: Clock },
@@ -44,11 +49,14 @@ const ROLE_NAV_LINKS = {
     { name: 'My Attendance', path: '/faculty/my-attendance', icon: ClipboardList },
     { name: 'My Courses', path: '/faculty/courses', icon: BookOpen },
     { name: 'Leave Requests', path: '/faculty/leave', icon: Calendar },
+    { name: 'Peer Approvals', path: '/faculty/leave/substitutes', icon: Users },
+    { name: 'HOD Duty Requests', path: '/faculty/hod-duty', icon: Users },
     { name: 'Mentorship', path: '/faculty/mentorship', icon: GraduationCap },
     { name: 'Report Incident', path: '/faculty/discipline', icon: ShieldAlert },
     { name: 'Gate Pass Approvals', path: '/faculty/gatepass', icon: Clock },
     { name: 'Faculty Gate Pass', path: '/faculty/faculty-gatepass', icon: Clock },
     { name: 'Late Entry Notifications', path: '/faculty/late-entry', icon: Bell },
+    { name: 'Altered Class Advisor', path: '/faculty/altered-class-advisor', icon: Users },
     { name: 'Announcements', path: '/faculty/announcements', icon: Bell },
   ],
   student: [
@@ -70,6 +78,7 @@ const ROLE_NAV_LINKS = {
     { name: 'Discipline', path: '/authority/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/authority/latetracker', icon: Clock },
     { name: 'Leave Approvals', path: '/authority/leave', icon: Calendar },
+    { name: 'Peer Approvals', path: '/authority/leave/substitutes', icon: Users },
     { name: 'Gate Pass Approvals', path: '/authority/gatepass', icon: Clock },
     { name: 'Faculty Gate Pass Approvals', path: '/authority/faculty-gatepass', icon: Clock },
     { name: 'Announcements', path: '/authority/announcements', icon: Bell },
@@ -82,6 +91,7 @@ export default function DashboardLayout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCAOpen, setIsCAOpen] = useState(location.pathname.startsWith('/faculty/class-advisor'));
+  const [isHRLeavesOpen, setIsHRLeavesOpen] = useState(location.pathname.startsWith('/hr/leaves'));
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [userMenuVisible, setUserMenuVisible] = useState(false);
   const userMenuRef = useRef(null);
@@ -124,25 +134,63 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (user) {
       fetchBadgeCounts();
-      const interval = setInterval(fetchBadgeCounts, 30000);
+      const interval = setInterval(fetchBadgeCounts, 10000); // poll every 10s for near real-time
       return () => clearInterval(interval);
     }
   }, [user]);
 
   useEffect(() => {
     window.addEventListener('refetch-badges', fetchBadgeCounts);
-    return () => window.removeEventListener('refetch-badges', fetchBadgeCounts);
+    // Refresh badges instantly when user switches back to the tab
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchBadgeCounts();
+    };
+    // Refresh badges when the browser window regains focus
+    const handleFocus = () => fetchBadgeCounts();
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('refetch-badges', fetchBadgeCounts);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   useEffect(() => {
     const markAsViewed = async () => {
-      let sector = null;
-      if (location.pathname === '/faculty/gatepass') sector = 'gatepass';
-      else if (location.pathname === '/faculty/late-entry') sector = 'late-entry';
-      else if (location.pathname === '/faculty/class-advisor/leave') sector = 'leave-ca';
-      else if (location.pathname === '/hod/leave') sector = 'leave-hod';
-      else if (location.pathname === '/hod/gatepass') sector = 'gatepass';
-      else if (location.pathname === '/authority/gatepass') sector = 'gatepass';
+      const pathToSector = {
+        // Faculty
+        '/faculty/leave':               'faculty-leave',
+        '/faculty/mentorship':          'faculty-mentorship',
+        '/faculty/gatepass':            'faculty-gatepass',
+        '/faculty/faculty-gatepass':    'faculty-gatepass-own',
+        '/faculty/late-entry':          'late-entry',
+        '/faculty/announcements':       'faculty-announcements',
+        '/faculty/class-advisor/leave': 'faculty-ca-leave',
+        // HOD
+        '/hod/leave':                   'hod-leave',
+        '/hod/gatepass':                'hod-gatepass',
+        '/hod/faculty-gatepass':        'hod-faculty-gatepass',
+        '/hod/discipline':              'hod-discipline',
+        '/hod/latetracker':             'hod-latetracker',
+        '/hod/announcements':           'hod-announcements',
+        // Authority / Dean / OM / Principal
+        '/authority/leave':             'authority-leave',
+        '/authority/gatepass':          'authority-gatepass',
+        '/authority/faculty-gatepass':  'authority-faculty-gatepass',
+        '/authority/announcements':     'authority-announcements',
+        // Student
+        '/student/leave':               'student-leave',
+        '/student/gatepass':            'student-gatepass',
+        '/student/late-entry':          'student-late-entry',
+        '/student/announcements':       'student-announcements',
+        // Admin
+        '/admin/discipline':            'admin-discipline',
+        '/admin/latetracker':           'admin-latetracker',
+        '/admin/announcements':         'admin-announcements',
+      };
+
+      const sector = pathToSector[location.pathname];
 
       if (sector) {
         try {
@@ -230,6 +278,11 @@ export default function DashboardLayout() {
     
     if (title !== 'office manager') {
       navLinks = navLinks.filter(link => link.name !== 'Gate Pass Approvals');
+    } else {
+      // If Office Manager, update Analytics path
+      navLinks = navLinks.map(link => 
+        link.name === 'Analytics' ? { ...link, path: '/authority/om-analytics' } : link
+      );
     }
     if (title !== 'dean' && title !== 'office manager' && title !== 'hr') {
       navLinks = navLinks.filter(link => link.name !== 'Faculty Gate Pass Approvals');
@@ -241,6 +294,11 @@ export default function DashboardLayout() {
       navLinks.push({
         name: 'Faculty Leaves',
         path: '/hr/leaves',
+        icon: Calendar
+      });
+      navLinks.push({
+        name: 'Restricted Holidays',
+        path: '/hr/restricted-holidays',
         icon: Calendar
       });
       navLinks.push({
@@ -407,6 +465,64 @@ export default function DashboardLayout() {
                                   {badgeCounts[sublink.path]}
                                 </span>
                               )}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </React.Fragment>
+              );
+            }
+
+            if (link.name === 'Faculty Leaves' && user.role === 'authority') {
+              const HR_LEAVES_SUB_LINKS = [
+                { name: 'Leave Tracking', path: '/hr/leaves', icon: Calendar },
+                { name: 'Set Limits', path: '/hr/leaves/set-limits', icon: Settings },
+              ];
+              return (
+                <React.Fragment key={link.name}>
+                  <div>
+                    <button
+                      onClick={() => setIsHRLeavesOpen(prev => !prev)}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all font-medium ${
+                        location.pathname.startsWith('/hr/leaves')
+                          ? 'bg-indigo-50 dark:bg-gray-100 text-indigo-700 dark:text-gray-900 font-bold'
+                          : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-100/50 hover:text-gray-900 dark:hover:text-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Calendar className={`w-5 h-5 ${location.pathname.startsWith('/hr/leaves') ? 'text-indigo-600 dark:text-gray-900' : 'text-gray-400 dark:text-gray-500'}`} />
+                        <span className="text-[15px]">Faculty Leaves</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {isHRLeavesOpen
+                          ? <ChevronDown className="w-4 h-4 text-gray-400" />
+                          : <ChevronRight className="w-4 h-4 text-gray-400" />
+                        }
+                      </div>
+                    </button>
+
+                    {isHRLeavesOpen && (
+                      <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-indigo-100 dark:border-indigo-500/50 pl-3">
+                        {HR_LEAVES_SUB_LINKS.map(sublink => {
+                          const SubIcon = sublink.icon;
+                          const isSubActive = location.pathname === sublink.path;
+                          return (
+                            <Link
+                              key={sublink.path}
+                              to={sublink.path}
+                              onClick={() => setIsMobileMenuOpen(false)}
+                              className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-[14px] ${
+                                isSubActive
+                                  ? 'bg-indigo-50 dark:bg-gray-100 text-indigo-700 dark:text-gray-900 font-bold'
+                                  : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-100/50 hover:text-gray-800 dark:hover:text-gray-100 font-medium'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-2.5">
+                                <SubIcon className={`w-4 h-4 ${isSubActive ? 'text-indigo-600 dark:text-gray-900' : 'text-gray-400 dark:text-gray-500'}`} />
+                                <span>{sublink.name}</span>
+                              </div>
                             </Link>
                           );
                         })}

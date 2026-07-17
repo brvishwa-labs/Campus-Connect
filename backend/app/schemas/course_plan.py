@@ -39,3 +39,18 @@ class CoursePlanResponse(BaseModel):
     topics: List[CoursePlanTopicResponse]
 
     model_config = ConfigDict(from_attributes=True)
+
+class CourseAssignmentUnitBase(BaseModel):
+    unit_number: int
+    title: Optional[str] = None
+    is_completed: bool = False
+
+class CourseAssignmentUnitUpdate(CourseAssignmentUnitBase):
+    pass
+
+class CourseAssignmentUnitResponse(CourseAssignmentUnitBase):
+    id: int
+    course_assignment_id: int
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)

@@ -187,3 +187,39 @@ def delete_holiday(
     db.delete(holiday)
     db.commit()
     return {"message": f"Holiday on {holiday_date} removed successfully"}
+
+# ─────────────────────────────────────────────────────────
+# Password Reset Requests
+# ─────────────────────────────────────────────────────────
+@router.get("/password-resets")
+def list_password_resets(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view password reset requests")
+        
+    from app.models.user import PasswordResetRequest
+    requests = db.query(PasswordResetRequest).order_by(PasswordResetRequest.created_at.desc()).all()
+    return requests
+
+@router.put("/password-resets/{request_id}/resolve")
+def resolve_password_reset(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can manage password reset requests")
+        
+    from app.models.user import PasswordResetRequest
+    from datetime import datetime, timezone
+    
+    req = db.query(PasswordResetRequest).filter(PasswordResetRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+        
+    req.status = "resolved"
+    req.resolved_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"message": "Request marked as resolved"}

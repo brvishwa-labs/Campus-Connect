@@ -19,6 +19,17 @@ const InfoRow = ({ label, value }) => {
   );
 };
 
+const ReadOnlyRow = ({ label, value }) => {
+  return (
+    <div className="bg-gray-50 rounded-xl px-4 py-3">
+      <div className="flex items-center justify-between mb-0.5">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+      </div>
+      <p className="text-sm font-semibold text-gray-900">{value || <span className="text-gray-400">—</span>}</p>
+    </div>
+  );
+};
+
 const SectionCard = ({ title, icon: Icon, children }) => (
   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
     <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -190,34 +201,6 @@ const StudentProfile = ({ profile, onUpdate }) => {
           <InfoRow label="Date of Birth"  value={profile.date_of_birth} />
           <EditableRow label="Blood Group" value={profile.blood_group} field="blood_group" onSave={handleSave} />
           <InfoRow label="Religion"       value={profile.religion} />
-        </div>
-      </div>
-
-      {/* Additional Details */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <User className="w-4 h-4" /> Additional Details
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <EditableRow label="Aadhar Number" value={profile.aadhar_number} field="aadhar_number" onSave={handleSave} />
-          <EditableRow label="Accommodation (Hostel / Day Scholar)" value={profile.accommodation} field="accommodation" onSave={handleSave} />
-          <EditableRow label="Transportation (OWN / BUS)" value={profile.transportation} field="transportation" onSave={handleSave} />
-          {profile.transportation && profile.transportation.toUpperCase() === 'BUS' && (
-            <EditableRow label="Bus Number" value={profile.bus_number} field="bus_number" onSave={handleSave} />
-          )}
-        </div>
-      </div>
-
-      {/* Address */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <MapPin className="w-4 h-4" /> Address
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <EditableRow label="Address" value={profile.address_line1} field="address_line1" onSave={handleSave} />
-          <EditableRow label="City"    value={profile.city}    field="city"    onSave={handleSave} />
-          <EditableRow label="State"   value={profile.state}   field="state"   onSave={handleSave} />
-          <EditableRow label="Pincode" value={profile.pincode} field="pincode" onSave={handleSave} />
         </div>
       </div>
 

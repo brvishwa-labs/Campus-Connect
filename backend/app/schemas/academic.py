@@ -7,6 +7,7 @@ class CourseTypeEnum(str, Enum):
     theory = "theory"
     lab = "lab"
     elective = "elective"
+    open_elective = "open_elective"
     project = "project"
 
 class CourseBase(BaseModel):

@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, User as UserIcon, Calendar, Users, Paperclip, UploadCloud, Trash2, Search, ChevronDown, Check } from 'lucide-react';
+import { ArrowLeft, User as UserIcon, Calendar, Users, Paperclip, UploadCloud, Trash2, Search, ChevronDown, Check, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { MobileTimePicker } from '@mui/x-date-pickers/MobileTimePicker';
+import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
 
-const SearchableFacultySelect = ({ value, onChange, options, placeholder = "Select Faculty..." }) => {
+dayjs.extend(customParseFormat);
+
+const NativeFacultySelect = ({ value, onChange, options, placeholder = "Select Faculty..." }) => {
   return (
     <select
       value={value || ''}
@@ -13,12 +20,86 @@ const SearchableFacultySelect = ({ value, onChange, options, placeholder = "Sele
       required
     >
       <option value="">{placeholder}</option>
-      {options.map((f) => (
+      {options && options.map((f) => (
         <option key={f.id} value={f.id}>
           {f.name} - {f.designation || 'Faculty'}
         </option>
       ))}
     </select>
+  );
+};
+
+const SearchableVerifierSelect = ({ value, onChange, options, placeholder = "Select Verifier..." }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options ? options.filter(o => 
+    (o.name + ' ' + (o.designation || '')).toLowerCase().includes(search.toLowerCase())
+  ) : [];
+  
+  const selectedOption = options ? options.find(o => String(o.id) === String(value)) : null;
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <div 
+        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm flex justify-between items-center cursor-pointer focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:border-primary-500 transition-all"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className={selectedOption ? "text-gray-900 truncate" : "text-gray-500"}>
+          {selectedOption ? `${selectedOption.name} - ${selectedOption.designation || 'Faculty'}` : placeholder}
+        </span>
+        <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" />
+      </div>
+      
+      {isOpen && (
+        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+          <div className="p-2 border-b border-gray-100 sticky top-0 bg-white">
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+              <input
+                type="text"
+                className="w-full pl-9 pr-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded focus:outline-none focus:border-primary-500"
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+          <div className="py-1">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((f) => (
+                <div
+                  key={f.id}
+                  className={`px-4 py-2 text-sm cursor-pointer hover:bg-primary-50 flex justify-between items-center ${String(f.id) === String(value) ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-700'}`}
+                  onClick={() => {
+                    onChange(f.id);
+                    setIsOpen(false);
+                    setSearch('');
+                  }}
+                >
+                  <span className="truncate pr-2">{f.name} <span className="text-gray-400 text-xs ml-1">({f.designation || 'Faculty'})</span></span>
+                  {String(f.id) === String(value) && <Check className="w-4 h-4 flex-shrink-0" />}
+                </div>
+              ))
+            ) : (
+              <div className="px-4 py-3 text-sm text-gray-500 text-center">No matching verifiers found</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -34,44 +115,59 @@ export const LeaveApply = () => {
     vacation_leaves_total: 12, vacation_leaves_used: 0,
     compensation_leaves_total: 5, compensation_leaves_used: 0,
     academic_leaves_total: 10, academic_leaves_used: 0,
-    restricted_leaves_total: 1, restricted_leaves_used: 0
+    restricted_leaves_total: 1, restricted_leaves_used: 0,
+    restricted_used_this_sem: 0
   });
+  const [showRestrictedLimitModal, setShowRestrictedLimitModal] = useState(false);
   const [facultyProfile, setFacultyProfile] = useState(null);
   const [allFaculty, setAllFaculty] = useState([]);
+  const [allVerifiers, setAllVerifiers] = useState([]);
+  const [availableRegistries, setAvailableRegistries] = useState([]);
   const [leaveData, setLeaveData] = useState(null); // New: holds schedule + faculty + advisor duties
+  const [restrictedHolidays, setRestrictedHolidays] = useState([]);
   
   const [formData, setFormData] = useState({
     leave_type: 'Casual Leave',
     from_date: '',
     to_date: '',
-    reason: ''
+    reason: '',
+    compensation_registry_id: '',
+    hour_permission_start_time: '',
+    hour_permission_end_time: '',
+    proof_link: ''
   });
   
   const [arrangements, setArrangements] = useState([
-    { substitute_faculty_id: '', subject: '', class_section: '', period: '', day: '', compensation_date: '', compensation_period: '' }
+    { substitute_faculty_id: '', subject: '', class_section: '', section_id: '', period: '', day: '', compensation_date: '', compensation_period: '' }
   ]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-
+  
   useEffect(() => {
     fetchData();
   }, []);
-
+  
   useEffect(() => {
     if (formData.from_date && formData.to_date && !editId) {
       fetchLeaveData();
     }
-  }, [formData.from_date, formData.to_date]);
-
+  }, [formData.from_date, formData.to_date, formData.leave_type, formData.hour_permission_start_time, formData.hour_permission_end_time]);
+  
   const fetchData = async () => {
     try {
-      const [balRes, facRes] = await Promise.all([
+      const [balRes, facRes, verifiersRes, registryRes, rhRes] = await Promise.all([
         axios.get('/api/leave/balances'),
-        axios.get('/api/auth/profile')
+        axios.get('/api/auth/profile'),
+        axios.get('/api/leave/all-verifiers'),
+        axios.get('/api/leave/compensation-registry/available'),
+        axios.get('/api/leave/restricted-holidays').catch(() => ({ data: [] }))
       ]);
       setBalance(balRes.data);
       setFacultyProfile(facRes.data);
+      setAllVerifiers(verifiersRes.data || []);
+      setAvailableRegistries(registryRes.data || []);
+      setRestrictedHolidays(rhRes.data || []);
 
       if (editId) {
         const editRes = await axios.get(`/api/leave/requests/${editId}`);
@@ -80,13 +176,18 @@ export const LeaveApply = () => {
           leave_type: requestData.leave_type,
           from_date: requestData.from_date,
           to_date: requestData.to_date,
-          reason: requestData.reason
+          reason: requestData.reason,
+          compensation_registry_id: requestData.compensation_registry_id || '',
+          hour_permission_start_time: requestData.hour_permission_session || '',
+          hour_permission_end_time: requestData.hour_permission_period || '',
+          proof_link: requestData.proof_link || ''
         });
         if (requestData.arrangements && requestData.arrangements.length > 0) {
           const loadedArrangements = requestData.arrangements.map(a => ({
             substitute_faculty_id: a.substitute_faculty_id.toString(),
             subject: a.subject,
             class_section: a.class_section,
+            section_id: a.section_id || '',
             period: a.period,
             day: a.day || '',
             compensation_date: a.compensation_date || '',
@@ -103,6 +204,51 @@ export const LeaveApply = () => {
   // Fetch leave-specific data when dates are selected
   const fetchLeaveData = async (from = formData.from_date, to = formData.to_date, existingArrangements = null) => {
     if (!from || !to) return;
+    
+    if (formData.leave_type === 'Hour Permission') {
+       if (formData.hour_permission_start_time && formData.hour_permission_end_time) {
+         try {
+           const st = formData.hour_permission_start_time;
+           const et = formData.hour_permission_end_time;
+           const res = await axios.get('/api/leave/hour-permission-data', {
+             params: { on_date: from, start_time: st, end_time: et }
+           });
+           
+           if (res.data.has_conflict) {
+              setLeaveData({ 
+                total_periods_to_cover: res.data.conflicts.length,
+                my_schedule: res.data.conflicts.map(c => ({
+                   day: new Date(from).toLocaleDateString('en-US', {weekday:'short'}),
+                   course_code: c.course_code,
+                   course_name: c.course_code,
+                   class_section: c.class_section,
+                   period_display: c.period
+                }))
+              });
+              if (!existingArrangements) {
+                 setArrangements(res.data.conflicts.map(c => ({
+                   substitute_faculty_id: '',
+                   subject: c.course_code,
+                   original_subject: c.course_code,
+                   class_section: c.class_section,
+                   section_id: c.section_id,
+                   period: c.period,
+                   day: new Date(from).toLocaleDateString('en-US', {weekday:'short'}),
+                   available_substitutes: c.available_substitutes,
+                   compensation_date: '', compensation_period: ''
+                 })));
+              }
+           } else {
+              setLeaveData({ total_periods_to_cover: 0, my_schedule: [] });
+              if (!existingArrangements) setArrangements([]);
+           }
+         } catch (err) { console.error(err); }
+       } else {
+         setLeaveData(null);
+         if (!existingArrangements) setArrangements([{ substitute_faculty_id: '', subject: '', class_section: '', section_id: '', period: '', day: '', compensation_date: '', compensation_period: '' }]);
+       }
+       return;
+    }
     
     try {
       const res = await axios.get('/api/leave/leave-preparation-data', {
@@ -121,6 +267,7 @@ export const LeaveApply = () => {
           subject: slot.course_code,
           original_subject: slot.course_code,
           class_section: slot.class_section,
+          section_id: slot.section_id,
           period: slot.period_display,
           day: slot.day,
           available_substitutes: slot.available_substitutes,
@@ -136,6 +283,7 @@ export const LeaveApply = () => {
               subject: 'Class Advisor',
               original_subject: 'Class Advisor',
               class_section: duty.class_display,
+              section_id: duty.section_id,
               period: 'All Periods',
               day: 'All Days',
               available_substitutes: duty.available_substitutes,
@@ -173,15 +321,33 @@ export const LeaveApply = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    // Check semester limit when switching TO Restricted Leave
+    if (name === 'leave_type' && value === 'Restricted Leave') {
+      const used = balance.restricted_used_this_sem || 0;
+      const total = balance.restricted_leaves_total || 1;
+      if (used >= total) {
+        setShowRestrictedLimitModal(true);
+        // Don't actually change the leave type — user must dismiss
+        return;
+      }
+    }
+
     setFormData(prev => {
       const updated = { ...prev, [name]: value };
+      let newError = '';
       if (updated.from_date && updated.to_date) {
         if (new Date(updated.from_date) > new Date(updated.to_date)) {
-          setError('To Date cannot be earlier than From Date.');
-        } else {
-          setError('');
+          newError = 'To Date cannot be earlier than From Date.';
         }
       }
+      if (updated.leave_type === 'Restricted Leave' && updated.from_date) {
+        const hasMatchingHoliday = restrictedHolidays.some(h => h.date === updated.from_date);
+        if (!hasMatchingHoliday) {
+          newError = 'Restricted Leave can only be applied on HR-approved Restricted Holiday dates.';
+        }
+      }
+      setError(newError);
       return updated;
     });
   };
@@ -235,36 +401,36 @@ export const LeaveApply = () => {
   }, [formData.to_date]);
 
   const handleArrangementChange = async (index, field, value) => {
-  const newArr = [...arrangements];
-  newArr[index][field] = value;
-
-  if (field === 'substitute_faculty_id') {
-    if (value && newArr[index].subject !== 'Class Advisor') {
-      try {
-        const res = await axios.get(`/api/leave/faculty/${value}/active-courses`);
-        const courses = res.data;
-        newArr[index]['active_courses'] = courses;
-
-        const matching = courses.find(
-          c => c.class_section === newArr[index].class_section
-        );
-        newArr[index]['subject'] = matching
-          ? matching.course_code
-          : (courses[0]?.course_code || '');
-      } catch (err) {
-        console.error('Failed to fetch substitute courses:', err);
-        newArr[index]['active_courses'] = [];
+    const newArr = [...arrangements];
+    newArr[index][field] = value;
+  
+    if (field === 'substitute_faculty_id') {
+      if (value && newArr[index].subject !== 'Class Advisor' && newArr[index].subject !== 'Department Works') {
+        try {
+          const res = await axios.get(`/api/leave/faculty/${value}/active-courses`);
+          const courses = res.data;
+          newArr[index]['active_courses'] = courses;
+  
+          const matching = courses.find(
+            c => c.class_section === newArr[index].class_section
+          );
+          newArr[index]['subject'] = matching
+            ? matching.course_code
+            : (courses[0]?.course_code || '');
+        } catch (err) {
+          console.error('Failed to fetch substitute courses:', err);
+          newArr[index]['active_courses'] = [];
+        }
+      } else if (!value && newArr[index].subject !== 'Class Advisor' && newArr[index].subject !== 'Department Works') {
+        newArr[index]['subject'] = newArr[index].original_subject || '';
+        newArr[index]['active_courses'] = null;
       }
-    } else if (!value && newArr[index].subject !== 'Class Advisor') {
-      newArr[index]['subject'] = newArr[index].original_subject || '';
-      newArr[index]['active_courses'] = null;
+      setArrangements(newArr);
+      updateCompensations(newArr);
+    } else {
+      setArrangements(newArr);
     }
-    setArrangements(newArr);
-    updateCompensations(newArr);
-  } else {
-    setArrangements(newArr);
-  }
-};
+  };
 const addArrangementRow = () => {
     setArrangements([...arrangements, { substitute_faculty_id: '', subject: '', class_section: '', period: '', day: '', available_substitutes: null, active_courses: null, compensation_date: '', compensation_period: '' }]);
   };
@@ -287,19 +453,45 @@ const addArrangementRow = () => {
         return;
       }
     }
+
+    if (formData.leave_type === 'Restricted Leave') {
+      const selectedDate = formData.from_date;
+      if (!selectedDate) {
+        setError('Date is required for Restricted Leave.');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      const hasMatchingHoliday = restrictedHolidays.some(h => h.date === selectedDate);
+      if (!hasMatchingHoliday) {
+        setError('Restricted Leave can only be applied on HR-approved Restricted Holiday dates.');
+        setIsSubmitting(false);
+        return;
+      }
+    }
     
     // Validate that at least one substitute arrangement is provided
     const validArrangements = arrangements
       .filter(a => a.substitute_faculty_id !== '')
       .map(a => {
-        if (a.subject === 'Class Advisor') {
+        const baseArrangement = {
+          ...a,
+          section_id: a.section_id ? parseInt(a.section_id) : null,
+          day: a.day || null
+        };
+        
+        if (a.subject === 'Class Advisor' || a.subject === 'Department Works') {
           return {
-            ...a,
+            ...baseArrangement,
             compensation_date: null,
             compensation_period: null
           };
         }
-        return a;
+        return {
+          ...baseArrangement,
+          compensation_date: a.compensation_date || null,
+          compensation_period: a.compensation_period || null
+        };
       });
       
     if (validArrangements.length === 0) {
@@ -309,8 +501,14 @@ const addArrangementRow = () => {
     }
     
     try {
+      const { hour_permission_start_time, hour_permission_end_time, ...restFormData } = formData;
       const payload = {
-        ...formData,
+        ...restFormData,
+        hour_permission_session: formData.leave_type === 'Hour Permission' ? hour_permission_start_time : null,
+        hour_permission_period: formData.leave_type === 'Hour Permission' ? hour_permission_end_time : null,
+        compensation_registry_id: formData.leave_type === 'Compensation Leave' && formData.compensation_registry_id 
+          ? parseInt(formData.compensation_registry_id) 
+          : null,
         arrangements: validArrangements
       };
       if (editId) {
@@ -321,13 +519,21 @@ const addArrangementRow = () => {
       navigate('/faculty/leave');
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.detail || 'Failed to submit leave request.');
+      const detail = err.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        setError(detail.map(d => `${d.loc[d.loc.length-1]}: ${d.msg}`).join(', '));
+      } else if (typeof detail === 'object' && detail !== null) {
+        setError(JSON.stringify(detail));
+      } else {
+        setError(detail || err.response?.data?.message || 'Failed to submit leave request.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
+    <>
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="mb-6">
         <Link to="/faculty/leave" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors mb-4">
@@ -371,8 +577,8 @@ const addArrangementRow = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Leave Details */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center bg-gray-50/50">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center bg-gray-50/50 rounded-t-xl">
                 <Calendar className="w-5 h-5 text-gray-500 mr-2" />
                 <h2 className="text-sm font-bold text-gray-800">Leave Details</h2>
               </div>
@@ -392,38 +598,134 @@ const addArrangementRow = () => {
                     <option value="Compensation Leave">Compensation Leave</option>
                     <option value="Academic Leave">Academic Leave</option>
                     <option value="Restricted Leave">Restricted Leave</option>
+                    <option value="Hour Permission">Hour Permission</option>
+                    <option value="On Duty">On Duty</option>
                   </select>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {formData.leave_type === 'On Duty' && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-[13px] font-bold text-amber-900">Important Requirement</h4>
+                        <p className="text-xs text-amber-700 mt-1">
+                          You are required to submit supporting evidence (e.g. certificates, proofs of participation) after the On Duty period is over.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                {formData.leave_type === 'Restricted Leave' && (() => {
+                    // Filter holidays to current month only
+                    const now = new Date();
+                    const currentMonthHolidays = restrictedHolidays.filter(h => {
+                      const d = new Date(h.date + 'T00:00:00');
+                      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+                    });
+                    const semUsed = balance.restricted_used_this_sem || 0;
+                    const semTotal = balance.restricted_leaves_total || 1;
+
+                    return (
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex flex-col gap-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <AlertCircle className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <h4 className="text-[13px] font-bold text-indigo-900">Restricted Holidays — This Month</h4>
+                              <p className="text-xs text-indigo-700 mt-1">
+                                Click a date below to auto-fill it. Only HR-approved holidays are shown.
+                              </p>
+                            </div>
+                          </div>
+                          {/* Semester usage pill */}
+                          <span className={`flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                            semUsed >= semTotal
+                              ? 'bg-red-50 text-red-700 border-red-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}>
+                            {semUsed}/{semTotal} used
+                          </span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {currentMonthHolidays.length > 0 ? (
+                            currentMonthHolidays.map((holiday) => (
+                              <span
+                                key={holiday.id}
+                                onClick={() => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    from_date: holiday.date,
+                                    to_date: holiday.date
+                                  }));
+                                  setError('');
+                                }}
+                                className="px-2.5 py-1 text-xs bg-white text-indigo-700 border border-indigo-200 rounded-md font-semibold cursor-pointer hover:bg-indigo-100/50 transition-colors"
+                                title={holiday.description}
+                              >
+                                {holiday.name} ({dayjs(holiday.date).format('DD MMM YYYY')})
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-indigo-600 italic">
+                              No restricted holidays configured for this month. Please contact HR.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                {formData.leave_type === 'Hour Permission' ? (
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">From Date</label>
-                     <input 
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Permission Date</label>
+                    <input 
                       type="date" 
                       name="from_date"
                       value={formData.from_date}
-                      max={formData.to_date}
-                      onChange={handleInputChange}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormData(prev => {
+                          const updated = { ...prev, from_date: val, to_date: val };
+                          return updated;
+                        });
+                      }}
                       className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                       required
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">To Date</label>
-                    <input 
-                      type="date" 
-                      name="to_date"
-                      value={formData.to_date}
-                      min={formData.from_date}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
-                      required
-                    />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">From Date</label>
+                       <input 
+                        type="date" 
+                        name="from_date"
+                        value={formData.from_date}
+                        max={formData.to_date}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">To Date</label>
+                      <input 
+                        type="date" 
+                        name="to_date"
+                        value={formData.to_date}
+                        min={formData.from_date}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                        required
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Reason for Leave</label>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">
+                    {formData.leave_type === 'Hour Permission' ? 'Reason for Permission' : formData.leave_type === 'On Duty' ? 'Description of Duty' : 'Reason for Leave'}
+                  </label>
                   <textarea 
                     name="reason"
                     value={formData.reason}
@@ -434,6 +736,99 @@ const addArrangementRow = () => {
                     required
                   />
                 </div>
+
+                {formData.leave_type === 'Hour Permission' && (
+                  <LocalizationProvider dateAdapter={AdapterDayjs}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Start Time</label>
+                        <MobileTimePicker
+                          value={formData.hour_permission_start_time ? dayjs(formData.hour_permission_start_time, 'HH:mm') : null}
+                          onChange={(newValue) => setFormData(prev => ({ ...prev, hour_permission_start_time: newValue ? newValue.format('HH:mm') : '' }))}
+                          views={['hours', 'minutes']}
+                          ampm={true}
+                          format="hh:mm A"
+                          slotProps={{
+                            textField: {
+                              fullWidth: true,
+                              required: true,
+                              size: 'small',
+                              placeholder: "Select Time",
+                              sx: {
+                                backgroundColor: 'white',
+                                '& .MuiOutlinedInput-root': {
+                                  borderRadius: '0.5rem',
+                                  height: '42px',
+                                  backgroundColor: 'white',
+                                  '& fieldset': { borderColor: '#e5e7eb' },
+                                  '&:hover fieldset': { borderColor: '#d1d5db' },
+                                  '&.Mui-focused fieldset': { borderColor: '#3b82f6', borderWidth: '2px' }
+                                }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">End Time</label>
+                        <MobileTimePicker
+                          value={formData.hour_permission_end_time ? dayjs(formData.hour_permission_end_time, 'HH:mm') : null}
+                          onChange={(newValue) => setFormData(prev => ({ ...prev, hour_permission_end_time: newValue ? newValue.format('HH:mm') : '' }))}
+                          views={['hours', 'minutes']}
+                          ampm={true}
+                          format="hh:mm A"
+                          slotProps={{
+                            textField: {
+                              fullWidth: true,
+                              required: true,
+                              size: 'small',
+                              placeholder: "Select Time",
+                              sx: {
+                                backgroundColor: 'white',
+                                '& .MuiOutlinedInput-root': {
+                                  borderRadius: '0.5rem',
+                                  height: '42px',
+                                  backgroundColor: 'white',
+                                  '& fieldset': { borderColor: '#e5e7eb' },
+                                  '&:hover fieldset': { borderColor: '#d1d5db' },
+                                  '&.Mui-focused fieldset': { borderColor: '#3b82f6', borderWidth: '2px' }
+                                }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </LocalizationProvider>
+                )}
+
+                {formData.leave_type === 'Compensation Leave' && (
+                  <div className="pt-4 mt-4 border-t border-gray-100 space-y-5">
+                    <h3 className="text-sm font-bold text-gray-700 mb-3">Select Verified Compensation</h3>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Approved Compensation Work</label>
+                      <select 
+                        name="compensation_registry_id"
+                        value={formData.compensation_registry_id}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                        required={formData.leave_type === 'Compensation Leave'}
+                      >
+                        <option value="">Select an approved compensation work...</option>
+                        {availableRegistries.map(reg => (
+                          <option key={reg.id} value={reg.id}>
+                            {new Date(reg.date_worked).toLocaleDateString()} - {reg.classes_substituted || 'General Duty'} (Verified by: {reg.peer_faculty_name})
+                          </option>
+                        ))}
+                      </select>
+                      {availableRegistries.length === 0 && (
+                        <p className="text-xs text-red-500 mt-2 font-medium">
+                          You do not have any approved unused compensation work. Please register compensation work first.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -524,7 +919,7 @@ const addArrangementRow = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Substitute Faculty</label>
-                          <SearchableFacultySelect
+                          <NativeFacultySelect
                             value={arr.substitute_faculty_id}
                             onChange={(val) => handleArrangementChange(idx, 'substitute_faculty_id', val)}
                             options={arr.available_substitutes || allFaculty}
@@ -553,7 +948,7 @@ const addArrangementRow = () => {
                               value={arr.subject} 
                               onChange={(e) => handleArrangementChange(idx, 'subject', e.target.value)}
                               className="w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
-                              readOnly={arr.subject === 'Class Advisor'}
+                              readOnly={arr.subject === 'Class Advisor' || arr.subject === 'Department Works'}
                               required
                             />
                           )}
@@ -588,27 +983,27 @@ const addArrangementRow = () => {
                           <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Compensation Date</label>
                           <input 
                             type="date" 
-                            value={arr.subject === 'Class Advisor' ? '' : arr.compensation_date} 
+                            value={(arr.subject === 'Class Advisor' || arr.subject === 'Department Works') ? '' : arr.compensation_date} 
                             onChange={(e) => handleArrangementChange(idx, 'compensation_date', e.target.value)}
                             className={`w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium ${
-                              arr.subject === 'Class Advisor' ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                              (arr.subject === 'Class Advisor' || arr.subject === 'Department Works') ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
                             }`}
-                            disabled={arr.subject === 'Class Advisor'}
-                            required={arr.subject !== 'Class Advisor'}
+                            disabled={arr.subject === 'Class Advisor' || arr.subject === 'Department Works'}
+                            required={arr.subject !== 'Class Advisor' && arr.subject !== 'Department Works'}
                           />
                         </div>
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Compensation Time Slot</label>
                           <input 
                             type="text" 
-                            placeholder={arr.subject === 'Class Advisor' ? 'N/A' : '08:45 AM - 09:30 AM'}
-                            value={arr.subject === 'Class Advisor' ? '' : arr.compensation_period} 
+                            placeholder={(arr.subject === 'Class Advisor' || arr.subject === 'Department Works') ? 'N/A' : '08:45 AM - 09:30 AM'}
+                            value={(arr.subject === 'Class Advisor' || arr.subject === 'Department Works') ? '' : arr.compensation_period} 
                             onChange={(e) => handleArrangementChange(idx, 'compensation_period', e.target.value)}
                             className={`w-full px-3 py-2 bg-white border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium ${
-                              arr.subject === 'Class Advisor' ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                              (arr.subject === 'Class Advisor' || arr.subject === 'Department Works') ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
                             }`}
-                            disabled={arr.subject === 'Class Advisor'}
-                            required={arr.subject !== 'Class Advisor'}
+                            disabled={arr.subject === 'Class Advisor' || arr.subject === 'Department Works'}
+                            required={arr.subject !== 'Class Advisor' && arr.subject !== 'Department Works'}
                           />
                         </div>
                       </div>
@@ -692,13 +1087,15 @@ const addArrangementRow = () => {
                 <span className="text-blue-100">Vacation Leave</span>
                 <span className="text-lg font-bold">{(balance.vacation_leaves_total || 12) - (balance.vacation_leaves_used || 0)}/{balance.vacation_leaves_total || 12}</span>
               </div>
+
               <div className="flex justify-between items-center border-b border-white/10 pb-3">
-                <span className="text-blue-100">Compensation Leave</span>
-                <span className="text-lg font-bold">{(balance.compensation_leaves_total || 5) - (balance.compensation_leaves_used || 0)}/{balance.compensation_leaves_total || 5}</span>
-              </div>
-              <div className="flex justify-between items-center pb-1">
                 <span className="text-blue-100">Academic Leave</span>
                 <span className="text-lg font-bold">{(balance.academic_leaves_total || 10) - (balance.academic_leaves_used || 0)}/{balance.academic_leaves_total || 10}</span>
+              </div>
+
+              <div className="flex justify-between items-center pb-1">
+                <span className="text-blue-100">Compensation Leave</span>
+                <span className="text-lg font-bold">{(balance.compensation_leaves_total || 5) - (balance.compensation_leaves_used || 0)}/{balance.compensation_leaves_total || 5}</span>
               </div>
             </div>
             <div className="px-6 py-4 bg-black/10">
@@ -734,5 +1131,48 @@ const addArrangementRow = () => {
         </div>
       </div>
     </div>
+
+    {/* ── Restricted Leave Limit Exceeded Modal ─────────────────────── */}
+    {showRestrictedLimitModal && (
+      <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl border border-red-100 w-full max-w-[420px] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          {/* Red top accent */}
+          <div className="h-1.5 w-full bg-gradient-to-r from-red-500 to-rose-500" />
+
+          <div className="p-6 text-center">
+            {/* Icon */}
+            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-red-50 border-2 border-red-100 flex items-center justify-center">
+              <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+
+            <h3 className="text-lg font-extrabold text-gray-900 mb-2">
+              Restricted Leave Limit Reached
+            </h3>
+            <p className="text-sm text-gray-500 leading-relaxed mb-2">
+              You have already utilized your{' '}
+              <span className="font-bold text-red-600">
+                {balance.restricted_used_this_sem || 0}/{balance.restricted_leaves_total || 1} Restricted Leave
+              </span>{' '}
+              for this semester.
+            </p>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Each employee is entitled to only <strong>1 Restricted Leave per semester</strong>. 
+              Your quota will reset at the start of the next semester.
+            </p>
+
+            <button
+              onClick={() => setShowRestrictedLimitModal(false)}
+              className="mt-6 w-full px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition-all shadow-sm"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };

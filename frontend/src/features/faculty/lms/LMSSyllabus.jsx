@@ -196,9 +196,9 @@ const CO_PO_BADGE_STYLES = {
   'H': 'bg-green-100 text-green-700 border border-green-200',
 };
 
-const getLMSCoPOConfig = (courseType) => ({
-  coCount: courseType === 'lab' ? 6 : 10,
-  psoCount: courseType === 'lab' ? 2 : 3,
+const getLMSCoPOConfig = () => ({
+  coCount: 5,
+  psoCount: 2,
 });
 
 const parseLMSMappingJSON = (raw) => {
@@ -208,7 +208,34 @@ const parseLMSMappingJSON = (raw) => {
 };
 
 /** Read-only view of CO-PO table (for faculty view mode). */
-const LMSCoPOViewTable = ({ mapping, courseType }) => {
+const getLMSUnitAndKLevel = (i, courseType, coCount, kLevels) => {
+  let unitNo;
+  if (courseType === 'lab') {
+    unitNo = i + 1;
+  } else {
+    if (coCount <= 5) {
+      unitNo = i + 1;
+    } else {
+      unitNo = Math.floor(i / 2) + 1;
+    }
+  }
+  const unitKey = `Unit-${unitNo}`;
+  const val = kLevels?.[unitKey];
+  let kDisplay = '—';
+  if (val) {
+    if (Array.isArray(val)) {
+      kDisplay = val.join(', ');
+    } else if (typeof val === 'object') {
+      kDisplay = JSON.stringify(val);
+    } else {
+      kDisplay = val;
+    }
+  }
+  return { unitNo, kDisplay };
+};
+
+/** Read-only view of CO-PO table (for faculty view mode). */
+const LMSCoPOViewTable = ({ mapping, courseType, kLevels }) => {
   const { coCount, psoCount } = getLMSCoPOConfig(courseType);
   const coRows    = Array.from({ length: coCount },  (_, i) => `CO-${i + 1}`);
   const poColumns = Array.from({ length: 12 },      (_, i) => `PO-${i + 1}`);
@@ -217,10 +244,12 @@ const LMSCoPOViewTable = ({ mapping, courseType }) => {
 
   return (
     <div className="overflow-x-auto border border-gray-200 rounded-xl">
-      <table className="text-[11px] border-collapse" style={{ minWidth: '680px' }}>
+      <table className="text-[11px] border-collapse" style={{ minWidth: '780px' }}>
         <thead>
           <tr>
-            <th className="sticky left-0 z-20 bg-gray-50 border border-gray-200 px-3 py-2" rowSpan={2} />
+            <th className="sticky left-0 z-20 bg-gray-50 border border-gray-200 px-3 py-2 text-center font-bold text-gray-700" rowSpan={2}>CO</th>
+            <th className="bg-gray-50 border border-gray-200 px-3 py-2 text-center font-bold text-gray-700" rowSpan={2}>Unit</th>
+            <th className="bg-gray-50 border border-gray-200 px-3 py-2 text-center font-bold text-gray-700" rowSpan={2}>K-Level</th>
             <th colSpan={12} className="bg-indigo-50 text-indigo-800 font-bold px-3 py-2 border border-gray-200 text-center">
               Programme Outcomes (POs)
             </th>
@@ -238,30 +267,35 @@ const LMSCoPOViewTable = ({ mapping, courseType }) => {
           </tr>
         </thead>
         <tbody>
-          {coRows.map(co => (
-            <tr key={co} className="hover:bg-gray-50/50">
-              <td className="sticky left-0 z-10 bg-white border border-gray-200 px-3 py-1.5 font-bold text-gray-700 whitespace-nowrap">{co}</td>
-              {allCols.map(col => {
-                const val = mapping?.[co]?.[col] || '';
-                return (
-                  <td key={col} className="border border-gray-200 px-1 py-1 text-center">
-                    {val ? (
-                      <span className={`inline-flex items-center justify-center w-6 h-5 rounded text-[11px] font-bold ${CO_PO_BADGE_STYLES[val] || ''}`}>{val}</span>
-                    ) : (
-                      <span className="text-gray-200">–</span>
-                    )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+          {coRows.map((co, i) => {
+            const { unitNo, kDisplay } = getLMSUnitAndKLevel(i, courseType, coCount, kLevels);
+            return (
+              <tr key={co} className="hover:bg-gray-50/50">
+                <td className="sticky left-0 z-10 bg-white border border-gray-200 px-3 py-1.5 font-bold text-gray-700 whitespace-nowrap text-center">{co}</td>
+                <td className="border border-gray-200 px-3 py-1.5 text-gray-600 whitespace-nowrap text-center">Unit {unitNo}</td>
+                <td className="border border-gray-200 px-3 py-1.5 font-semibold text-gray-700 whitespace-nowrap text-center">{kDisplay}</td>
+                {allCols.map(col => {
+                  const val = mapping?.[co]?.[col] || '';
+                  return (
+                    <td key={col} className="border border-gray-200 px-1 py-1 text-center">
+                      {val ? (
+                        <span className={`inline-flex items-center justify-center w-6 h-5 rounded text-[11px] font-bold ${CO_PO_BADGE_STYLES[val] || ''}`}>{val}</span>
+                      ) : (
+                        <span className="text-gray-200">–</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 };
 /** Editable CO-PO table with dropdowns (for faculty edit mode). */
-const LMSCoPOEditTable = ({ mapping, courseType, onChange }) => {
+const LMSCoPOEditTable = ({ mapping, courseType, onChange, kLevels }) => {
   const { coCount, psoCount } = getLMSCoPOConfig(courseType);
   const coRows    = Array.from({ length: coCount },  (_, i) => `CO-${i + 1}`);
   const poColumns = Array.from({ length: 12 },      (_, i) => `PO-${i + 1}`);
@@ -294,10 +328,12 @@ const LMSCoPOEditTable = ({ mapping, courseType, onChange }) => {
 
   return (
     <div className="overflow-x-auto border border-indigo-200 rounded-xl">
-      <table className="text-[11px] border-collapse" style={{ minWidth: '680px' }}>
+      <table className="text-[11px] border-collapse" style={{ minWidth: '780px' }}>
         <thead>
           <tr>
-            <th className="sticky left-0 z-20 bg-indigo-50 border border-indigo-200 px-3 py-2" rowSpan={2} />
+            <th className="sticky left-0 z-20 bg-indigo-50 border border-indigo-200 px-3 py-2 text-center font-bold text-indigo-900" rowSpan={2}>CO</th>
+            <th className="bg-indigo-50 border border-indigo-200 px-3 py-2 text-center font-bold text-indigo-900" rowSpan={2}>Unit</th>
+            <th className="bg-indigo-50 border border-indigo-200 px-3 py-2 text-center font-bold text-indigo-900" rowSpan={2}>K-Level</th>
             <th colSpan={12} className="bg-indigo-100 text-indigo-900 font-bold px-3 py-2 border border-indigo-200 text-center">
               Programme Outcomes (POs)
             </th>
@@ -315,30 +351,35 @@ const LMSCoPOEditTable = ({ mapping, courseType, onChange }) => {
           </tr>
         </thead>
         <tbody>
-          {coRows.map(co => (
-            <tr key={co} className="hover:bg-indigo-50/30">
-              <td className="sticky left-0 z-10 bg-white border border-indigo-200 px-3 py-1 font-bold text-gray-700 whitespace-nowrap">{co}</td>
-              {allCols.map(col => {
-                const val = mapping?.[co]?.[col] || '';
-                return (
-                  <td key={col} className="border border-indigo-200 px-0.5 py-0.5">
-                    <select
-                      value={val}
-                      onChange={(e) => handleCell(co, col, e.target.value)}
-                      className={selectCls(val)}
-                      style={{ minWidth: '38px' }}
-                    >
-                      <option value="">-</option>
-                      <option value="N">N</option>
-                      <option value="L">L</option>
-                      <option value="M">M</option>
-                      <option value="H">H</option>
-                    </select>
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+          {coRows.map((co, i) => {
+            const { unitNo, kDisplay } = getLMSUnitAndKLevel(i, courseType, coCount, kLevels);
+            return (
+              <tr key={co} className="hover:bg-indigo-50/30">
+                <td className="sticky left-0 z-10 bg-white border border-indigo-200 px-3 py-1 font-bold text-gray-700 whitespace-nowrap text-center">{co}</td>
+                <td className="border border-indigo-200 px-3 py-1 text-gray-600 whitespace-nowrap text-center">Unit {unitNo}</td>
+                <td className="border border-indigo-200 px-3 py-1 font-semibold text-gray-700 whitespace-nowrap text-center">{kDisplay}</td>
+                {allCols.map(col => {
+                  const val = mapping?.[co]?.[col] || '';
+                  return (
+                    <td key={col} className="border border-indigo-200 px-0.5 py-0.5">
+                      <select
+                        value={val}
+                        onChange={(e) => handleCell(co, col, e.target.value)}
+                        className={selectCls(val)}
+                        style={{ minWidth: '38px' }}
+                      >
+                        <option value="">-</option>
+                        <option value="N">N</option>
+                        <option value="L">L</option>
+                        <option value="M">M</option>
+                        <option value="H">H</option>
+                      </select>
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -350,9 +391,11 @@ export const LMSSyllabus = () => {
   const { assignmentId } = useParams();
   
   const [topics, setTopics] = useState([]);
+  const [units, setUnits] = useState([]);
   const [courseDetails, setCourseDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingUnits, setSavingUnits] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
@@ -380,9 +423,12 @@ export const LMSSyllabus = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`/api/course-plan/${assignmentId}`);
+      const response = await axios.get(`/api/course-plan/${assignmentId}?t=${Date.now()}`);
       const fetchedTopics = response.data.topics || [];
       setTopics(fetchedTopics);
+
+      const unitsRes = await axios.get(`/api/course-plan/${assignmentId}/units`);
+      setUnits(unitsRes.data || []);
     } catch (err) {
       console.error("Failed to fetch course plan:", err);
       setError("Failed to load course plan. Please try again.");
@@ -393,7 +439,7 @@ export const LMSSyllabus = () => {
 
   const fetchCourseDetails = async () => {
     try {
-      const response = await axios.get('/api/faculty/me/courses');
+      const response = await axios.get(`/api/faculty/me/courses?t=${Date.now()}`);
       const currentCourse = response.data.find(c => c.id.toString() === assignmentId);
       if (currentCourse) {
         setCourseDetails(currentCourse);
@@ -509,6 +555,28 @@ export const LMSSyllabus = () => {
       return false;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveUnits = async () => {
+    setSavingUnits(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const payload = units.map(u => ({
+        unit_number: u.unit_number,
+        title: u.title || "",
+        is_completed: u.is_completed || false
+      }));
+      const res = await axios.put(`/api/course-plan/${assignmentId}/units`, payload);
+      setUnits(res.data);
+      setSuccessMessage("Units progress saved successfully!");
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error("Failed to save units:", err);
+      setError("Failed to save units progress. Please try again.");
+    } finally {
+      setSavingUnits(false);
     }
   };
 
@@ -691,6 +759,69 @@ export const LMSSyllabus = () => {
           </div>
 
         </div>
+        
+        {/* Unit Tracker UI */}
+        <div className="max-w-6xl mt-12 bg-white rounded-2xl border-2 border-gray-100 shadow-sm p-6 relative overflow-hidden">
+          <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Syllabus Unit Tracker</h3>
+              <p className="text-sm text-gray-500 font-medium">Define your units and mark them as completed to update the Student Dashboard progress.</p>
+            </div>
+            <button
+              onClick={handleSaveUnits}
+              disabled={savingUnits}
+              className="bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" /> {savingUnits ? "Saving..." : "Save Units"}
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {units.map((unit, index) => (
+              <div key={unit.unit_number} className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-200 text-gray-700 font-bold text-sm shrink-0">
+                  {unit.unit_number}
+                </div>
+                
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder={`Enter Unit ${unit.unit_number} Name (e.g. Introduction & Basic Concepts)`}
+                    value={unit.title || ''}
+                    onChange={(e) => {
+                      const newUnits = [...units];
+                      newUnits[index].title = e.target.value;
+                      setUnits(newUnits);
+                    }}
+                    className={`w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all ${unit.is_completed ? 'line-through text-gray-400' : 'text-gray-800'}`}
+                  />
+                </div>
+                
+                <button
+                  onClick={() => {
+                    const newUnits = [...units];
+                    newUnits[index].is_completed = !newUnits[index].is_completed;
+                    setUnits(newUnits);
+                  }}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold border transition-all shrink-0 ${
+                    unit.is_completed 
+                      ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
+                      : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                  }`}
+                >
+                  {unit.is_completed ? <CheckCircle2 className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-gray-300" />}
+                  {unit.is_completed ? 'Completed' : 'Mark Complete'}
+                </button>
+              </div>
+            ))}
+            
+            {units.length === 0 && (
+              <div className="text-center py-6 text-gray-500 text-sm font-medium">
+                No units generated.
+              </div>
+            )}
+          </div>
+        </div>
 
       </div>
     );
@@ -769,25 +900,31 @@ export const LMSSyllabus = () => {
               </div>
 
               <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-2">Syllabus</h3>
+                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-2">
+                  {isLab ? 'List of Experiments' : 'Syllabus'}
+                </h3>
                 <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
-                  {course?.syllabus || <span className="text-gray-400 italic">No syllabus defined.</span>}
+                  {course?.syllabus || <span className="text-gray-400 italic">{isLab ? 'No experiments defined.' : 'No syllabus defined.'}</span>}
                 </div>
               </div>
 
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-2">Textbooks</h3>
-                <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
-                  {course?.textbooks || <span className="text-gray-400 italic">No textbooks defined.</span>}
+              {!isLab && (
+                <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
+                  <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-2">Textbooks</h3>
+                  <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                    {course?.textbooks || <span className="text-gray-400 italic">No textbooks defined.</span>}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-2">References</h3>
-                <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
-                  {course?.references || <span className="text-gray-400 italic">No references defined.</span>}
+              {!isLab && (
+                <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
+                  <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-2">References</h3>
+                  <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                    {course?.references || <span className="text-gray-400 italic">No references defined.</span>}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* CO–PO/PSO Mapping – view mode */}
               <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
@@ -808,6 +945,7 @@ export const LMSSyllabus = () => {
                 <LMSCoPOViewTable
                   mapping={parseLMSMappingJSON(course?.co_po_mapping)}
                   courseType={course?.course_type}
+                  kLevels={parseLMSMappingJSON(course?.co_k_levels)}
                 />
               </div>
             </div>
@@ -851,37 +989,43 @@ export const LMSSyllabus = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Syllabus</label>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                {isLab ? 'List of Experiments' : 'Syllabus'}
+              </label>
               <textarea
                 rows={6}
                 value={detailsForm.syllabus}
                 onChange={(e) => setDetailsForm({ ...detailsForm, syllabus: e.target.value })}
-                placeholder="Enter syllabus details..."
+                placeholder={isLab ? 'Enter list of experiments...' : 'Enter syllabus details...'}
                 className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[120px]"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Textbooks</label>
-              <textarea
-                rows={4}
-                value={detailsForm.textbooks}
-                onChange={(e) => setDetailsForm({ ...detailsForm, textbooks: e.target.value })}
-                placeholder="Enter textbooks..."
-                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
-              />
-            </div>
+            {!isLab && (
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Textbooks</label>
+                <textarea
+                  rows={4}
+                  value={detailsForm.textbooks}
+                  onChange={(e) => setDetailsForm({ ...detailsForm, textbooks: e.target.value })}
+                  placeholder="Enter textbooks..."
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
+                />
+              </div>
+            )}
 
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">References</label>
-              <textarea
-                rows={4}
-                value={detailsForm.references}
-                onChange={(e) => setDetailsForm({ ...detailsForm, references: e.target.value })}
-                placeholder="Enter reference books..."
-                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
-              />
-            </div>
+            {!isLab && (
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">References</label>
+                <textarea
+                  rows={4}
+                  value={detailsForm.references}
+                  onChange={(e) => setDetailsForm({ ...detailsForm, references: e.target.value })}
+                  placeholder="Enter reference books..."
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
+                />
+              </div>
+            )}
 
             {/* CO–PO/PSO Mapping – edit mode */}
             <div className="border border-indigo-100 rounded-2xl p-5 bg-indigo-50/30">
@@ -907,6 +1051,7 @@ export const LMSSyllabus = () => {
                 mapping={detailsForm.co_po_mapping}
                 courseType={course?.course_type}
                 onChange={(updated) => setDetailsForm({ ...detailsForm, co_po_mapping: updated })}
+                kLevels={parseLMSMappingJSON(courseDetails?.course?.co_k_levels)}
               />
             </div>
 

@@ -15,6 +15,7 @@ from app.models.alumni import Alumni
 from app.models.discipline import DisciplineRecord
 from app.models.late import LateRecord
 from app.models.gatepass import GatePass, GatePassStatus
+from app.models.notification_view import NotificationView
 
 # Academic
 from app.models.academic import (
@@ -34,11 +35,13 @@ from app.models.leave import (
     FacultyLeaveRequest, FacultyDutyArrangement, FacultyLeaveBalance,
     StudentLeaveRequest, StudentLeaveStatus,
     LeaveStatus, ArrangementStatus,
+    RestrictedHoliday,
 )
 from app.models.grade import Grade, GradeType, AssignmentGrade, Seminar
 from app.models.lms import LMSResource, ResourceType, Announcement, TimetableSlot, DayOfWeek
 from app.models.course_plan import CoursePlan, CoursePlanTopic
 from app.models.messaging import Conversation, Message
+from app.models.notification_view import NotificationView
 
 __all__ = [
     "User", "UserRole",
@@ -59,6 +62,7 @@ __all__ = [
     "Attendance", "AttendanceStatus", "Holiday",
     "FacultyLeaveRequest", "FacultyDutyArrangement", "FacultyLeaveBalance",
     "StudentLeaveRequest", "StudentLeaveStatus",
+    "RestrictedHoliday",
     "LeaveStatus", "ArrangementStatus",
     "Grade", "GradeType", "AssignmentGrade", "Seminar",
     "LMSResource", "ResourceType",
@@ -66,4 +70,5 @@ __all__ = [
     "TimetableSlot", "DayOfWeek",
     "CoursePlan", "CoursePlanTopic",
     "Conversation", "Message",
+    "NotificationView",
 ]

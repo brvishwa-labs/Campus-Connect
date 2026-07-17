@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 import csv
 import io
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import date as date_type
@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.models.faculty import Faculty
 from app.models.user import User
 from app.models.department import Department
-from app.models.academic import CourseAssignment, Section, MentorAssignment
+from app.models.academic import CourseAssignment, Section, MentorAssignment, Enrollment
 from app.models.attendance import Attendance, AttendanceStatus
 from app.models.student import Student
 from app.models.grade import Grade, GradeType, GRADE_MAX_MARKS, GRADE_PASS_MARKS, AssignmentGrade, Seminar
@@ -24,6 +24,15 @@ from app.schemas.faculty import (
     AnnouncementCreate, AnnouncementResponse,
 )
 from app.core.security import get_current_active_user, get_password_hash
+
+def get_student_filter_for_assignment(assignment):
+    from app.models.academic import CourseType
+    if assignment.course and assignment.course.course_type in [CourseType.OPEN_ELECTIVE, CourseType.ELECTIVE]:
+        return Student.enrollments.any(Enrollment.section_id == assignment.section_id)
+    return or_(
+        Student.section_id == assignment.section_id, 
+        Student.enrollments.any(Enrollment.section_id == assignment.section_id)
+    )
 
 router = APIRouter()
 
@@ -80,7 +89,7 @@ def get_faculty_dashboard(
     for assignment in assignments:
         if assignment.section:
             student_count = db.query(Student).filter(
-                Student.section_id == assignment.section_id,
+                get_student_filter_for_assignment(assignment),
                 Student.is_active == True
             ).count()
             total_students += student_count
@@ -385,7 +394,7 @@ def get_faculty_dashboard(
     for assignment in assignments:
         if assignment.section:
             students_in_section = db.query(Student).filter(
-                Student.section_id == assignment.section_id,
+                get_student_filter_for_assignment(assignment),
                 Student.is_active == True
             ).count()
             
@@ -467,7 +476,7 @@ def get_faculty_dashboard(
     for assignment in assignments:
         if assignment.section:
             students = db.query(Student).filter(
-                Student.section_id == assignment.section_id,
+                get_student_filter_for_assignment(assignment),
                 Student.is_active == True
             ).limit(50).all()  # Limit for performance
             
@@ -667,9 +676,30 @@ def get_my_courses(
             "semester": a.semester,
             "is_active": a.is_active,
             "created_at": a.created_at.isoformat() if a.created_at else None,
-            "course": {"id": a.course.id, "code": a.course.code, "name": a.course.name,
-                       "credits": a.course.credits, "course_type": a.course.course_type} if a.course else None,
+            "course": {
+                "id": a.course.id,
+                "code": a.course.code,
+                "name": a.course.name,
+                "credits": a.course.credits,
+                "course_type": a.course.course_type,
+                "short_name": a.course.short_name,
+                "department_id": a.course.department_id,
+                "syllabus": a.course.syllabus,
+                "objectives": a.course.objectives,
+                "outcomes": a.course.outcomes,
+                "textbooks": a.course.textbooks,
+                "references": a.course.references,
+                "prerequisites": a.course.prerequisites,
+                "co_po_mapping": a.course.co_po_mapping,
+                "co_k_levels": a.course.co_k_levels,
+            } if a.course else None,
             "section": {"id": a.section.id, "name": a.section.name, "year": a.section.year} if a.section else None,
+            "faculty": {
+                "id": a.faculty.id,
+                "first_name": a.faculty.first_name,
+                "last_name": a.faculty.last_name,
+                "designation": a.faculty.designation,
+            } if a.faculty else None,
             "is_substitute": False,
             "original_faculty_name": None,
         })
@@ -730,11 +760,31 @@ def get_my_courses(
             "semester": own_assignment.semester,
             "is_active": own_assignment.is_active,
             "created_at": own_assignment.created_at.isoformat() if own_assignment.created_at else None,
-            "course": {"id": own_assignment.course.id, "code": own_assignment.course.code,
-                       "name": own_assignment.course.name, "credits": own_assignment.course.credits,
-                       "course_type": own_assignment.course.course_type} if own_assignment.course else None,
+            "course": {
+                "id": own_assignment.course.id,
+                "code": own_assignment.course.code,
+                "name": own_assignment.course.name,
+                "credits": own_assignment.course.credits,
+                "course_type": own_assignment.course.course_type,
+                "short_name": own_assignment.course.short_name,
+                "department_id": own_assignment.course.department_id,
+                "syllabus": own_assignment.course.syllabus,
+                "objectives": own_assignment.course.objectives,
+                "outcomes": own_assignment.course.outcomes,
+                "textbooks": own_assignment.course.textbooks,
+                "references": own_assignment.course.references,
+                "prerequisites": own_assignment.course.prerequisites,
+                "co_po_mapping": own_assignment.course.co_po_mapping,
+                "co_k_levels": own_assignment.course.co_k_levels,
+            } if own_assignment.course else None,
             "section": {"id": own_assignment.section.id, "name": own_assignment.section.name,
                         "year": own_assignment.section.year} if own_assignment.section else None,
+            "faculty": {
+                "id": own_assignment.faculty.id,
+                "first_name": own_assignment.faculty.first_name,
+                "last_name": own_assignment.faculty.last_name,
+                "designation": own_assignment.faculty.designation,
+            } if own_assignment.faculty else None,
             "is_substitute": True,
             "original_faculty_name": orig_name,
         })
@@ -1346,7 +1396,7 @@ def get_attendance_slots(
     # Roster/section is always the caller's OWN subject assignment's section.
     if assignment.is_active:
         students = db.query(Student).filter(
-            Student.section_id == assignment.section_id,
+            get_student_filter_for_assignment(assignment),
             Student.is_active == True
         ).order_by(Student.register_number).all()
     else:
@@ -1509,7 +1559,7 @@ def save_course_attendance(
     topic_id = payload.get("topic_id")
     if topic_id:
         from app.models.course_plan import CoursePlanTopic
-        from sqlalchemy import func as sa_func
+        from sqlalchemy import func, or_ as sa_func
         topic = db.query(CoursePlanTopic).filter(CoursePlanTopic.id == int(topic_id)).first()
         if topic:
             topic.actual_date = today
@@ -1552,7 +1602,7 @@ def get_attendance_history(
     # All students in section
     if assignment.is_active:
         students = db.query(Student).filter(
-            Student.section_id == assignment.section_id,
+            get_student_filter_for_assignment(assignment),
             Student.is_active == True
         ).order_by(Student.register_number).all()
     else:
@@ -2058,7 +2108,7 @@ def get_gradebook(
 
     # Student roster via section
     students = db.query(Student).filter(
-        Student.section_id == assignment.section_id,
+        get_student_filter_for_assignment(assignment),
         Student.is_active == True
     ).order_by(func.lower(Student.first_name), func.lower(Student.last_name)).all()
 
@@ -2096,6 +2146,7 @@ def get_gradebook(
             "remarks": g.remarks if g else "",
             "is_published": g.is_published if g else False,
             "retest_eligible": retest_eligible,
+            "test_date": g.test_date.isoformat() if g and g.test_date else None,
         })
 
     return {
@@ -2108,6 +2159,7 @@ def get_gradebook(
         "max_marks": max_marks,
         "pass_mark": pass_mark,
         "is_published": all(g.is_published for g in existing_grades) if existing_grades else False,
+        "test_date": existing_grades[0].test_date.isoformat() if existing_grades and existing_grades[0].test_date else None,
         "roster": roster,
     }
 
@@ -2137,6 +2189,15 @@ def save_grades(
 
     max_marks = float(GRADE_MAX_MARKS.get(gt, 100))
     entries = payload.get("entries", [])
+    test_date_str = payload.get("test_date")  # Optional ISO date string YYYY-MM-DD
+
+    from datetime import date as date_type_import
+    test_date = None
+    if test_date_str:
+        try:
+            test_date = date_type_import.fromisoformat(test_date_str)
+        except (ValueError, AttributeError):
+            test_date = None
 
     saved = 0
     for entry in entries:
@@ -2172,6 +2233,8 @@ def save_grades(
             existing.max_marks = max_marks
             existing.remarks = remarks
             existing.graded_by_id = faculty.id
+            if test_date is not None:
+                existing.test_date = test_date
         else:
             db.add(Grade(
                 student_id=student_id,
@@ -2185,6 +2248,7 @@ def save_grades(
                 graded_by_id=faculty.id,
                 remarks=remarks,
                 is_published=False,
+                test_date=test_date,
             ))
         saved += 1
 
@@ -2250,7 +2314,7 @@ def export_grades_csv(
         raise HTTPException(status_code=400, detail=f"Invalid grade_type '{grade_type}'")
 
     students = db.query(Student).filter(
-        Student.section_id == assignment.section_id,
+        get_student_filter_for_assignment(assignment),
         Student.is_active == True
     ).order_by(Student.register_number).all()
 
@@ -2569,7 +2633,7 @@ def get_assignment_grades(
 
     # Roster of active students in the section
     students = db.query(Student).filter(
-        Student.section_id == course_assignment.section_id,
+        or_(Student.section_id == course_assignment.section_id, Student.enrollments.any(Enrollment.section_id == course_assignment.section_id)),
         Student.is_active == True
     ).order_by(func.lower(Student.first_name), func.lower(Student.last_name)).all()
 
@@ -2824,6 +2888,12 @@ class SeminarRosterEntry(BaseModel):
     seminar_topic: Optional[str] = None
     marks_obtained: Optional[float] = None
     max_marks: float = 100.0
+    rubric_content_relevance:   Optional[float] = None
+    rubric_presentation_skills: Optional[float] = None
+    rubric_resources_used:      Optional[float] = None
+    rubric_time_management:     Optional[float] = None
+    rubric_question_handling:   Optional[float] = None
+    rubric_team_coordination:   Optional[float] = None
 
 class SeminarRosterUpdateRequest(BaseModel):
     entries: List[SeminarRosterEntry]
@@ -2852,7 +2922,7 @@ def get_seminar_roster(
         
     # Get students in the section
     students = db.query(Student).filter(
-        Student.section_id == assignment.section_id,
+        get_student_filter_for_assignment(assignment),
         Student.is_active == True
     ).order_by(func.lower(Student.first_name), func.lower(Student.last_name)).all()
     
@@ -2874,6 +2944,12 @@ def get_seminar_roster(
             "max_marks": float(sem.max_marks) if sem else 100.0,
             "is_topic_published": sem.is_topic_published if sem else False,
             "is_marks_published": sem.is_marks_published if sem else False,
+            "rubric_content_relevance":   float(sem.rubric_content_relevance) if (sem and sem.rubric_content_relevance is not None) else None,
+            "rubric_presentation_skills": float(sem.rubric_presentation_skills) if (sem and sem.rubric_presentation_skills is not None) else None,
+            "rubric_resources_used":      float(sem.rubric_resources_used) if (sem and sem.rubric_resources_used is not None) else None,
+            "rubric_time_management":     float(sem.rubric_time_management) if (sem and sem.rubric_time_management is not None) else None,
+            "rubric_question_handling":   float(sem.rubric_question_handling) if (sem and sem.rubric_question_handling is not None) else None,
+            "rubric_team_coordination":   float(sem.rubric_team_coordination) if (sem and sem.rubric_team_coordination is not None) else None,
         })
         
     return {"roster": roster}
@@ -2923,6 +2999,12 @@ def save_seminar_draft(
                 seminar_topic=entry.seminar_topic,
                 marks_obtained=entry.marks_obtained,
                 max_marks=entry.max_marks,
+                rubric_content_relevance=entry.rubric_content_relevance,
+                rubric_presentation_skills=entry.rubric_presentation_skills,
+                rubric_resources_used=entry.rubric_resources_used,
+                rubric_time_management=entry.rubric_time_management,
+                rubric_question_handling=entry.rubric_question_handling,
+                rubric_team_coordination=entry.rubric_team_coordination,
             )
             db.add(sem)
         else:
@@ -2930,6 +3012,12 @@ def save_seminar_draft(
             sem.seminar_topic = entry.seminar_topic
             sem.marks_obtained = entry.marks_obtained
             sem.max_marks = entry.max_marks
+            sem.rubric_content_relevance = entry.rubric_content_relevance
+            sem.rubric_presentation_skills = entry.rubric_presentation_skills
+            sem.rubric_resources_used = entry.rubric_resources_used
+            sem.rubric_time_management = entry.rubric_time_management
+            sem.rubric_question_handling = entry.rubric_question_handling
+            sem.rubric_team_coordination = entry.rubric_team_coordination
             
     db.commit()
     return {"message": "Seminar details saved successfully"}
@@ -3110,7 +3198,7 @@ def get_lab_marks(
 
     # All enrolled students for this course
     students = db.query(Student).filter(
-        Student.section_id == assignment.section_id,
+        get_student_filter_for_assignment(assignment),
         Student.is_active == True
     ).order_by(Student.register_number).all()
 

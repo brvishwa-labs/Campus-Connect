@@ -37,14 +37,16 @@ export const LeaveRequests = () => {
       case 'pending_dean':
         return <span className="bg-yellow-100 text-yellow-700 px-2.5 py-0.5 rounded-full text-xs font-bold">PENDING DEAN</span>;
       case 'pending_om':
-        return <span className="bg-yellow-100 text-yellow-700 px-2.5 py-0.5 rounded-full text-xs font-bold">PENDING PRINCIPAL</span>;
+        return <span className="bg-orange-100 text-orange-700 px-2.5 py-0.5 rounded-full text-xs font-bold">PENDING OM</span>;
+      case 'pending_principal':
+        return <span className="bg-pink-100 text-pink-700 px-2.5 py-0.5 rounded-full text-xs font-bold">PENDING PRINCIPAL</span>;
       default:
         return <span className="bg-yellow-100 text-yellow-700 px-2.5 py-0.5 rounded-full text-xs font-bold">PENDING</span>;
     }
   };
 
   const getIcon = (type) => {
-    const t = type.toLowerCase();
+    const t = type?.toLowerCase() || '';
     if (t.includes('casual')) return <Calendar className="w-5 h-5 text-gray-500" />;
     if (t.includes('sick') || t.includes('medical')) return <FileText className="w-5 h-5 text-gray-500" />;
     if (t.includes('vacation')) return <Plane className="w-5 h-5 text-gray-500" />;
@@ -54,7 +56,7 @@ export const LeaveRequests = () => {
 
   const filteredRequests = requests.filter(req => {
     if (filter === 'All') return true;
-    if (filter === 'Pending') return req.status.includes('pending');
+    if (filter === 'Pending') return req?.status?.includes('pending');
     if (filter === 'Approved') return req.status === 'approved';
     if (filter === 'Rejected') return req.status === 'rejected';
     return true;
@@ -69,10 +71,16 @@ export const LeaveRequests = () => {
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Link 
+            to="/faculty/compensation-registry" 
+            className="flex-1 sm:flex-none text-center bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold py-2 px-4 rounded-xl text-sm transition-colors shadow-sm"
+          >
+            Compensation Registry
+          </Link>
+          <Link 
             to="/faculty/leave/substitutes" 
             className="flex-1 sm:flex-none text-center bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold py-2 px-4 rounded-xl text-sm transition-colors shadow-sm"
           >
-            Substitute Approvals
+            Peer Approvals
           </Link>
           <Link 
             to="/faculty/leave/apply" 
