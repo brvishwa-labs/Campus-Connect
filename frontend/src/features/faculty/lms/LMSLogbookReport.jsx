@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -68,14 +68,17 @@ const K_LABELS = {
   K4: 'Analyze', K5: 'Evaluate', K6: 'Create',
 };
 
-// ── Section header component ──────────────────────────────────────────────────
-const SectionHeader = ({ title }) => (
-  <div style={{ borderBottom: '2px solid #1e293b', paddingBottom: '6px', marginBottom: '14px', marginTop: '28px', pageBreakInside: 'avoid' }}>
-    <h2 style={{ fontFamily: 'Times New Roman, serif', fontSize: '13pt', fontWeight: 'bold', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
-      {title}
-    </h2>
-  </div>
-);
+const SectionHeader = ({ title }) => {
+  const upper = (title || '').toUpperCase();
+  const formatted = upper.replace(/\bPOS\b/g, 'POs').replace(/\bPSOS\b/g, 'PSOs');
+  return (
+    <div style={{ borderBottom: '2px solid #1e293b', paddingBottom: '6px', marginBottom: '14px', marginTop: '28px', pageBreakInside: 'avoid' }}>
+      <h2 style={{ fontFamily: 'Times New Roman, serif', fontSize: '13pt', fontWeight: 'bold', color: '#1e293b', letterSpacing: '0.04em', margin: 0 }}>
+        {formatted}
+      </h2>
+    </div>
+  );
+};
 
 // ── Report styles ─────────────────────────────────────────────────────────────
 const REPORT_STYLES = `
@@ -95,45 +98,35 @@ const REPORT_STYLES = `
   .layout-sidebar::-webkit-scrollbar-track { background: transparent; }
   .layout-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
 
-  /* Off-screen canvas layout style for printing view mode contents accurately */
-  .printable-area-hidden-screen {
-    position: absolute !important;
-    left: -9999mm !important;
-    top: -9999mm !important;
-    width: 210mm !important;
-    display: block !important;
-    z-index: -1000 !important;
-  }
-
-  /* ── PRINT: only .printable-area is rendered; everything else is hidden ── */
+  /* ── PRINT: show only .lms-print-output, hide everything else ── */
   @media print {
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+    /* Hide everything in body first */
     body > * { display: none !important; }
     #root { display: block !important; }
-    
-    /* Hide all editor UI elements, sidebars, and navbars */
+
+    /* Hide all UI chrome — order matters: specific overrides after general */
     .print-ui-hide { display: none !important; }
-    
-    /* Display the printable area correctly */
-    .printable-area {
+    .layout-sidebar { display: none !important; }
+    .layout-scroll-panel { display: none !important; }
+
+    /* The dedicated print output container — always in DOM, always visible on print */
+    .lms-print-output {
       display: block !important;
       position: static !important;
       left: auto !important;
       top: auto !important;
-      width: 210mm !important;
-    }
-    
-    .printable-area-hidden-screen {
-      position: static !important;
-      left: auto !important;
-      top: auto !important;
-      display: block !important;
-      width: 210mm !important;
+      width: auto !important;
+      height: auto !important;
+      overflow: visible !important;
+      background: white !important;
     }
 
-    .printable-area .a4-print-page {
+    .lms-print-output .a4-print-page {
+      display: block !important;
       width: 210mm !important;
-      height: 297mm !important; /* STRICT A4 HEIGHT */
+      min-height: 297mm !important;
       padding: 15mm !important;
       margin: 0 !important;
       box-shadow: none !important;
@@ -143,17 +136,21 @@ const REPORT_STYLES = `
       box-sizing: border-box !important;
       background: white !important;
       overflow: hidden !important;
+      position: relative !important;
     }
-    
-    .printable-area .a4-print-page:last-child {
+
+    .lms-print-output .a4-print-page:last-child {
       page-break-after: auto !important;
       break-after: auto !important;
     }
     
-    .printable-area .a4-page-number {
+    .lms-print-output .a4-page-number {
       display: block !important;
     }
-    
+
+    /* Hide screen-only decorators inside print pages */
+    .lms-print-output .print-ui-hide { display: none !important; }
+
     @page { size: A4; margin: 0; }
   }
 `;
@@ -196,7 +193,7 @@ const DEFAULT_SECTION_IDS = [
 ];
 
 const LAB_SECTION_IDS = [
-  'cover', 'course-objectives', 'course-outcomes',
+  'cover', 'course-prerequisites', 'course-objectives', 'course-outcomes',
   'list-of-experiments', 'po-co-mapping',
   'practical-schedule', 'attendance', 'lab-marks', 'footer',
 ];
@@ -221,7 +218,7 @@ const SECTION_LABELS = {
   'psos':              '5. Programme Specific Outcomes (PSOs)',
   'course-objectives': '6. Course Objectives',
   'course-outcomes':   '7. Course Outcomes',
-  'po-co-mapping':     '8. PO\u2013CO Mapping',
+  'po-co-mapping':     '8. CO\u2013PO Mapping',
   'syllabus':          '9. Syllabus',
   'textbooks':         '10. Textbooks',
   'references':        '11. References',
@@ -235,13 +232,14 @@ const SECTION_LABELS = {
 
 const LAB_SECTION_LABELS = {
   'cover':              'Cover / Header',
-  'course-objectives':  '1. Course Objectives',
-  'course-outcomes':    '2. Course Outcomes',
-  'list-of-experiments':'3. List of Experiments',
-  'po-co-mapping':      '4. CO\u2013PO Mapping',
-  'practical-schedule': '5. Practical Schedule',
-  'attendance':         '6. Attendance',
-  'lab-marks':          '7. Lab Mark Entry',
+  'course-prerequisites':'1. Course Prerequisites',
+  'course-objectives':  '2. Course Objectives',
+  'course-outcomes':    '3. Course Outcomes',
+  'list-of-experiments':'4. List of Experiments',
+  'po-co-mapping':      '5. CO-PO Mapping',
+  'practical-schedule': '6. Practical Schedule',
+  'attendance':         '7. Student Attendance Summary',
+  'lab-marks':          '8. Lab Mark Entry',
   'footer':             'Signatures Footer',
 };
 
@@ -273,26 +271,8 @@ export const LMSLogbookReport = () => {
   const [isLab, setIsLab] = useState(false);
   const [labMarks, setLabMarks] = useState([]);
 
-  const [sectionOrder, setSectionOrder] = useState(() => {
-    try {
-      const saved = localStorage.getItem('logbook_layout_' + assignmentId);
-      if (saved) {
-        const { order } = JSON.parse(saved);
-        if (Array.isArray(order)) return order;
-      }
-    } catch (e) { console.error(e); }
-    return null;
-  });
-  const [layoutMap, setLayoutMap] = useState(() => {
-    try {
-      const saved = localStorage.getItem('logbook_layout_' + assignmentId);
-      if (saved) {
-        const { map } = JSON.parse(saved);
-        if (map) return map;
-      }
-    } catch (e) { console.error(e); }
-    return null;
-  });
+  const [sectionOrder, setSectionOrder] = useState([]);
+  const [layoutMap, setLayoutMap] = useState({});
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [saveLayoutSuccess, setSaveLayoutSuccess] = useState(false);
 
@@ -308,9 +288,31 @@ export const LMSLogbookReport = () => {
       const isLabCourse = foundCourse.course?.course_type === 'lab';
       setIsLab(isLabCourse);
 
-      if (!localStorage.getItem('logbook_layout_' + assignmentId)) {
+      const savedLayout = localStorage.getItem('logbook_layout_' + assignmentId);
+      let loadedOrder = null;
+      let loadedMap = null;
+      if (savedLayout) {
+        try {
+          const { order, map } = JSON.parse(savedLayout);
+          const expectedIds = isLabCourse ? LAB_SECTION_IDS : DEFAULT_SECTION_IDS;
+          const orderKeys = new Set(order || []);
+          const hasMismatch = expectedIds.some(id => !orderKeys.has(id)) || (order || []).some(id => !expectedIds.includes(id));
+          if (!hasMismatch) {
+            loadedOrder = order;
+            loadedMap = map;
+          }
+        } catch (e) {
+          console.error('Error loading layout:', e);
+        }
+      }
+
+      if (loadedOrder && loadedMap) {
+        setSectionOrder(loadedOrder);
+        setLayoutMap(loadedMap);
+      } else {
         setSectionOrder(isLabCourse ? [...LAB_SECTION_IDS] : [...DEFAULT_SECTION_IDS]);
         setLayoutMap(DEFAULT_LAYOUT(isLabCourse));
+        localStorage.removeItem('logbook_layout_' + assignmentId);
       }
 
       const promises = [
@@ -463,8 +465,8 @@ export const LMSLogbookReport = () => {
         if (order) setSectionOrder(order);
         if (map) setLayoutMap(map);
       } else {
-        setSectionOrder([...DEFAULT_SECTION_IDS]);
-        setLayoutMap(DEFAULT_LAYOUT());
+        setSectionOrder(isLab ? [...LAB_SECTION_IDS] : [...DEFAULT_SECTION_IDS]);
+        setLayoutMap(DEFAULT_LAYOUT(isLab));
       }
     } catch (e) {
       console.error(e);
@@ -472,15 +474,15 @@ export const LMSLogbookReport = () => {
   };
 
   const resetLayout = () => {
-    setSectionOrder([...DEFAULT_SECTION_IDS]);
-    setLayoutMap(DEFAULT_LAYOUT());
+    setSectionOrder(isLab ? [...LAB_SECTION_IDS] : [...DEFAULT_SECTION_IDS]);
+    setLayoutMap(DEFAULT_LAYOUT(isLab));
     localStorage.removeItem('logbook_layout_' + assignmentId);
   };
 
   // ── Data prep ────────────────────────────────────────────────────────────────
   const course      = courseAssignment?.course || {};
   const coPoMapping = parseJSON(course.co_po_mapping);
-  const coRows      = ['CO1','CO2','CO3','CO4','CO5'];
+  const coRows      = isLab ? ['CO1', 'CO2'] : ['CO1','CO2','CO3','CO4','CO5'];
   const poColumns   = ['PO1','PO2','PO3','PO4','PO5','PO6','PO7','PO8','PO9','PO10','PO11','PO12'];
   const psoColumns  = ['PSO1','PSO2'];
   const allCols     = [...poColumns, ...psoColumns];
@@ -502,8 +504,55 @@ export const LMSLogbookReport = () => {
   const tdLeftStyle = { ...tdStyle, textAlign: 'left' };
   const facultyName = courseAssignment?.faculty ? (courseAssignment.faculty.first_name + ' ' + courseAssignment.faculty.last_name) : 'N/A';
 
+  // Derived robust student list from attendance, labMarks, gradebook, or seminars to show attendance logs regardless of empty gradebook
+  const studentsList = useMemo(() => {
+    const studentsMap = {};
+    attendance.forEach(session => {
+      session.records?.forEach(r => {
+        if (r.student_id && !studentsMap[r.student_id]) {
+          studentsMap[r.student_id] = {
+            student_id: r.student_id,
+            register_number: r.register_number,
+            name: r.name
+          };
+        }
+      });
+    });
+    if (isLab) {
+      labMarks.forEach(r => {
+        if (r.student_id && !studentsMap[r.student_id]) {
+          studentsMap[r.student_id] = {
+            student_id: r.student_id,
+            register_number: r.register_number,
+            name: r.first_name + ' ' + r.last_name
+          };
+        }
+      });
+    }
+    gradebook.forEach(r => {
+      if (r.student_id && !studentsMap[r.student_id]) {
+        studentsMap[r.student_id] = {
+          student_id: r.student_id,
+          register_number: r.register_number,
+          name: r.name
+        };
+      }
+    });
+    seminars.forEach(r => {
+      if (r.student_id && !studentsMap[r.student_id]) {
+        studentsMap[r.student_id] = {
+          student_id: r.student_id,
+          register_number: r.register_number,
+          name: r.first_name + ' ' + r.last_name
+        };
+      }
+    });
+    return Object.values(studentsMap).sort((a, b) => (a.register_number || '').localeCompare(b.register_number || ''));
+  }, [attendance, labMarks, gradebook, seminars, isLab]);
+
   // ── Section renderers ────────────────────────────────────────────────────────
   const renderSection = (id) => {
+    const sectionTitle = isLab ? (LAB_SECTION_LABELS[id] || SECTION_LABELS[id] || id) : (SECTION_LABELS[id] || id);
     switch (id) {
       case 'cover': return (
         <div style={{ textAlign: 'center', marginBottom: '28px', borderBottom: '3px solid #1e293b', paddingBottom: '20px' }}>
@@ -525,25 +574,26 @@ export const LMSLogbookReport = () => {
         </div>
       );
 
-      case 'dept-vision': return (<><SectionHeader title="1. Department Vision" /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.vision)}</div></>);
-      case 'dept-mission': return (<><SectionHeader title="2. Department Mission" /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.mission)}</div></>);
-      case 'peos': return (<><SectionHeader title="3. Programme Educational Objectives (PEOs)" /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.peos)}</div></>);
-      case 'pos': return (<><SectionHeader title="4. Programme Outcomes (POs)" /><div style={{ marginBottom: '18px' }}>{highlightReportText(programOutcomes?.outcomes)}</div></>);
-      case 'psos': return (<><SectionHeader title="5. Programme Specific Outcomes (PSOs)" /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.psos)}</div></>);
-      case 'course-objectives': return (<><SectionHeader title="6. Course Objectives" /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.objectives)}</div></>);
+      case 'dept-vision': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.vision)}</div></>);
+      case 'dept-mission': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.mission)}</div></>);
+      case 'peos': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.peos)}</div></>);
+      case 'pos': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(programOutcomes?.outcomes)}</div></>);
+      case 'psos': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.psos)}</div></>);
+      case 'course-prerequisites': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.prerequisites)}</div></>);
+      case 'course-objectives': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.objectives)}</div></>);
 
       case 'course-outcomes': return (
         <>
-          <SectionHeader title="7. Course Outcomes" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
-            <table><thead><tr>
+            <table className="report-table"><thead><tr>
               <th style={{ ...thStyle, width: '50px', textAlign: 'center' }}>CO</th>
               <th style={{ ...thStyle, textAlign: 'left' }}>Course Outcome Description</th>
               <th style={{ ...thStyle, width: '180px' }}>Bloom's Taxonomy Level(s)</th>
             </tr></thead>
             <tbody>
               {coUnitRows.map((row) => (
-                <tr key={row.co}>
+                <tr key={row.co} className="report-table-row">
                   <td style={{ ...tdStyle, fontWeight: 'bold' }}><span className="highlight-label">{row.co}</span></td>
                   <td style={tdLeftStyle}>{row.outcomeText}</td>
                   <td style={tdStyle}>
@@ -581,9 +631,9 @@ export const LMSLogbookReport = () => {
 
       case 'po-co-mapping': return (
         <>
-          <SectionHeader title="8. PO\u2013CO Mapping" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px', overflowX: 'auto' }}>
-            <table style={{ fontSize: '9pt', width: '100%' }}>
+            <table className="report-table" style={{ fontSize: '9pt', width: '100%' }}>
               <thead>
                 <tr>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '48px', verticalAlign: 'middle' }} rowSpan={2}>CO</th>
@@ -601,7 +651,7 @@ export const LMSLogbookReport = () => {
                 {coUnitRows.map((row) => {
                   const kDisplay = row.kLevels.length > 0 ? row.kLevels.join(', ') : '\u2014';
                   return (
-                    <tr key={row.co}>
+                    <tr key={row.co} className="report-table-row">
                       <td style={{ ...tdStyle, fontWeight: 'bold', backgroundColor: '#f8fafc' }}><span className="highlight-label">{row.co}</span></td>
                       <td style={{ ...tdStyle, backgroundColor: '#f8fafc' }}>Unit {row.unitNo}</td>
                       <td style={{ ...tdStyle, fontWeight: 'bold', backgroundColor: '#f8fafc', fontSize: '9pt' }}>{kDisplay}</td>
@@ -619,39 +669,39 @@ export const LMSLogbookReport = () => {
         </>
       );
 
-      case 'syllabus': return (<><SectionHeader title="9. Syllabus" /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.syllabus)}</div></>);
-      case 'textbooks': return (<><SectionHeader title="10. Textbooks" /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.textbooks)}</div></>);
-      case 'references': return (<><SectionHeader title="11. References" /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.references)}</div></>);
+      case 'syllabus': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.syllabus)}</div></>);
+      case 'textbooks': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.textbooks)}</div></>);
+      case 'references': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.references)}</div></>);
 
-      case 'list-of-experiments': return (<><SectionHeader title="3. List of Experiments" /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.syllabus)}</div></>);
+      case 'list-of-experiments': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.syllabus)}</div></>);
 
       case 'practical-schedule': return (
         <>
-          <SectionHeader title="5. Practical Schedule" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
             {coursePlan.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No schedule coverage data available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Seq</th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Unit</th>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Experiment Topic</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Hrs</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Proposed Date</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Actual Date</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Cog. Level</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '55px' }}>PO</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Mode</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Status</th>
                 </tr></thead>
                 <tbody>
                   {coursePlan.map(tp => (
-                    <tr key={tp.id}>
+                    <tr key={tp.id} className="report-table-row">
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.unit}</td>
-                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.topic}</td>
+                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.experiment_name || tp.topic}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.hours}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.cognitive_level || '\u2014'}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.po || '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.mode_of_delivery || '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.is_signed ? 'Signed' : tp.actual_date ? 'Done' : 'Pending'}</td>
                     </tr>
@@ -665,10 +715,10 @@ export const LMSLogbookReport = () => {
 
       case 'lab-marks': return (
         <>
-          <SectionHeader title="7. Lab Mark Entry" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
             {labMarks.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student lab marks available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Student Name</th>
@@ -683,7 +733,7 @@ export const LMSLogbookReport = () => {
                 </tr></thead>
                 <tbody>
                   {labMarks.map(stu => (
-                    <tr key={stu.student_id}>
+                    <tr key={stu.student_id} className="report-table-row">
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.register_number}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.first_name} {stu.last_name}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.record_marks ?? '\u2014'}</td>
@@ -705,10 +755,10 @@ export const LMSLogbookReport = () => {
 
       case 'course-plan': return (
         <>
-          <SectionHeader title="12. Course Plan / Lesson Plan Coverage" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
             {coursePlan.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No lesson plan coverage data available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Seq</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Unit</th>
@@ -717,12 +767,14 @@ export const LMSLogbookReport = () => {
                   <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Proposed Date</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Actual Date</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Cog. Level</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '48px' }}>CO</th>
+                  <th style={{ ...thStyle, fontSize: '9pt', width: '55px' }}>PO</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Mode</th>
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Status</th>
                 </tr></thead>
                 <tbody>
                   {coursePlan.map(tp => (
-                    <tr key={tp.id}>
+                    <tr key={tp.id} className="report-table-row">
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.unit}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.topic}</td>
@@ -730,6 +782,8 @@ export const LMSLogbookReport = () => {
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.cognitive_level || '\u2014'}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.co || '\u2014'}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.po || '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.mode_of_delivery || '\u2014'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.is_signed ? 'Signed' : tp.actual_date ? 'Done' : 'Pending'}</td>
                     </tr>
@@ -743,10 +797,10 @@ export const LMSLogbookReport = () => {
 
       case 'attendance': return (
         <>
-          <SectionHeader title="13. Student Attendance Summary" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
-            {gradebook.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student records available.</p> : (
-              <table style={{ fontSize: '10pt' }}>
+            {studentsList.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student records available.</p> : (
+              <table className="report-table" style={{ fontSize: '10pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, textAlign: 'left', width: '110px' }}>Reg No.</th>
                   <th style={{ ...thStyle, textAlign: 'left' }}>Student Name</th>
@@ -755,10 +809,10 @@ export const LMSLogbookReport = () => {
                   <th style={{ ...thStyle, width: '110px' }}>Percentage</th>
                 </tr></thead>
                 <tbody>
-                  {gradebook.map(stu => {
+                  {studentsList.map(stu => {
                     const { conducted, attended, percentage } = getStudentAttendanceSummary(stu.student_id);
                     return (
-                      <tr key={stu.student_id}>
+                      <tr key={stu.student_id} className="report-table-row">
                         <td style={tdLeftStyle}>{stu.register_number}</td>
                         <td style={tdLeftStyle}>{stu.name}</td>
                         <td style={tdStyle}>{conducted}</td>
@@ -774,12 +828,24 @@ export const LMSLogbookReport = () => {
         </>
       );
 
-      case 'seminars': return (
-        <>
-          <SectionHeader title="14. Student Seminar Report" />
-          <div style={{ marginBottom: '18px' }}>
-            {seminars.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No seminar records available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+      case 'seminars': {
+        const sampleSeminars = [
+          { register_number: '21CSE001', name: 'Sample Student 1', topic: 'Machine Learning in Healthcare', date: '—', rubric: { rubric_content_relevance: 4, rubric_presentation_skills: 4, rubric_resources_used: 4, rubric_time_management: 3, rubric_question_handling: 2, rubric_team_coordination: 1 }, total: 18 },
+          { register_number: '21CSE002', name: 'Sample Student 2', topic: 'Internet of Things Applications', date: '—', rubric: { rubric_content_relevance: 5, rubric_presentation_skills: 3, rubric_resources_used: 4, rubric_time_management: 4, rubric_question_handling: 2, rubric_team_coordination: 1 }, total: 19 },
+          { register_number: '21CSE003', name: 'Sample Student 3', topic: 'Cloud Computing Security', date: '—', rubric: { rubric_content_relevance: 5, rubric_presentation_skills: 5, rubric_resources_used: 3, rubric_time_management: 3, rubric_question_handling: 1, rubric_team_coordination: 1 }, total: 18 },
+        ];
+        const displaySeminars = seminars.length > 0 ? seminars : sampleSeminars;
+        const isSample = seminars.length === 0;
+        return (
+          <>
+            <SectionHeader title={sectionTitle} />
+            <div style={{ marginBottom: '18px' }}>
+              {isSample && (
+                <p style={{ fontStyle: 'italic', color: '#94a3b8', fontSize: '8.5pt', marginBottom: '8px', padding: '4px 8px', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '4px' }}>
+                  ⚠ Sample table shown — actual seminar data will appear once seminars are recorded.
+                </p>
+              )}
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '140px' }}>Student Name</th>
@@ -789,8 +855,17 @@ export const LMSLogbookReport = () => {
                   <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Total</th>
                 </tr></thead>
                 <tbody>
-                  {seminars.map(s => (
-                    <tr key={s.student_id}>
+                  {isSample ? displaySeminars.map((s, i) => (
+                    <tr key={i} className="report-table-row" style={{ color: '#94a3b8' }}>
+                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.register_number}</td>
+                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.name}</td>
+                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.topic}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{s.date}</td>
+                      {SEMINAR_RUBRIC.map(c => <td key={c.key} style={{ ...tdStyle, fontSize: '9pt' }}>{s.rubric?.[c.key] ?? '\u2014'}</td>)}
+                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{s.total}</td>
+                    </tr>
+                  )) : seminars.map(s => (
+                    <tr key={s.student_id} className="report-table-row">
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.register_number}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.first_name + ' ' + s.last_name}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.seminar_topic || 'Not Assigned'}</td>
@@ -801,23 +876,23 @@ export const LMSLogbookReport = () => {
                   ))}
                 </tbody>
               </table>
-            )}
-          </div>
-        </>
-      );
+            </div>
+          </>
+        );
+      }
 
       case 'assignments': return (
         <>
-          <SectionHeader title="15. Assignments Marks Report" />
+          <SectionHeader title={sectionTitle} />
           <div style={{ marginBottom: '18px' }}>
             {assignmentMeta.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No assignment records available.</p> : (
               assignmentMeta.map((asgn, aIdx) => {
                 const roster = assignmentRosters[asgn.id] || [];
                 return (
-                  <div key={asgn.id} style={{ marginBottom: '20px' }}>
-                    <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '13pt', fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>Assignment {aIdx + 1}: {asgn.title}</p>
+                  <div key={asgn.id} className="assignment-block" style={{ marginBottom: '20px' }}>
+                    <p className="assignment-title" style={{ fontFamily: 'Times New Roman, serif', fontSize: '13pt', fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>Assignment {aIdx + 1}: {asgn.title}</p>
                     {roster.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b', fontSize: '10pt' }}>No student data available.</p> : (
-                      <table style={{ fontSize: '9pt' }}>
+                      <table className="report-table" style={{ fontSize: '9pt' }}>
                         <thead><tr>
                           <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
                           <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Student Name</th>
@@ -828,7 +903,7 @@ export const LMSLogbookReport = () => {
                           {roster.map(g => {
                             const rubric = parseRubric(g.remarks);
                             return (
-                              <tr key={g.student_id}>
+                              <tr key={g.student_id} className="report-table-row">
                                 <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.register_number}</td>
                                 <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.first_name} {g.last_name}</td>
                                 <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{g.marks_obtained != null ? g.marks_obtained : '\u2014'}</td>
@@ -847,51 +922,140 @@ export const LMSLogbookReport = () => {
         </>
       );
 
-      case 'gradebook': return (
-        <>
-          <SectionHeader title="16. Internal Assessments Grade Book" />
-          <div style={{ marginBottom: '18px' }}>
-            {gradebook.length === 0 ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student roster records available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
-                <thead><tr>
-                  <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
-                  <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Student Name</th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
-                    <span className="highlight-label">CIA-1</span>
-                    {gradebookDates['internal_1'] && <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>{formatDate(gradebookDates['internal_1'])}</div>}
-                  </th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest 1</th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
-                    <span className="highlight-label">CIA-2</span>
-                    {gradebookDates['internal_2'] && <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>{formatDate(gradebookDates['internal_2'])}</div>}
-                  </th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest 2</th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
-                    <span className="highlight-label">Model</span>
-                    {gradebookDates['model_exam'] && <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>{formatDate(gradebookDates['model_exam'])}</div>}
-                  </th>
-                  <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest Model</th>
-                </tr></thead>
+      case 'gradebook': {
+        // Build a lookup map from gradebook (students with actual grade data)
+        const gradeMap = {};
+        gradebook.forEach(g => { gradeMap[g.student_id] = g; });
+
+        // Use ALL enrolled students as the primary source; fall back to sample if none loaded
+        const sampleGradebook = [
+          { student_id: 'S1', register_number: '21CSE001', name: 'Sample Student 1', cia_1: 38, cia_1_retest: null, cia_2: 42, cia_2_retest: null, model_exam: 65, model_exam_retest: null },
+          { student_id: 'S2', register_number: '21CSE002', name: 'Sample Student 2', cia_1: 30, cia_1_retest: 35, cia_2: 40, cia_2_retest: null, model_exam: 58, model_exam_retest: 62 },
+          { student_id: 'S3', register_number: '21CSE003', name: 'Sample Student 3', cia_1: 45, cia_1_retest: null, cia_2: 44, cia_2_retest: null, model_exam: 72, model_exam_retest: null },
+        ];
+
+        const showSampleNotice = studentsList.length === 0;
+        const baseList = studentsList.length > 0
+          ? studentsList.map(stu => ({
+              ...stu,
+              cia_1:             gradeMap[stu.student_id]?.cia_1             ?? null,
+              cia_1_retest:      gradeMap[stu.student_id]?.cia_1_retest      ?? null,
+              cia_2:             gradeMap[stu.student_id]?.cia_2             ?? null,
+              cia_2_retest:      gradeMap[stu.student_id]?.cia_2_retest      ?? null,
+              model_exam:        gradeMap[stu.student_id]?.model_exam        ?? null,
+              model_exam_retest: gradeMap[stu.student_id]?.model_exam_retest ?? null,
+            }))
+          : sampleGradebook;
+
+        // Helper to compute derived marks for a student row
+        const getGBDerived = (stu) => {
+          const asgMarks = assignmentMeta.map(a => {
+            const ag = assignmentGrades[stu.student_id]?.[a.id];
+            return ag?.marks != null ? Number(ag.marks) : null;
+          });
+          const cia1Raw = stu.cia_1 != null ? Number(stu.cia_1) : null;
+          const cia1Ret = stu.cia_1_retest != null ? Number(stu.cia_1_retest) : null;
+          const cia1Eff = cia1Ret != null ? cia1Ret : cia1Raw;
+          const cia2Raw = stu.cia_2 != null ? Number(stu.cia_2) : null;
+          const cia2Ret = stu.cia_2_retest != null ? Number(stu.cia_2_retest) : null;
+          const cia2Eff = cia2Ret != null ? cia2Ret : cia2Raw;
+          const avgCIA1 = cia1Eff != null ? parseFloat((cia1Eff / 2).toFixed(1)) : null;
+          const avgCIA2 = cia2Eff != null ? parseFloat((cia2Eff / 2).toFixed(1)) : null;
+          const modelRaw = stu.model_exam != null ? Number(stu.model_exam) : null;
+          const modelRet = stu.model_exam_retest != null ? Number(stu.model_exam_retest) : null;
+          const modelEff = modelRet != null ? modelRet : modelRaw;
+          const avgModel = modelEff != null ? parseFloat(((modelEff / 60) * 25).toFixed(1)) : null;
+          let conducted = 0, attended = 0;
+          attendance.forEach(session => {
+            const rec = session.records?.find(r => r.student_id === stu.student_id);
+            if (rec) { conducted++; if (['present','on_duty','late'].includes(rec.status)) attended++; }
+          });
+          const attPct = conducted > 0 ? (attended / conducted) * 100 : 0;
+          const attMark = attPct >= 75 ? 5 : attPct >= 65 ? 4 : attPct >= 55 ? 3 : attPct >= 45 ? 2 : conducted > 0 ? 1 : null;
+          const intMark1 = avgCIA1 != null && attMark != null ? parseFloat((avgCIA1 + attMark).toFixed(1)) : null;
+          const bestCIA = avgCIA1 != null && avgCIA2 != null ? Math.max(avgCIA1, avgCIA2) : (avgCIA1 ?? avgCIA2);
+          const totalInt = bestCIA != null && attMark != null ? parseFloat((bestCIA + attMark).toFixed(1)) : null;
+          const boosted = totalInt != null ? parseFloat(totalInt.toFixed(1)) : null;
+          const actualMark = totalInt != null ? Math.min(30, totalInt) : null;
+          return { asgMarks, cia1Raw, cia1Ret, avgCIA1, cia2Raw, cia2Ret, avgCIA2, modelRaw, modelRet, avgModel, attMark, intMark1, totalInt, boosted, actualMark };
+        };
+        const fmtNum = (v) => v != null ? v : '\u2014';
+
+        return (
+          <>
+            <SectionHeader title={sectionTitle} />
+            <div style={{ marginBottom: '18px', overflowX: 'auto' }}>
+              {showSampleNotice && (
+                <p style={{ fontStyle: 'italic', color: '#94a3b8', fontSize: '8.5pt', marginBottom: '8px', padding: '4px 8px', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '4px' }}>
+                  ⚠ Sample table shown — actual student data will appear once the course roster is loaded.
+                </p>
+              )}
+              <table className="report-table" style={{ fontSize: '7.5pt', width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'left', width: '80px' }} rowSpan={2}>Reg No.</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'left', width: '120px' }} rowSpan={2}>Name</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center' }} colSpan={assignmentMeta.length > 0 ? assignmentMeta.length : 5}>Assignments</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#1e40af' }} colSpan={3}>CIA-1</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#1e40af' }} colSpan={3}>CIA-2</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#7c3aed' }} colSpan={3}>Model</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Int.<br/>Marks<br/>CIA-1</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Att.<br/>Marks</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Total<br/>Int.</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Boosted</th>
+                    <th style={{ ...thStyle, fontSize: '7.5pt', textAlign: 'center', color: '#034ea1', fontWeight: '900' }} rowSpan={2}>Actual<br/>Marks</th>
+                  </tr>
+                  <tr>
+                    {(assignmentMeta.length > 0 ? assignmentMeta : [{id:'s1'},{id:'s2'},{id:'s3'},{id:'s4'},{id:'s5'}]).map((a, i) => (
+                      <th key={a.id} style={{ ...thStyle, fontSize: '7pt', width: '38px' }}>A{i+1}</th>
+                    ))}
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#1e40af' }}>Mark<br/><span style={{fontWeight:'normal'}}>/50</span></th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#b91c1c' }}>Retest</th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#1e40af' }}>Avg<br/><span style={{fontWeight:'normal'}}>/25</span></th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#1e40af' }}>Mark<br/><span style={{fontWeight:'normal'}}>/50</span></th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#b91c1c' }}>Retest</th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#1e40af' }}>Avg<br/><span style={{fontWeight:'normal'}}>/25</span></th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#7c3aed' }}>Mark<br/><span style={{fontWeight:'normal'}}>/60</span></th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#b91c1c' }}>Retest</th>
+                    <th style={{ ...thStyle, fontSize: '7pt', width: '42px', color: '#7c3aed' }}>Avg<br/><span style={{fontWeight:'normal'}}>/25</span></th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {gradebook.map(stu => (
-                    <tr key={stu.student_id}>
-                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.register_number}</td>
-                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.name}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_1 ?? '\u2014'}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.cia_1_retest ?? '\u2014'}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_2 ?? '\u2014'}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.cia_2_retest ?? '\u2014'}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.model_exam ?? '\u2014'}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.model_exam_retest ?? '\u2014'}</td>
-                    </tr>
-                  ))}
+                  {baseList.map((stu, rowIdx) => {
+                    const d = showSampleNotice
+                      ? { asgMarks: [null,null,null,null,null], cia1Raw: stu.cia_1, cia1Ret: stu.cia_1_retest, avgCIA1: stu.cia_1 != null ? parseFloat((stu.cia_1/2).toFixed(1)) : null, cia2Raw: stu.cia_2, cia2Ret: stu.cia_2_retest, avgCIA2: stu.cia_2 != null ? parseFloat((stu.cia_2/2).toFixed(1)) : null, modelRaw: stu.model_exam, modelRet: stu.model_exam_retest, avgModel: stu.model_exam != null ? parseFloat(((stu.model_exam/60)*25).toFixed(1)) : null, attMark: null, intMark1: null, totalInt: null, boosted: null, actualMark: null }
+                      : getGBDerived(stu);
+                    const numCols = assignmentMeta.length > 0 ? assignmentMeta.length : 5;
+                    return (
+                      <tr key={stu.student_id || rowIdx} className="report-table-row" style={showSampleNotice ? { color: '#94a3b8' } : {}}>
+                        <td style={{ ...tdLeftStyle, fontSize: '7.5pt' }}>{stu.register_number}</td>
+                        <td style={{ ...tdLeftStyle, fontSize: '7.5pt' }}>{stu.name}</td>
+                        {Array.from({ length: numCols }, (_, i) => (
+                          <td key={i} style={{ ...tdStyle, fontSize: '7.5pt' }}>{fmtNum(d.asgMarks[i])}</td>
+                        ))}
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtNum(d.cia1Raw)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', color: '#991b1b' }}>{fmtNum(d.cia1Ret)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtNum(d.avgCIA1)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtNum(d.cia2Raw)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', color: '#991b1b' }}>{fmtNum(d.cia2Ret)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtNum(d.avgCIA2)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtNum(d.modelRaw)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', color: '#991b1b' }}>{fmtNum(d.modelRet)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtNum(d.avgModel)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtNum(d.intMark1)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtNum(d.attMark)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtNum(d.totalInt)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtNum(d.boosted)}</td>
+                        <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: '900', color: '#034ea1' }}>{fmtNum(d.actualMark)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-            )}
-          </div>
-        </>
-      );
-
+            </div>
+          </>
+        );
+      }
       case 'footer': return (
         <div style={{ marginTop: '48px', paddingTop: '24px', borderTop: '1px solid #94a3b8', display: 'flex', justifyContent: 'space-between' }}>
           {['Faculty Signature', 'HOD Signature', 'Principal Signature'].map(label => (
@@ -920,7 +1084,7 @@ export const LMSLogbookReport = () => {
             <SectionHeader title={isFirst ? "12. Course Plan / Lesson Plan Coverage" : "12. Course Plan / Lesson Plan Coverage (Continued)"} />
             <div style={{ marginBottom: '14px' }}>
               {!data ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No lesson plan coverage data available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Seq</th>
@@ -930,13 +1094,15 @@ export const LMSLogbookReport = () => {
                     <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Proposed Date</th>
                     <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Actual Date</th>
                     <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Cog. Level</th>
+                    <th style={{ ...thStyle, fontSize: '9pt', width: '48px' }}>CO</th>
+                    <th style={{ ...thStyle, fontSize: '9pt', width: '55px' }}>PO</th>
                     <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Mode</th>
                     <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.map(tp => (
-                    <tr key={tp.id}>
+                    <tr key={tp.id} className="report-table-row">
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.unit}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.topic}</td>
@@ -944,6 +1110,8 @@ export const LMSLogbookReport = () => {
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '—'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '—'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.cognitive_level || '—'}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.co || '—'}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.po || '—'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.mode_of_delivery || '—'}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.is_signed ? 'Signed' : tp.actual_date ? 'Done' : 'Pending'}</td>
                     </tr>
@@ -962,7 +1130,7 @@ export const LMSLogbookReport = () => {
             <SectionHeader title={isFirst ? "13. Student Attendance Summary" : "13. Student Attendance Summary (Continued)"} />
             <div style={{ marginBottom: '14px' }}>
               {!data ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student records available.</p> : (
-              <table style={{ fontSize: '10pt' }}>
+              <table className="report-table" style={{ fontSize: '10pt' }}>
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, textAlign: 'left', width: '110px' }}>Reg No.</th>
@@ -976,7 +1144,7 @@ export const LMSLogbookReport = () => {
                   {data.map(stu => {
                     const { conducted, attended, percentage } = getStudentAttendanceSummary(stu.student_id);
                     return (
-                      <tr key={stu.student_id}>
+                      <tr key={stu.student_id} className="report-table-row">
                         <td style={tdLeftStyle}>{stu.register_number}</td>
                         <td style={tdLeftStyle}>{stu.name}</td>
                         <td style={tdStyle}>{conducted}</td>
@@ -994,12 +1162,24 @@ export const LMSLogbookReport = () => {
       }
       case 'seminars': {
         const isFirst = idx1 === 0;
+        const sampleSeminars = [
+          { register_number: '21CSE001', name: 'Sample Student 1', topic: 'Machine Learning in Healthcare', date: '—', rubric: { rubric_content_relevance: 4, rubric_presentation_skills: 4, rubric_resources_used: 4, rubric_time_management: 3, rubric_question_handling: 2, rubric_team_coordination: 1 }, total: 18 },
+          { register_number: '21CSE002', name: 'Sample Student 2', topic: 'Internet of Things Applications', date: '—', rubric: { rubric_content_relevance: 5, rubric_presentation_skills: 3, rubric_resources_used: 4, rubric_time_management: 4, rubric_question_handling: 2, rubric_team_coordination: 1 }, total: 19 },
+          { register_number: '21CSE003', name: 'Sample Student 3', topic: 'Cloud Computing Security', date: '—', rubric: { rubric_content_relevance: 5, rubric_presentation_skills: 5, rubric_resources_used: 3, rubric_time_management: 3, rubric_question_handling: 1, rubric_team_coordination: 1 }, total: 18 },
+        ];
+        const hasData = data && data.length > 0;
+        const displayData = hasData ? data : sampleSeminars;
+        const isSample = !hasData;
         return (
           <>
-            <SectionHeader title={isFirst ? "14. Student Seminar Report" : "14. Student Seminar Report (Continued)"} />
+            <SectionHeader title={isFirst ? '14. Student Seminar Report' : '14. Student Seminar Report (Continued)'} />
             <div style={{ marginBottom: '14px' }}>
-              {!data ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No seminar records available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              {isSample && (
+                <p style={{ fontStyle: 'italic', color: '#94a3b8', fontSize: '8.5pt', marginBottom: '8px', padding: '4px 8px', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '4px' }}>
+                  ⚠ Sample table shown — actual seminar data will appear once seminars are recorded.
+                </p>
+              )}
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
@@ -1011,31 +1191,42 @@ export const LMSLogbookReport = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map(s => (
-                    <tr key={s.student_id}>
-                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.register_number}</td>
-                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.first_name + ' ' + s.last_name}</td>
-                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{s.seminar_topic || 'Not Assigned'}</td>
-                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{s.seminar_date ? formatDate(s.seminar_date) : '—'}</td>
-                      {SEMINAR_RUBRIC.map(c => <td key={c.key} style={{ ...tdStyle, fontSize: '9pt' }}>{s[c.key] != null ? s[c.key] : '—'}</td>)}
-                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{s.marks_obtained != null ? s.marks_obtained : '—'}</td>
+                  {displayData.map((s, i) => (
+                    <tr key={isSample ? i : s.student_id} className="report-table-row" style={isSample ? { color: '#94a3b8' } : {}}>
+                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{isSample ? s.register_number : s.register_number}</td>
+                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{isSample ? s.name : s.first_name + ' ' + s.last_name}</td>
+                      <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{isSample ? s.topic : (s.seminar_topic || 'Not Assigned')}</td>
+                      <td style={{ ...tdStyle, fontSize: '9pt' }}>{isSample ? s.date : (s.seminar_date ? formatDate(s.seminar_date) : '—')}</td>
+                      {SEMINAR_RUBRIC.map(c => <td key={c.key} style={{ ...tdStyle, fontSize: '9pt' }}>{isSample ? (s.rubric?.[c.key] ?? '—') : (s[c.key] != null ? s[c.key] : '—')}</td>)}
+                      <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{isSample ? s.total : (s.marks_obtained != null ? s.marks_obtained : '—')}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              )}
             </div>
           </>
         );
       }
       case 'gradebook': {
         const isFirst = idx1 === 0;
+        const sampleGradebook = [
+          { student_id: 'S1', register_number: '21CSE001', name: 'Sample Student 1', cia_1: 38, cia_1_retest: null, cia_2: 42, cia_2_retest: null, model_exam: 65, model_exam_retest: null },
+          { student_id: 'S2', register_number: '21CSE002', name: 'Sample Student 2', cia_1: 30, cia_1_retest: 35, cia_2: 40, cia_2_retest: null, model_exam: 58, model_exam_retest: 62 },
+          { student_id: 'S3', register_number: '21CSE003', name: 'Sample Student 3', cia_1: 45, cia_1_retest: null, cia_2: 44, cia_2_retest: null, model_exam: 72, model_exam_retest: null },
+        ];
+        const hasData = data && data.length > 0;
+        const displayData = hasData ? data : sampleGradebook;
+        const isSample = !hasData;
         return (
           <>
             <SectionHeader title={isFirst ? "16. Internal Assessments Grade Book" : "16. Internal Assessments Grade Book (Continued)"} />
             <div style={{ marginBottom: '14px' }}>
-              {!data ? <p style={{ fontStyle: 'italic', color: '#64748b' }}>No student roster records available.</p> : (
-              <table style={{ fontSize: '9pt' }}>
+              {isSample && (
+                <p style={{ fontStyle: 'italic', color: '#94a3b8', fontSize: '8.5pt', marginBottom: '8px', padding: '4px 8px', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '4px' }}>
+                  ⚠ Sample table shown — actual marks will appear once CIA / Model Exam grades are entered.
+                </p>
+              )}
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
@@ -1058,8 +1249,8 @@ export const LMSLogbookReport = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map(stu => (
-                    <tr key={stu.student_id}>
+                  {displayData.map(stu => (
+                    <tr key={stu.student_id} className="report-table-row" style={isSample ? { color: '#94a3b8' } : {}}>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.register_number}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.name}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_1 ?? '—'}</td>
@@ -1072,7 +1263,6 @@ export const LMSLogbookReport = () => {
                   ))}
                 </tbody>
               </table>
-              )}
             </div>
           </>
         );
@@ -1097,7 +1287,7 @@ export const LMSLogbookReport = () => {
             <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '13pt', fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>
               Assignment {idx1 + 1}: {asgn.title} {!isFirstChunkForAsg && '(Continued)'}
             </p>
-            <table style={{ fontSize: '9pt' }}>
+            <table className="report-table" style={{ fontSize: '9pt' }}>
               <thead>
                 <tr>
                   <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
@@ -1110,7 +1300,7 @@ export const LMSLogbookReport = () => {
                 {chunk.map(g => {
                   const rubric = parseRubric(g.remarks);
                   return (
-                    <tr key={g.student_id}>
+                    <tr key={g.student_id} className="report-table-row">
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.register_number}</td>
                       <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.first_name} {g.last_name}</td>
                       <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{g.marks_obtained != null ? g.marks_obtained : '—'}</td>
@@ -1136,7 +1326,31 @@ export const LMSLogbookReport = () => {
   };
 
   const renderTableHeader = (baseId) => {
-    if (baseId === 'course-plan') {
+    if (baseId === 'course-outcomes') {
+      return (
+        <tr>
+          <th style={{ ...thStyle, width: '50px', textAlign: 'center' }}>CO</th>
+          <th style={{ ...thStyle, textAlign: 'left' }}>Course Outcome Description</th>
+          <th style={{ ...thStyle, width: '180px' }}>Bloom's Taxonomy Level(s)</th>
+        </tr>
+      );
+    } else if (baseId === 'po-co-mapping') {
+      return (
+        <>
+          <tr>
+            <th style={{ ...thStyle, fontSize: '9pt', width: '48px', verticalAlign: 'middle' }} rowSpan={2}>CO</th>
+            <th style={{ ...thStyle, fontSize: '9pt', width: '52px', verticalAlign: 'middle' }} rowSpan={2}>Unit</th>
+            <th style={{ ...thStyle, fontSize: '9pt', width: '60px', verticalAlign: 'middle' }} rowSpan={2}>K-Level</th>
+            <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'center' }} colSpan={12}>Programme Outcomes (POs)</th>
+            <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'center' }} colSpan={2}>PSOs</th>
+          </tr>
+          <tr>
+            {poColumns.map(po => <th key={po} style={{ ...thStyle, fontSize: '8pt', width: '28px', padding: '3px 2px' }}><span className="highlight-label">{po}</span></th>)}
+            {psoColumns.map(pso => <th key={pso} style={{ ...thStyle, fontSize: '8pt', width: '28px', padding: '3px 2px' }}><span className="highlight-label">{pso}</span></th>)}
+          </tr>
+        </>
+      );
+    } else if (baseId === 'course-plan') {
       return (
         <tr>
           <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Seq</th>
@@ -1146,6 +1360,8 @@ export const LMSLogbookReport = () => {
           <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Proposed Date</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Actual Date</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Cog. Level</th>
+          <th style={{ ...thStyle, fontSize: '9pt', width: '48px' }}>CO</th>
+          <th style={{ ...thStyle, fontSize: '9pt', width: '55px' }}>PO</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Mode</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Status</th>
         </tr>
@@ -1154,12 +1370,12 @@ export const LMSLogbookReport = () => {
       return (
         <tr>
           <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Seq</th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Unit</th>
           <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Experiment Topic</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>Hrs</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Proposed Date</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '78px' }}>Actual Date</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Cog. Level</th>
+          <th style={{ ...thStyle, fontSize: '9pt', width: '55px' }}>PO</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Mode</th>
           <th style={{ ...thStyle, fontSize: '9pt', width: '60px' }}>Status</th>
         </tr>
@@ -1186,26 +1402,37 @@ export const LMSLogbookReport = () => {
         </tr>
       );
     } else if (baseId === 'gradebook') {
+      const numAsg = assignmentMeta.length > 0 ? assignmentMeta.length : 5;
       return (
-        <tr>
-          <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
-          <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Student Name</th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
-            <span className="highlight-label">CIA-1</span>
-            {gradebookDates['internal_1'] && <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>{formatDate(gradebookDates['internal_1'])}</div>}
-          </th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest 1</th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
-            <span className="highlight-label">CIA-2</span>
-            {gradebookDates['internal_2'] && <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>{formatDate(gradebookDates['internal_2'])}</div>}
-          </th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest 2</th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '70px' }}>
-            <span className="highlight-label">Model</span>
-            {gradebookDates['model_exam'] && <div style={{ fontSize: '7.5pt', fontWeight: 'normal', color: '#475569' }}>{formatDate(gradebookDates['model_exam'])}</div>}
-          </th>
-          <th style={{ ...thStyle, fontSize: '9pt', width: '70px', color: '#b91c1c' }}>Retest Model</th>
-        </tr>
+        <>
+          <tr>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'left', width: '80px' }} rowSpan={2}>Reg No.</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'left', width: '110px' }} rowSpan={2}>Name</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center' }} colSpan={numAsg}>Assignments</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#1e40af' }} colSpan={3}>CIA-1</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#1e40af' }} colSpan={3}>CIA-2</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#7c3aed' }} colSpan={3}>Model</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Int.<br/>CIA-1</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Att.<br/>Marks</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Total<br/>Int.</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#0f766e' }} rowSpan={2}>Boosted</th>
+            <th style={{ ...thStyle, fontSize: '7pt', textAlign: 'center', color: '#034ea1', fontWeight: '900' }} rowSpan={2}>Actual</th>
+          </tr>
+          <tr>
+            {Array.from({ length: numAsg }, (_, i) => (
+              <th key={i} style={{ ...thStyle, fontSize: '7pt', width: '38px' }}>A{i+1}</th>
+            ))}
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#1e40af' }}>/50</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#b91c1c' }}>Ret</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#1e40af' }}>Avg</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#1e40af' }}>/50</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#b91c1c' }}>Ret</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#1e40af' }}>Avg</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#7c3aed' }}>/60</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#b91c1c' }}>Ret</th>
+            <th style={{ ...thStyle, fontSize: '7pt', width: '38px', color: '#7c3aed' }}>Avg</th>
+          </tr>
+        </>
       );
     } else if (baseId === 'lab-marks') {
       return (
@@ -1227,7 +1454,46 @@ export const LMSLogbookReport = () => {
   };
 
   const renderTableRow = (baseId, rowData, rIdx) => {
-    if (baseId === 'course-plan' || baseId === 'practical-schedule') {
+    if (baseId === 'course-outcomes') {
+      const row = rowData;
+      return (
+        <tr key={row.co} className="report-table-row">
+          <td style={{ ...tdStyle, fontWeight: 'bold' }}><span className="highlight-label">{row.co}</span></td>
+          <td style={tdLeftStyle}>{row.outcomeText}</td>
+          <td style={tdStyle}>
+            <div style={{ fontWeight: 'bold', textAlign: 'center' }}>
+              {row.kLevels.length > 0 ? row.kLevels.map(k => k + ' \u2013 ' + K_LABELS[k]).join(', ') : '\u2014'}
+            </div>
+          </td>
+        </tr>
+      );
+    } else if (baseId === 'po-co-mapping') {
+      const row = rowData;
+      const kDisplay = row.kLevels.length > 0 ? row.kLevels.join(', ') : '\u2014';
+      return (
+        <tr key={row.co} className="report-table-row">
+          <td style={{ ...tdStyle, fontWeight: 'bold', backgroundColor: '#f8fafc' }}><span className="highlight-label">{row.co}</span></td>
+          <td style={{ ...tdStyle, backgroundColor: '#f8fafc' }}>Unit {row.unitNo}</td>
+          <td style={{ ...tdStyle, fontWeight: 'bold', backgroundColor: '#f8fafc', fontSize: '9pt' }}>{kDisplay}</td>
+          {allCols.map(col => { const val = getMappingValue(row.co, col); return <td key={col} style={{ ...tdStyle, fontSize: '9pt', fontWeight: val ? 'bold' : 'normal' }}>{val || '-'}</td>; })}
+        </tr>
+      );
+    } else if (baseId === 'practical-schedule') {
+      const tp = rowData;
+      return (
+        <tr key={tp.id} className="report-table-row">
+          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.sequence_no}</td>
+          <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{tp.experiment_name || tp.topic}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.hours}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.cognitive_level || '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.po || '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.mode_of_delivery || '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.is_signed ? 'Signed' : tp.actual_date ? 'Done' : 'Pending'}</td>
+        </tr>
+      );
+    } else if (baseId === 'course-plan') {
       const tp = rowData;
       return (
         <tr key={tp.id} className="report-table-row">
@@ -1238,6 +1504,8 @@ export const LMSLogbookReport = () => {
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.proposed_date ? formatDate(tp.proposed_date) : '—'}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.actual_date ? formatDate(tp.actual_date) : '—'}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.cognitive_level || '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.co || '—'}</td>
+          <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.po || '—'}</td>
           <td style={{ ...tdStyle, fontSize: '9pt' }}>{tp.mode_of_delivery || '—'}</td>
           <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{tp.is_signed ? 'Signed' : tp.actual_date ? 'Done' : 'Pending'}</td>
         </tr>
@@ -1268,16 +1536,59 @@ export const LMSLogbookReport = () => {
       );
     } else if (baseId === 'gradebook') {
       const stu = rowData;
+      const fmtN = (v) => v != null ? v : '—';
+      const asgMarks = assignmentMeta.map(a => {
+        const ag = assignmentGrades[stu.student_id]?.[a.id];
+        return ag?.marks != null ? Number(ag.marks) : null;
+      });
+      const numCols = assignmentMeta.length > 0 ? assignmentMeta.length : 5;
+      const cia1Raw = stu.cia_1 != null ? Number(stu.cia_1) : null;
+      const cia1Ret = stu.cia_1_retest != null ? Number(stu.cia_1_retest) : null;
+      const cia1Eff = cia1Ret != null ? cia1Ret : cia1Raw;
+      const avgCIA1 = cia1Eff != null ? parseFloat((cia1Eff / 2).toFixed(1)) : null;
+      const cia2Raw = stu.cia_2 != null ? Number(stu.cia_2) : null;
+      const cia2Ret = stu.cia_2_retest != null ? Number(stu.cia_2_retest) : null;
+      const cia2Eff = cia2Ret != null ? cia2Ret : cia2Raw;
+      const avgCIA2 = cia2Eff != null ? parseFloat((cia2Eff / 2).toFixed(1)) : null;
+      const modelRaw = stu.model_exam != null ? Number(stu.model_exam) : null;
+      const modelRet = stu.model_exam_retest != null ? Number(stu.model_exam_retest) : null;
+      const modelEff = modelRet != null ? modelRet : modelRaw;
+      const avgModel = modelEff != null ? parseFloat(((modelEff / 60) * 25).toFixed(1)) : null;
+      let attMark = null;
+      (() => {
+        let c = 0, a = 0;
+        attendance.forEach(session => {
+          const rec = session.records?.find(r => r.student_id === stu.student_id);
+          if (rec) { c++; if (['present','on_duty','late'].includes(rec.status)) a++; }
+        });
+        const pct = c > 0 ? (a / c) * 100 : 0;
+        attMark = pct >= 75 ? 5 : pct >= 65 ? 4 : pct >= 55 ? 3 : pct >= 45 ? 2 : c > 0 ? 1 : null;
+      })();
+      const intMark1 = avgCIA1 != null && attMark != null ? parseFloat((avgCIA1 + attMark).toFixed(1)) : null;
+      const bestCIA = avgCIA1 != null && avgCIA2 != null ? Math.max(avgCIA1, avgCIA2) : (avgCIA1 ?? avgCIA2);
+      const totalInt = bestCIA != null && attMark != null ? parseFloat((bestCIA + attMark).toFixed(1)) : null;
+      const actualMark = totalInt != null ? Math.min(30, totalInt) : null;
       return (
         <tr key={stu.student_id} className="report-table-row">
-          <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.register_number}</td>
-          <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{stu.name}</td>
-          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_1 ?? '—'}</td>
-          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.cia_1_retest ?? '—'}</td>
-          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.cia_2 ?? '—'}</td>
-          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.cia_2_retest ?? '—'}</td>
-          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{stu.model_exam ?? '—'}</td>
-          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{stu.model_exam_retest ?? '—'}</td>
+          <td style={{ ...tdLeftStyle, fontSize: '7.5pt' }}>{stu.register_number}</td>
+          <td style={{ ...tdLeftStyle, fontSize: '7.5pt' }}>{stu.name}</td>
+          {Array.from({ length: numCols }, (_, i) => (
+            <td key={i} style={{ ...tdStyle, fontSize: '7.5pt' }}>{fmtN(asgMarks[i])}</td>
+          ))}
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtN(cia1Raw)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', color: '#991b1b' }}>{fmtN(cia1Ret)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtN(avgCIA1)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtN(cia2Raw)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', color: '#991b1b' }}>{fmtN(cia2Ret)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtN(avgCIA2)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtN(modelRaw)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', color: '#991b1b' }}>{fmtN(modelRet)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold' }}>{fmtN(avgModel)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtN(intMark1)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtN(attMark)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtN(totalInt)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: 'bold', color: '#0f766e' }}>{fmtN(totalInt)}</td>
+          <td style={{ ...tdStyle, fontSize: '7.5pt', fontWeight: '900', color: '#034ea1' }}>{fmtN(actualMark)}</td>
         </tr>
       );
     } else if (baseId === 'lab-marks') {
@@ -1326,9 +1637,10 @@ export const LMSLogbookReport = () => {
           }
           i++;
         }
+        const label = isLab ? (LAB_SECTION_LABELS[baseId] || SECTION_LABELS[baseId] || baseId) : (SECTION_LABELS[baseId] || LAB_SECTION_LABELS[baseId] || baseId);
         rendered.push(
           <div key={`${baseId}-prose-group`} style={{ marginTop: spacingTop + 'px' }}>
-            <SectionHeader title={isFirst ? SECTION_LABELS[baseId] || LAB_SECTION_LABELS[baseId] : `${SECTION_LABELS[baseId] || LAB_SECTION_LABELS[baseId]} (Continued)`} />
+            <SectionHeader title={isFirst ? label : `${label} (Continued)`} />
             <div style={{ marginBottom: '18px' }}>
               <div style={{ textAlign: 'justify' }} className="prose-container">
                 {group.map((item, idx) => (
@@ -1352,14 +1664,15 @@ export const LMSLogbookReport = () => {
           }
           i++;
         }
+        const label = isLab ? (LAB_SECTION_LABELS[baseId] || SECTION_LABELS[baseId] || baseId) : (SECTION_LABELS[baseId] || LAB_SECTION_LABELS[baseId] || baseId);
         rendered.push(
           <div key={`${baseId}-table-group-${group.length > 0 ? group[0].id || group[0].student_id || i : i}`} style={{ marginTop: spacingTop + 'px' }}>
-            <SectionHeader title={isFirst ? SECTION_LABELS[baseId] || LAB_SECTION_LABELS[baseId] : `${SECTION_LABELS[baseId] || LAB_SECTION_LABELS[baseId]} (Continued)`} />
+            <SectionHeader title={isFirst ? label : `${label} (Continued)`} />
             <div style={{ marginBottom: '18px' }}>
               {group.length === 0 && isFirst ? (
                 <p style={{ fontStyle: 'italic', color: '#64748b' }}>No records available.</p>
               ) : (
-                <table style={{ fontSize: baseId === 'attendance' ? '10pt' : '9pt' }}>
+                <table className="report-table" style={{ fontSize: baseId === 'attendance' ? '10pt' : '9pt' }}>
                   <thead>
                     {renderTableHeader(baseId)}
                   </thead>
@@ -1398,7 +1711,7 @@ export const LMSLogbookReport = () => {
             {group.length === 0 && isFirst ? (
               <p style={{ fontStyle: 'italic', color: '#64748b', fontSize: '10pt' }}>No student data available.</p>
             ) : (
-              <table style={{ fontSize: '9pt' }}>
+              <table className="report-table" style={{ fontSize: '9pt' }}>
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '100px' }}>Reg No.</th>
@@ -1411,7 +1724,7 @@ export const LMSLogbookReport = () => {
                   {group.map((g, rIdx) => {
                     const rubric = parseRubric(g.remarks);
                     return (
-                      <tr key={g.student_id}>
+                      <tr key={g.student_id} className="report-table-row">
                         <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.register_number}</td>
                         <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{g.first_name} {g.last_name}</td>
                         <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{g.marks_obtained != null ? g.marks_obtained : '—'}</td>
@@ -1434,7 +1747,7 @@ export const LMSLogbookReport = () => {
   const estimateHeight = (id) => {
     if (id === 'cover') return 350;
     if (id === 'dept-vision' || id === 'dept-mission' || id === 'peos' || id === 'pos' || id === 'psos') return 150;
-    if (id === 'course-objectives' || id === 'course-outcomes') return 200;
+    if (id === 'course-prerequisites' || id === 'course-objectives' || id === 'course-outcomes') return 200;
     if (id === 'po-co-mapping') return 250;
     if (id === 'syllabus' || id === 'textbooks' || id === 'references') return 250;
     if (id === 'course-plan') return 400;
@@ -1450,7 +1763,7 @@ export const LMSLogbookReport = () => {
     const pagesList = [];
     let currentPage = [];
     let accumulatedHeight = 0;
-    const maxHeight = 1005; // content height limits within A4 297mm page in pixels
+    const maxHeight = 860; // content height limits within A4 297mm page in pixels (reduced to prevent bottom overflow)
 
     if (!useDOM) {
       sectionOrder.forEach((id) => {
@@ -1458,7 +1771,7 @@ export const LMSLogbookReport = () => {
         if (!isVisible) return;
         
         let estHeight = estimateHeight(id);
-        if (accumulatedHeight + estHeight > maxHeight || DEFAULT_PAGE_BREAKS.has(id)) {
+        if (accumulatedHeight + estHeight > maxHeight || layoutMap[id]?.pageBreakBefore || DEFAULT_PAGE_BREAKS.has(id)) {
           if (currentPage.length > 0) {
             pagesList.push([...currentPage]);
             currentPage = [];
@@ -1500,7 +1813,7 @@ export const LMSLogbookReport = () => {
         return;
       }
 
-      if (['dept-vision', 'dept-mission', 'peos', 'pos', 'psos', 'course-objectives', 'course-outcomes', 'syllabus', 'textbooks', 'references', 'list-of-experiments'].includes(id)) {
+      if (['dept-vision', 'dept-mission', 'peos', 'pos', 'psos', 'course-prerequisites', 'course-objectives', 'syllabus', 'textbooks', 'references', 'list-of-experiments'].includes(id)) {
         const headerEl = measureEl.querySelector('.section-header');
         const headerHeight = (headerEl?.offsetHeight || 40) + spacingTop;
         const lines = Array.from(measureEl.querySelectorAll('.prose-line'));
@@ -1562,14 +1875,15 @@ export const LMSLogbookReport = () => {
             }
           }
         }
-      } else if (['course-plan', 'attendance', 'seminars', 'gradebook', 'practical-schedule', 'lab-marks'].includes(id)) {
+      } else if (['course-outcomes', 'po-co-mapping', 'course-plan', 'attendance', 'seminars', 'gradebook', 'practical-schedule', 'lab-marks'].includes(id)) {
         const headerEl = measureEl.querySelector('.section-header');
         const headerHeight = (headerEl?.offsetHeight || 40) + spacingTop;
         const tableHeaderEl = measureEl.querySelector('thead');
         const tableHeaderHeight = tableHeaderEl?.offsetHeight || 35;
         const rows = Array.from(measureEl.querySelectorAll('.report-table-row'));
-        const rowDataArray = (id === 'course-plan' || id === 'practical-schedule' ? coursePlan :
-                              id === 'attendance' ? gradebook :
+        const rowDataArray = (id === 'course-outcomes' || id === 'po-co-mapping' ? coUnitRows :
+                              id === 'course-plan' || id === 'practical-schedule' ? coursePlan :
+                              id === 'attendance' ? studentsList :
                               id === 'seminars' ? seminars :
                               id === 'lab-marks' ? labMarks :
                               gradebook);
@@ -1793,10 +2107,28 @@ export const LMSLogbookReport = () => {
 
   const downloadPDF = async () => {
     setGeneratingPDF(true);
+    // Create a temporary container positioned off-screen so html2canvas
+    // can measure and render it correctly regardless of scroll position.
+    const tempContainer = document.createElement('div');
+    tempContainer.style.cssText = [
+      'position:fixed',
+      'top:0',
+      'left:0',
+      'width:210mm',
+      'background:#ffffff',
+      'z-index:-9999',
+      'pointer-events:none',
+      'overflow:visible',
+      'font-family:Times New Roman,Times,serif',
+      'font-size:12pt',
+      'color:#1e293b',
+      'line-height:1.6',
+    ].join(';');
+    document.body.appendChild(tempContainer);
+
     try {
-      const pageElements = document.querySelectorAll('.printable-area .a4-print-page');
-      if (!pageElements.length) {
-        alert('No pages found to export.');
+      if (!pages.length) {
+        alert('No pages found to export. Please switch to Print Layout Editor mode first.');
         return;
       }
 
@@ -1804,32 +2136,99 @@ export const LMSLogbookReport = () => {
       const pdfWidth = 210;
       const pdfHeight = 297;
 
-      for (let i = 0; i < pageElements.length; i++) {
-        try {
-          const pageElement = pageElements[i];
+      // Inject the same report styles so fonts/borders render correctly
+      const styleEl = document.createElement('style');
+      styleEl.textContent = `
+        .pdf-page { box-sizing:border-box; width:210mm; min-height:297mm;
+          padding:15mm; background:#fff; position:relative;
+          font-family:'Times New Roman',Times,serif; font-size:12pt;
+          color:#1e293b; line-height:1.6; overflow:hidden; }
+        .pdf-page table { border-collapse:collapse; width:100%; }
+        .pdf-page th, .pdf-page td { border:1px solid #94a3b8; padding:5px 8px; }
+        .pdf-page thead th { background:#f1f5f9; font-weight:bold; }
+        .pdf-page .a4-page-number { position:absolute; bottom:8mm; left:0; right:0;
+          text-align:center; font-size:9pt; color:#94a3b8;
+          font-family:'Times New Roman',serif; }
+        .pdf-page .print-ui-hide { display:none !important; }
+      `;
+      tempContainer.appendChild(styleEl);
 
-          const canvas = await html2canvas(pageElement, {
+      for (let i = 0; i < pages.length; i++) {
+        // Clear previous page content
+        while (tempContainer.children.length > 1) {
+          tempContainer.removeChild(tempContainer.lastChild);
+        }
+
+        // Create a fresh page div
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'pdf-page';
+        tempContainer.appendChild(pageDiv);
+
+        // We need a React root to render JSX into this div
+        // Use a hidden iframe-like approach: clone the actual DOM page from lms-print-output
+        const printPages = document.querySelectorAll('.lms-print-output .a4-print-page');
+        if (printPages.length > 0 && printPages[i]) {
+          // Clone the already-rendered DOM node
+          const clone = printPages[i].cloneNode(true);
+          // Strip the screen-only decorators
+          clone.querySelectorAll('.print-ui-hide').forEach(el => el.remove());
+          // Remove inline dimensions that fight with our fixed capture size
+          clone.style.width = '210mm';
+          clone.style.height = 'auto';
+          clone.style.minHeight = '297mm';
+          clone.style.padding = '15mm';
+          clone.style.margin = '0';
+          clone.style.boxShadow = 'none';
+          clone.style.border = 'none';
+          clone.style.boxSizing = 'border-box';
+          clone.style.background = '#ffffff';
+          clone.style.overflow = 'hidden';
+          clone.style.position = 'relative';
+          clone.style.fontFamily = 'Times New Roman,Times,serif';
+          clone.style.fontSize = '12pt';
+          clone.style.color = '#1e293b';
+          clone.style.lineHeight = '1.6';
+          // Fix cross-origin images
+          clone.querySelectorAll('img').forEach(img => {
+            img.crossOrigin = 'anonymous';
+          });
+          tempContainer.appendChild(clone);
+          tempContainer.removeChild(pageDiv);
+
+          // Allow browser to layout
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+          const canvas = await html2canvas(clone, {
             scale: 2,
             useCORS: true,
+            allowTaint: true,
             logging: false,
             backgroundColor: '#ffffff',
+            width: clone.offsetWidth,
+            height: clone.offsetHeight,
+            windowWidth: clone.offsetWidth,
             onclone: (clonedDoc) => {
-              const imgs = clonedDoc.querySelectorAll('img');
-              imgs.forEach(img => {
-                img.crossOrigin = 'anonymous';
+              // Strip stylesheets containing oklch color functions to prevent html2canvas crash
+              clonedDoc.querySelectorAll('style').forEach(el => {
+                if (el.textContent && el.textContent.includes('oklch')) {
+                  el.remove();
+                }
+              });
+              clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach(el => {
+                if (el.href && !el.href.includes('fonts.googleapis.com')) {
+                  el.remove();
+                }
               });
             }
           });
 
           const imgData = canvas.toDataURL('image/jpeg', 0.95);
-          if (i > 0) {
-            pdf.addPage();
-          }
+          if (i > 0) pdf.addPage();
           pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
 
-          await new Promise(resolve => setTimeout(resolve, 50));
-        } catch (pageErr) {
-          console.error(`Error generating page ${i + 1}:`, pageErr);
+          tempContainer.removeChild(clone);
+        } else {
+          console.warn(`Page ${i + 1} not found in print output DOM.`);
         }
       }
 
@@ -1837,42 +2236,76 @@ export const LMSLogbookReport = () => {
       pdf.save(`Logbook_Report_${courseCode}.pdf`);
     } catch (err) {
       console.error('Error generating PDF:', err);
-      alert('Failed to generate PDF. Please try again.');
+      alert('Failed to generate PDF: ' + (err.message || 'Unknown error'));
     } finally {
+      if (document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
+      }
       setGeneratingPDF(false);
     }
   };
 
-  // ── Print all pages from the layout editor ───────────────────────────────────
+  // ── Print all pages ───────────────────────────────────────────────────────────
   const printAllPages = () => window.print();
 
-  const pageSeparator = (
-    <div style={{ height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', width: '210mm' }}>
-      <div style={{ height: '1px', flex: 1, background: 'rgba(209,213,219,0.3)' }} />
-      <span style={{ color: '#9ca3af', fontSize: '10px', margin: '0 10px', fontFamily: 'sans-serif', letterSpacing: '0.05em' }}>— page break —</span>
-      <div style={{ height: '1px', flex: 1, background: 'rgba(209,213,219,0.3)' }} />
-    </div>
-  );
 
   // ── VIEW MODE ────────────────────────────────────────────────────────────────
   // Simple continuous scroll. K-level editing lives here.
-  const renderViewMode = () => (
-    <div
-      className="print-page report-body print-ui-hide"
-      style={{ maxWidth: '210mm', margin: '24px auto', background: '#fff', padding: '20mm 18mm', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', fontFamily: 'Times New Roman, Times, serif', fontSize: '12pt', color: '#1e293b', lineHeight: '1.6' }}
-    >
-      {visibleSections.map((id, i) => (
-        <div key={id}>
-          {i > 0 && effectivePageBreaks(id) && <div className="page-break" />}
-          <div style={{ marginTop: (layoutMap[id]?.spacingTop || 0) + 'px' }}>{renderSection(id)}</div>
+  const renderViewMode = () => {
+    const viewElements = sectionOrder
+      .filter(id => layoutMap[id]?.visible !== false)
+      .map(id => ({ id, baseId: id, type: 'full', render: () => renderSection(id) }));
+
+    return (
+      <div className="print-ui-hide" style={{ background: '#f1f5f9', padding: '28px 20px 60px', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ position: 'relative', margin: '0 auto' }}>
+            <div
+              className="print-page report-body"
+              style={{
+                width: '210mm',
+                minHeight: '297mm',
+                background: '#fff',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                position: 'relative',
+                boxSizing: 'border-box',
+                padding: '15mm',
+                fontFamily: 'Times New Roman, Times, serif',
+                fontSize: '12pt',
+                color: '#1e293b',
+                lineHeight: '1.6',
+              }}
+            >
+              {/* Thin solid blue border 10mm from page edges */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '10mm',
+                  left: '10mm',
+                  right: '10mm',
+                  bottom: '10mm',
+                  border: '1px solid #034ea1',
+                  pointerEvents: 'none',
+                  boxSizing: 'border-box',
+                  zIndex: 10
+                }}
+              />
+              {/* Report content */}
+              <div className="report-body">
+                {renderPageElements(viewElements)}
+              </div>
+            </div>
+          </div>
         </div>
-      ))}
-    </div>
-  );
+      </div>
+    );
+  };
 
   // ── PRINT LAYOUT EDITOR ───────────────────────────────────────────────────────
   // The editor IS the print preview — what you see is exactly what prints.
   // Sidebar is sticky/fixed with its own scrollbar. Right panel scrolls independently.
+  // NOTE: The outer div does NOT carry print-ui-hide — the lms-print-output div
+  //       at the bottom of the tree is what actually prints.
   const renderLayoutMode = () => (
     <div
       className="print-ui-hide"
@@ -1886,12 +2319,12 @@ export const LMSLogbookReport = () => {
           flexShrink: 0,
           background: '#1e293b',
           color: '#f1f5f9',
-          overflowY: 'auto',       /* independent scrollbar */
+          overflowY: 'auto',
           overflowX: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           borderRight: '1px solid #0f172a',
-          position: 'sticky',      /* stays in place while doc scrolls */
+          position: 'sticky',
           top: 0,
           height: '100%',
         }}
@@ -1967,7 +2400,7 @@ export const LMSLogbookReport = () => {
                                 <GripVertical size={15} />
                               </div>
                               <div style={{ flex: 1, fontSize: '11px', fontWeight: '600', color: isVisible ? '#f1f5f9' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {SECTION_LABELS[id] || id}
+                                {isLab ? (LAB_SECTION_LABELS[id] || id) : (SECTION_LABELS[id] || id)}
                               </div>
                               <span style={{ flexShrink: 0, fontSize: '9px', background: 'rgba(99,102,241,0.25)', color: '#a5b4fc', borderRadius: '4px', padding: '1px 5px', fontWeight: 'bold' }}>
                                 {pageLabel}
@@ -2020,26 +2453,25 @@ export const LMSLogbookReport = () => {
       </div>
 
       {/* ── Right: scrollable A4 page canvas ──────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: 'auto', background: '#4b5563', padding: '28px 20px 60px' }}>
+      <div className="layout-scroll-panel" style={{ flex: 1, overflowY: 'auto', background: '#4b5563', padding: '28px 20px 60px' }}>
 
         {/* Info bar */}
         <div style={{ textAlign: 'center', marginBottom: '18px', color: '#9ca3af', fontSize: '11px', fontFamily: 'sans-serif', letterSpacing: '0.03em' }}>
           Print Layout Editor — What you see is exactly what prints &nbsp;·&nbsp; {pages.length} pages total
         </div>
 
-        {/* Printable area: only this subtree is printed */}
-        <div className="printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {/* Screen-only preview pages (NOT what prints — lms-print-output below is the print target) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {pages.map((pageItems, pageIdx) => (
-            <div key={pageIdx} style={{ marginBottom: pageIdx < pages.length - 1 ? 0 : 0 }}>
-              {/* A4 sheet — screen view */}
+            <div key={pageIdx}>
+              {/* A4 sheet — screen preview only */}
               <div
-                className="a4-print-page"
                 style={{
                   width: '210mm',
                   height: '297mm',
                   background: '#fff',
                   boxShadow: '0 6px 28px rgba(0,0,0,0.38)',
-                  border: '1px solid #374151',
+                  border: '1px solid #e2e8f0',
                   position: 'relative',
                   boxSizing: 'border-box',
                   margin: '0 auto',
@@ -2048,33 +2480,41 @@ export const LMSLogbookReport = () => {
                   fontSize: '12pt',
                   color: '#1e293b',
                   lineHeight: '1.6',
-                  overflow: 'visible',
+                  overflow: 'hidden',
                 }}
               >
-                {/* Dashed margin guide (screen only, hidden on print) */}
+                {/* Thin solid blue border 10mm from page edges */}
                 <div
-                  className="print-ui-hide"
+                  style={{
+                    position: 'absolute',
+                    top: '10mm',
+                    left: '10mm',
+                    right: '10mm',
+                    bottom: '10mm',
+                    border: '1px solid #034ea1',
+                    pointerEvents: 'none',
+                    boxSizing: 'border-box',
+                    zIndex: 10
+                  }}
+                />
+                {/* Dashed margin guide */}
+                <div
                   style={{ position: 'absolute', top: '15mm', left: '15mm', right: '15mm', bottom: '15mm', border: '1px dashed rgba(99,102,241,0.18)', pointerEvents: 'none', borderRadius: '2px' }}
                 />
-
                 {/* Report content */}
                 <div className="report-body">
                   {renderPageElements(pageItems)}
                 </div>
-
                 {/* Page number */}
                 <div
-                  className="a4-page-number"
-                  style={{ position: 'absolute', bottom: '8mm', left: 0, right: 0, textAlign: 'center', fontSize: '9pt', color: '#94a3b8', fontFamily: 'Times New Roman, serif' }}
+                  style={{ position: 'absolute', bottom: '12mm', left: 0, right: 0, textAlign: 'center', fontSize: '9pt', color: '#94a3b8', fontFamily: 'Times New Roman, serif' }}
                 >
                   Page {pageIdx + 1} of {pages.length}
                 </div>
               </div>
-
-              {/* Page gap indicator (screen only) */}
+              {/* Page gap indicator */}
               {pageIdx < pages.length - 1 && (
                 <div
-                  className="print-ui-hide"
                   style={{ height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '210mm', margin: '0 auto' }}
                 >
                   <div style={{ flex: 1, height: '1px', background: 'rgba(209,213,219,0.3)' }} />
@@ -2188,17 +2628,16 @@ export const LMSLogbookReport = () => {
                   {generatingPDF ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
                   {generatingPDF ? 'Generating...' : 'Download PDF'}
                 </button>
+                {/* Print — prints all pages of the current view */}
+                <button
+                  onClick={printAllPages}
+                  disabled={generatingPDF}
+                  style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 13px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: '9px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: generatingPDF ? 0.55 : 1 }}
+                >
+                  <Printer size={13} /> Print
+                </button>
               </>
             )}
-
-            {/* Print — prints all pages of the current view */}
-            <button
-              onClick={printAllPages}
-              disabled={generatingPDF}
-              style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 13px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: '9px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: generatingPDF ? 0.55 : 1 }}
-            >
-              <Printer size={13} /> Print
-            </button>
           </div>
         </div>
       </div>
@@ -2206,26 +2645,71 @@ export const LMSLogbookReport = () => {
       {mode === 'view'   && renderViewMode()}
       {mode === 'layout' && renderLayoutMode()}
 
-      {/* Always-in-DOM printable area: hidden on screen, active on print. Avoids duplicate in layout mode. */}
-      {mode === 'view' && (
-        <div className="print-only printable-area printable-area-hidden-screen" style={{ display: 'none' }}>
-          {pages.map((pageItems, pageIdx) => (
-            <div key={pageIdx} className="a4-print-page">
-              <div className="report-body">
-                {renderPageElements(pageItems)}
-              </div>
-              <div className="a4-page-number" style={{ position: 'absolute', bottom: '8mm', left: 0, right: 0, textAlign: 'center', fontSize: '9pt', color: '#94a3b8', fontFamily: 'Times New Roman, serif' }}>
-                Page {pageIdx + 1} of {pages.length}
-              </div>
+      {/*
+        lms-print-output: ALWAYS in the DOM. Hidden on screen via CSS (display:none
+        is not set inline — it is the @media print rules that make it visible).
+        This is the single source of truth for both Print and PDF Export.
+        It exists outside of any print-ui-hide container so @media print can
+        display it correctly regardless of which mode the user is in.
+      */}
+      <div
+        className="lms-print-output"
+        aria-hidden="true"
+        style={{
+          // Hidden on screen — @media print overrides this to display:block
+          display: 'none',
+        }}
+      >
+        {pages.map((pageItems, pageIdx) => (
+          <div
+            key={pageIdx}
+            className="a4-print-page"
+            style={{
+              width: '210mm',
+              minHeight: '297mm',
+              padding: '15mm',
+              boxSizing: 'border-box',
+              background: '#fff',
+              border: 'none',
+              position: 'relative',
+              fontFamily: 'Times New Roman, Times, serif',
+              fontSize: '12pt',
+              color: '#1e293b',
+              lineHeight: '1.6',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Thin solid blue border 10mm from page edges */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '10mm',
+                left: '10mm',
+                right: '10mm',
+                bottom: '10mm',
+                border: '1px solid #034ea1',
+                pointerEvents: 'none',
+                boxSizing: 'border-box',
+                zIndex: 10
+              }}
+            />
+            <div className="report-body">
+              {renderPageElements(pageItems)}
             </div>
-          ))}
-        </div>
-      )}
+            <div
+              className="a4-page-number"
+              style={{ position: 'absolute', bottom: '12mm', left: 0, right: 0, textAlign: 'center', fontSize: '9pt', color: '#94a3b8', fontFamily: 'Times New Roman, serif' }}
+            >
+              Page {pageIdx + 1} of {pages.length}
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Measure container: rendered offscreen so offsetHeight can be read accurately */}
       <div
         id="report-measure-container"
-        className="print-ui-hide"
+        className="print-ui-hide report-body"
         style={{
           position: 'absolute',
           left: '-9999px',
@@ -2242,10 +2726,10 @@ export const LMSLogbookReport = () => {
         {visibleSections.map(id => (
           <div key={id} id={`measure-${id}`} className="measure-section">
             {id === 'cover' && renderSection('cover')}
-            {['dept-vision', 'dept-mission', 'peos', 'pos', 'psos', 'course-objectives', 'syllabus', 'textbooks', 'references'].includes(id) && (
+            {['dept-vision', 'dept-mission', 'peos', 'pos', 'psos', 'course-prerequisites', 'course-objectives', 'syllabus', 'textbooks', 'references', 'list-of-experiments'].includes(id) && (
               <div className="measure-prose">
                 <div className="section-header">
-                  <SectionHeader title={SECTION_LABELS[id]} />
+                  <SectionHeader title={isLab ? (LAB_SECTION_LABELS[id] || SECTION_LABELS[id] || id) : (SECTION_LABELS[id] || LAB_SECTION_LABELS[id] || id)} />
                 </div>
                 {highlightReportText(
                   id === 'dept-vision' ? department?.vision :
@@ -2253,7 +2737,9 @@ export const LMSLogbookReport = () => {
                   id === 'peos' ? department?.peos :
                   id === 'pos' ? programOutcomes?.outcomes :
                   id === 'psos' ? department?.psos :
+                  id === 'course-prerequisites' ? course.prerequisites :
                   id === 'course-objectives' ? course.objectives :
+                  id === 'list-of-experiments' ? course.syllabus :
                   id === 'syllabus' ? course.syllabus :
                   id === 'textbooks' ? course.textbooks :
                   course.references
@@ -2262,66 +2748,20 @@ export const LMSLogbookReport = () => {
             )}
             {id === 'course-outcomes' && renderSection('course-outcomes')}
             {id === 'po-co-mapping' && renderSection('po-co-mapping')}
-            {['course-plan', 'attendance', 'seminars', 'gradebook'].includes(id) && (
+            {['course-plan', 'attendance', 'seminars', 'gradebook', 'practical-schedule', 'lab-marks'].includes(id) && (
               <div className="measure-table">
                 <div className="section-header">
-                  <SectionHeader title={SECTION_LABELS[id]} />
+                  <SectionHeader title={isLab ? (LAB_SECTION_LABELS[id] || SECTION_LABELS[id] || id) : (SECTION_LABELS[id] || LAB_SECTION_LABELS[id] || id)} />
                 </div>
                 <table className="report-table">
                   <thead>{renderTableHeader(id)}</thead>
                   <tbody>
-                    {(id === 'course-plan' ? coursePlan :
-                      id === 'attendance' ? gradebook :
+                    {(id === 'course-plan' || id === 'practical-schedule' ? coursePlan :
+                      id === 'attendance' ? studentsList :
                       id === 'seminars' ? seminars :
+                      id === 'lab-marks' ? labMarks :
                       gradebook
-                    ).map((item, idx) => (
-                      <tr key={idx} className="report-table-row">
-                        {id === 'course-plan' && (
-                          <>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{item.sequence_no}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.unit}</td>
-                            <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{item.topic}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.hours}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.proposed_date ? formatDate(item.proposed_date) : '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.actual_date ? formatDate(item.actual_date) : '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.cognitive_level || '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.mode_of_delivery || '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{item.is_signed ? 'Signed' : item.actual_date ? 'Done' : 'Pending'}</td>
-                          </>
-                        )}
-                        {id === 'attendance' && (
-                          <>
-                            <td style={tdLeftStyle}>{item.register_number}</td>
-                            <td style={tdLeftStyle}>{item.name}</td>
-                            <td style={tdStyle}>{getStudentAttendanceSummary(item.student_id).conducted}</td>
-                            <td style={tdStyle}>{getStudentAttendanceSummary(item.student_id).attended}</td>
-                            <td style={{ ...tdStyle, fontWeight: 'bold' }}>{getStudentAttendanceSummary(item.student_id).percentage}</td>
-                          </>
-                        )}
-                        {id === 'seminars' && (
-                          <>
-                            <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{item.register_number}</td>
-                            <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{item.first_name + ' ' + item.last_name}</td>
-                            <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{item.seminar_topic || 'Not Assigned'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{item.seminar_date ? formatDate(item.seminar_date) : '—'}</td>
-                            {SEMINAR_RUBRIC.map(c => <td key={c.key} style={{ ...tdStyle, fontSize: '9pt' }}>{item[c.key] != null ? item[c.key] : '—'}</td>)}
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{item.marks_obtained != null ? item.marks_obtained : '—'}</td>
-                          </>
-                        )}
-                        {id === 'gradebook' && (
-                          <>
-                            <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{item.register_number}</td>
-                            <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{item.name}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{item.cia_1 ?? '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{item.cia_1_retest ?? '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{item.cia_2 ?? '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{item.cia_2_retest ?? '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{item.model_exam ?? '—'}</td>
-                            <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold', color: '#991b1b' }}>{item.model_exam_retest ?? '—'}</td>
-                          </>
-                        )}
-                      </tr>
-                    ))}
+                    ).map((item, idx) => renderTableRow(id, item, idx))}
                   </tbody>
                 </table>
               </div>

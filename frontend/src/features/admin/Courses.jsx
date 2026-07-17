@@ -226,7 +226,13 @@ export const Courses = () => {
       await fetchData();
       handleCloseModal();
     } catch (err) {
-      setFormError(err.response?.data?.detail || 'Failed to save course');
+      const errorDetail = err.response?.data?.detail;
+      const errorMessage = typeof errorDetail === 'string' 
+        ? errorDetail 
+        : Array.isArray(errorDetail) 
+          ? errorDetail.map(e => e.msg).join(', ') 
+          : 'Failed to save course';
+      setFormError(errorMessage);
     } finally {
       setFormLoading(false);
     }
@@ -496,7 +502,7 @@ export const Courses = () => {
 
       {/* Add / Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
           <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-5xl overflow-hidden transform transition-all max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
               <h3 className="text-lg font-bold text-gray-900">{editingId ? 'Edit Course' : `Add Course to ${selectedDept.code}`}</h3>
@@ -516,7 +522,7 @@ export const Courses = () => {
                   </div>
                 )}
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Name</label>
                     <input 
@@ -553,7 +559,7 @@ export const Courses = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Department</label>
                     {/* If editing, allow changing dept. If creating in a specific dept, lock it or show it visually */}
@@ -580,12 +586,13 @@ export const Courses = () => {
                       <option value="theory">Theory</option>
                       <option value="lab">Lab</option>
                       <option value="elective">Elective</option>
+                      <option value="open_elective">Open Elective</option>
                       <option value="project">Project</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Credits</label>
                     <input 

@@ -37,6 +37,7 @@ class FacultyLeaveRequestBase(BaseModel):
     compensation_verifier_id: Optional[int] = None
     compensation_date: Optional[date] = None
     compensation_purpose: Optional[str] = None
+    compensation_registry_id: Optional[int] = None
     hour_permission_session: Optional[str] = None
     hour_permission_period: Optional[str] = None
     proof_link: Optional[str] = None
@@ -59,6 +60,8 @@ class FacultyLeaveRequestResponse(FacultyLeaveRequestBase):
     hour_permission_session: Optional[str] = None
     hour_permission_period: Optional[str] = None
     proof_link: Optional[str] = None
+    alternate_hod_faculty_id: Optional[int] = None
+    alternate_hod_faculty_name: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     
@@ -66,6 +69,19 @@ class FacultyLeaveRequestResponse(FacultyLeaveRequestBase):
 
     class Config:
         from_attributes = True
+
+
+# ── HOD Leave Schemas ──────────────────────────────────────────────────────
+
+class HODLeaveRequestCreate(BaseModel):
+    leave_type: str
+    from_date: date
+    to_date: date
+    reason: str
+    alternate_hod_faculty_id: int  # required: the faculty member who handles HOD duties
+    attachment_url: Optional[str] = None
+    # Optional class-substitute arrangements (if HOD teaches courses)
+    arrangements: List[FacultyDutyArrangementCreate] = []
 
 class FacultyLeaveBalanceBase(BaseModel):
     academic_year: str
@@ -99,6 +115,61 @@ class FacultyLeaveBalanceUpdate(BaseModel):
     vacation_leaves_total: Optional[int] = None
     compensation_leaves_total: Optional[int] = None
     academic_leaves_total: Optional[int] = None
+
+
+
+# ── Restricted Holiday Schemas ───────────────────────────────────────────────
+
+class RestrictedHolidayCreate(BaseModel):
+    name: str
+    date: date
+    academic_year: str
+    description: Optional[str] = None
+
+class RestrictedHolidayUpdate(BaseModel):
+    name: Optional[str] = None
+    date: Optional[date] = None
+    academic_year: Optional[str] = None
+    description: Optional[str] = None
+
+class RestrictedHolidayResponse(BaseModel):
+    id: int
+    name: str
+    date: date
+    academic_year: str
+    description: Optional[str] = None
+    created_by_id: Optional[int] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ── Compensation Registry Schemas ───────────────────────────────────────────
+
+class CompensationRegistryCreate(BaseModel):
+    peer_faculty_id: int
+    date_worked: date
+    classes_substituted: Optional[str] = None
+
+class CompensationRegistryResponse(BaseModel):
+    id: int
+    faculty_id: int
+    peer_faculty_id: int
+    date_worked: date
+    classes_substituted: Optional[str] = None
+    status: str
+    is_used: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    # We might want to include the names of the faculty for display
+    faculty_name: Optional[str] = None
+    peer_faculty_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 
 # ── Student Leave Schemas ──────────────────────────────────────────────────

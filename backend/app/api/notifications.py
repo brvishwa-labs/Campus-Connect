@@ -139,11 +139,13 @@ def get_badge_counts(
             q_fac_ann = db.query(Announcement).filter(Announcement.is_global == True)
             counts["/faculty/announcements"] = apply_view_filter(q_fac_ann, Announcement, "faculty-announcements", views_dict).count()
 
-    if current_user.role == UserRole.HOD:
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    if is_acting_hod(current_user, db):
         faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
-        if faculty:
-            dept_students = db.query(Student.id).filter(Student.department_id == faculty.department_id).subquery()
-            dept_faculty = db.query(Faculty.id).filter(Faculty.department_id == faculty.department_id).subquery()
+        dept = get_managed_department(faculty.id, db)
+        if faculty and dept:
+            dept_students = db.query(Student.id).filter(Student.department_id == dept.id).subquery()
+            dept_faculty = db.query(Faculty.id).filter(Faculty.department_id == dept.id).subquery()
 
             # HOD leave — student (clears on visit)
             q_hod_stu = db.query(StudentLeaveRequest).filter(

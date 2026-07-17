@@ -105,13 +105,14 @@ def get_hod_queue(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.HOD:
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    if not is_acting_hod(current_user, db):
         raise HTTPException(status_code=403, detail="Not authorized")
         
     faculty = get_faculty_profile(db, current_user.id)
     
     # Check if HOD
-    department = db.query(Department).filter(Department.hod_id == faculty.id).first()
+    department = get_managed_department(faculty.id, db)
     if not department:
         raise HTTPException(status_code=403, detail="Only HOD can view this queue")
         
@@ -131,11 +132,12 @@ def hod_approve_gatepass(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.HOD:
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    if not is_acting_hod(current_user, db):
         raise HTTPException(status_code=403, detail="Not authorized")
         
     faculty = get_faculty_profile(db, current_user.id)
-    department = db.query(Department).filter(Department.hod_id == faculty.id).first()
+    department = get_managed_department(faculty.id, db)
     
     if not department:
         raise HTTPException(status_code=403, detail="Only HOD can approve")

@@ -171,7 +171,17 @@ def get_my_courses(
     
     for enrollment in enrollments:
         if enrollment.course and enrollment.course.is_active:
-            course_map[enrollment.course_id] = (enrollment.course, None, enrollment.id)
+            f_name = None
+            if enrollment.section_id:
+                assignment = db.query(CourseAssignment).filter(
+                    CourseAssignment.section_id == enrollment.section_id,
+                    CourseAssignment.course_id == enrollment.course_id,
+                    CourseAssignment.is_active == True
+                ).first()
+                if assignment and assignment.faculty:
+                    f = assignment.faculty
+                    f_name = f"{f.first_name} {f.last_name}"
+            course_map[enrollment.course_id] = (enrollment.course, f_name, enrollment.id)
 
     # Fetch implicit enrollments via section assignments
     if student.section_id:
@@ -920,11 +930,12 @@ def get_hod_leave_queue(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    if current_user.role != "hod":
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    if not is_acting_hod(current_user, db):
         raise HTTPException(status_code=403, detail="HOD only")
 
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
-    department = db.query(Department).filter(Department.hod_id == faculty.id).first()
+    department = get_managed_department(faculty.id, db)
     if not department:
         raise HTTPException(status_code=404, detail="No department assigned to this HOD")
 
@@ -964,11 +975,12 @@ def hod_action(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    if current_user.role != "hod":
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    if not is_acting_hod(current_user, db):
         raise HTTPException(status_code=403, detail="HOD only")
 
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
-    department = db.query(Department).filter(Department.hod_id == faculty.id).first()
+    department = get_managed_department(faculty.id, db)
 
     student_ids = [
         s.id for s in db.query(Student.id)

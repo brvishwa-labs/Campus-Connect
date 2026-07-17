@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 
@@ -7,7 +8,7 @@ from app.models.user import User
 from app.models.faculty import Faculty
 from app.models.student import Student
 from app.models.department import Department
-from app.models.academic import Section, Course, CourseAssignment, MentorAssignment
+from app.models.academic import Section, Course, CourseAssignment, MentorAssignment, CourseType, Enrollment
 from app.models.lms import TimetableSlot, Announcement
 from app.schemas.hod import (
     SectionCreate, SectionUpdate, SectionResponse,
@@ -26,16 +27,17 @@ router = APIRouter()
 
 def get_hod_department(current_user: User, db: Session):
     """
-    Helper: Given the current user (who must be an HOD), return their department.
+    Helper: Given the current user (who must be an HOD or acting HOD), return their department.
     """
-    if current_user.role != "hod":
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    if not is_acting_hod(current_user, db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access restricted to HODs")
 
     faculty_profile = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
     if not faculty_profile:
         raise HTTPException(status_code=404, detail="Faculty profile not found for this HOD user")
 
-    department = db.query(Department).filter(Department.hod_id == faculty_profile.id).first()
+    department = get_managed_department(faculty_profile.id, db)
     if not department:
         raise HTTPException(status_code=404, detail="No department assigned to this HOD")
 
@@ -235,6 +237,9 @@ def create_section(
     ).first()
     if existing:
         raise HTTPException(status_code=400, detail="This section already exists")
+
+    if department.is_common_first_year and section_in.year != 1:
+        raise HTTPException(status_code=400, detail="Science & Humanities can only have Year 1 sections")
 
     new_section = Section(
         department_id=department.id,
@@ -1006,7 +1011,7 @@ def get_results_summary(
         
     return results_by_year
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from datetime import datetime, timedelta, date
 
 @router.get("/sections-list")
@@ -1622,3 +1627,169 @@ def get_course_detailed_results(
         "course_name": course.name,
         "exams": results_data
     }
+
+# ── Open Electives Management ──────────────────────────────
+
+@router.get("/open-electives")
+def get_hod_open_electives(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    department, _ = get_hod_department(current_user, db)
+    courses = db.query(Course).filter(
+        Course.department_id == department.id,
+        Course.course_type == CourseType.OPEN_ELECTIVE,
+        Course.is_active == True
+    ).all()
+    return courses
+
+@router.get("/open-electives/{course_id}/batches")
+def get_open_elective_batches(course_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    department, _ = get_hod_department(current_user, db)
+    assignments = db.query(CourseAssignment).options(joinedload(CourseAssignment.section), joinedload(CourseAssignment.faculty)).filter(
+        CourseAssignment.course_id == course_id,
+        CourseAssignment.is_active == True
+    ).all()
+    
+    batches = []
+    for a in assignments:
+        if a.section:
+            count = db.query(Enrollment).filter(Enrollment.section_id == a.section.id, Enrollment.course_id == course_id).count()
+            batches.append({
+                "section": a.section,
+                "assignment": a,
+                "enrolled_count": count
+            })
+    return batches
+
+class OESearchStudentRequest(BaseModel):
+    query: str = ""
+    semester: int
+    department_id: Optional[int] = None
+    course_id: int
+
+@router.post("/open-electives/search-student")
+def search_student_for_oe(
+    payload: OESearchStudentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    query = payload.query.strip().lower()
+    
+    filters = [
+        Student.is_active == True,
+        Student.current_semester == payload.semester
+    ]
+    
+    if payload.department_id:
+        filters.append(Student.department_id == payload.department_id)
+        
+    enrolled_ids = [e.student_id for e in db.query(Enrollment.student_id).filter(Enrollment.course_id == payload.course_id).all()]
+    if enrolled_ids:
+        filters.append(~Student.id.in_(enrolled_ids))
+        
+    if query:
+        filters.append(
+            or_(
+                func.lower(Student.register_number).contains(query),
+                func.lower(Student.first_name).contains(query),
+                func.lower(Student.last_name).contains(query)
+            )
+        )
+    
+    students = db.query(Student).options(joinedload(Student.department)).filter(*filters).limit(50).all()
+    
+    return [
+        {
+            "id": s.id,
+            "register_number": s.register_number,
+            "name": f"{s.first_name} {s.last_name}",
+            "department": s.department.name if s.department else ""
+        }
+        for s in students
+    ]
+
+@router.get("/departments", response_model=List[DepartmentResponse])
+def get_all_departments(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    return db.query(Department).all()
+
+class OEAssignStudentRequest(BaseModel):
+    student_id: int
+    course_id: int
+    section_id: int
+    academic_year: str
+    semester: int
+
+@router.post("/open-electives/assign")
+def assign_student_to_oe(
+    payload: OEAssignStudentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    department, _ = get_hod_department(current_user, db)
+    
+    student = db.query(Student).filter(Student.id == payload.student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+        
+    existing = db.query(Enrollment).filter(
+        Enrollment.student_id == payload.student_id,
+        Enrollment.course_id == payload.course_id
+    ).first()
+    
+    if existing:
+        existing.section_id = payload.section_id
+        db.commit()
+        return {"message": "Updated student's batch assignment"}
+        
+    new_enrollment = Enrollment(
+        student_id=payload.student_id,
+        course_id=payload.course_id,
+        academic_year=payload.academic_year,
+        semester=payload.semester,
+        section_id=payload.section_id
+    )
+    db.add(new_enrollment)
+    db.commit()
+    return {"message": "Successfully enrolled student to Open Elective"}
+
+@router.get("/open-electives/{course_id}/batches/{section_id}/students")
+def get_enrolled_oe_students(
+    course_id: int, 
+    section_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_active_user)
+):
+    department, _ = get_hod_department(current_user, db)
+    enrollments = db.query(Enrollment).options(joinedload(Enrollment.student).joinedload(Student.department)).filter(
+        Enrollment.course_id == course_id,
+        Enrollment.section_id == section_id
+    ).all()
+    
+    return [
+        {
+            "id": e.student.id,
+            "register_number": e.student.register_number,
+            "name": f"{e.student.first_name} {e.student.last_name}",
+            "department": e.student.department.name if e.student.department else ""
+        }
+        for e in enrollments if e.student
+    ]
+
+@router.delete("/open-electives/enrollment/{course_id}/{student_id}")
+def remove_student_from_oe(
+    course_id: int,
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    department, _ = get_hod_department(current_user, db)
+    
+    enrollment = db.query(Enrollment).filter(
+        Enrollment.course_id == course_id,
+        Enrollment.student_id == student_id
+    ).first()
+    
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Enrollment not found")
+        
+    db.delete(enrollment)
+    db.commit()
+    return {"message": "Successfully removed student from Open Elective"}

@@ -11,6 +11,14 @@ from app.models.user import User
 from app.models.department import Department
 from app.models.alumni import Alumni
 from app.schemas.student import StudentCreate, StudentUpdate, StudentResponse
+from pydantic import BaseModel
+from typing import Optional
+
+class PromoteRequest(BaseModel):
+    department_id: Optional[int] = None
+    current_year: Optional[int] = None
+    current_semester: Optional[int] = None
+
 from app.core.security import get_current_active_user, get_password_hash
 
 router = APIRouter()
@@ -37,6 +45,7 @@ def get_students(
             "college_email": s.college_email,
             "phone": s.phone,
             "department_id": s.department_id,
+            "intended_department_id": s.intended_department_id,
             "batch": s.batch,
             "current_semester": s.current_semester,
             "current_year": s.current_year,
@@ -92,9 +101,19 @@ def create_student(
     sem = student_in.current_semester or 1
     year = student_in.current_year or ((sem + 1) // 2)
 
+    intended_department_id = student_in.department_id
+    current_department_id = student_in.department_id
+
+    if sem <= 2:
+        sh_dept = db.query(Department).filter(Department.is_common_first_year == True).first()
+        if not sh_dept:
+            raise HTTPException(status_code=500, detail="Science & Humanities department is not configured — contact system admin")
+        current_department_id = sh_dept.id
+
     new_student = Student(
         user_id=new_user.id,
-        department_id=student_in.department_id,
+        department_id=current_department_id,
+        intended_department_id=intended_department_id,
         first_name=student_in.first_name,
         last_name=student_in.last_name,
         register_number=student_in.register_number,
@@ -114,11 +133,13 @@ def create_student(
 
 @router.post("/promote", status_code=status.HTTP_200_OK)
 def promote_students(
+    payload: Optional[PromoteRequest] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Promote all active students to the next semester.
+    Promote active students to the next semester.
+    If filters are provided, only matching students are promoted.
     If a student is in the 8th semester, graduate them to Alumni.
     """
     if current_user.role != "admin":
@@ -126,7 +147,16 @@ def promote_students(
 
     from app.models.academic import CourseAssignment
     
-    active_students = db.query(Student).filter(Student.is_active == True).all()
+    query = db.query(Student).filter(Student.is_active == True)
+    if payload:
+        if payload.department_id:
+            query = query.filter(Student.department_id == payload.department_id)
+        if payload.current_year:
+            query = query.filter(Student.current_year == payload.current_year)
+        if payload.current_semester:
+            query = query.filter(Student.current_semester == payload.current_semester)
+            
+    active_students = query.all()
     
     # Collect section and semester pairs to archive old course assignments
     sections_to_archive = set()
@@ -152,10 +182,20 @@ def promote_students(
 
     promoted_count = 0
     graduated_count = 0
+    skipped_missing_intended_dept_count = 0
+    errors = []
 
     for s in active_students:
         if s.current_semester < 8:
+            if s.current_semester == 2:
+                if not s.intended_department_id:
+                    errors.append(f"Student {s.register_number} needs an intended department assigned before they can move to semester 3.")
+                    skipped_missing_intended_dept_count += 1
+                    continue
+                s.department_id = s.intended_department_id
+
             s.current_semester += 1
+            s.current_year = (s.current_semester + 1) // 2
             promoted_count += 1
             # If entering an odd semester (new academic year), unassign from current section
             if s.current_semester % 2 != 0:
@@ -174,10 +214,15 @@ def promote_students(
 
     db.commit()
 
+    message = f"Successfully promoted {promoted_count} students and graduated {graduated_count} students to Alumni."
+    if skipped_missing_intended_dept_count > 0:
+        message += f" Skipped {skipped_missing_intended_dept_count} student(s) from Sem 2 to 3 due to missing intended department."
+
     return {
-        "message": f"Successfully promoted {promoted_count} students and graduated {graduated_count} students to Alumni.",
+        "message": message,
         "promoted_count": promoted_count,
-        "graduated_count": graduated_count
+        "graduated_count": graduated_count,
+        "errors": errors
     }
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
@@ -236,9 +281,20 @@ async def upload_students(
             semester_val = int(row.get('current_semester', '1').strip() or '1')
             year_val = int(row.get('current_year', str((semester_val + 1) // 2)).strip() or str((semester_val + 1) // 2))
 
+            intended_dept_id = int(row['department_id'])
+            current_dept_id = intended_dept_id
+
+            if semester_val <= 2:
+                sh_dept = db.query(Department).filter(Department.is_common_first_year == True).first()
+                if not sh_dept:
+                    errors.append(f"Row {row_num}: Science & Humanities department is not configured — contact system admin")
+                    continue
+                current_dept_id = sh_dept.id
+
             new_student = Student(
                 user_id=new_user.id,
-                department_id=int(row['department_id']),
+                department_id=current_dept_id,
+                intended_department_id=intended_dept_id,
                 first_name=row['first_name'].strip(),
                 last_name=row['last_name'].strip(),
                 register_number=row['register_number'].strip(),
@@ -292,7 +348,16 @@ def update_student(
         db_user = db.query(User).filter(User.id == db_student.user_id).first()
         if db_user:
             db_user.email = update_data["college_email"]
-            
+
+    if "department_id" in update_data:
+        target_dept_id = update_data["department_id"]
+        if (db_student.current_semester or 1) <= 2:
+            update_data["intended_department_id"] = target_dept_id
+            del update_data["department_id"]  # Do not change current dept (S&H)
+        else:
+            update_data["intended_department_id"] = target_dept_id
+            # keep department_id in update_data to update current dept
+
     for field, value in update_data.items():
         setattr(db_student, field, value)
         

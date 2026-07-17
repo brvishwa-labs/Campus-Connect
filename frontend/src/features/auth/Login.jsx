@@ -43,8 +43,10 @@ export default function Login() {
   const bgClass = isDarkMode ? 'bg-[#0f1115]' : 'bg-gray-100';
 
   return (
-    <div className={`min-h-screen w-full flex items-center justify-center relative overflow-hidden font-sans transition-colors duration-1000 ${bgClass}`}>
-      
+    <div 
+      className={`min-h-screen w-full flex items-center justify-center relative overflow-hidden font-sans transition-colors duration-1000 ${bgClass} ${!isLampOn ? 'cursor-pointer' : ''}`}
+      onClick={!isLampOn ? handleToggleLamp : undefined}
+    >      
       {/* Cinematic Ambient Beam (Massive background lighting) */}
       <div className={`absolute inset-0 transition-opacity duration-1000 ease-in-out z-0 pointer-events-none ${isLampOn ? 'opacity-100' : 'opacity-0'}`}>
         {/* The ambient room fill that illuminates the whole area behind the login form */}
@@ -140,6 +142,15 @@ export default function Login() {
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              <div className="mt-2 text-right">
+                <button
+                  type="button"
+                  onClick={() => navigate('/forgot-password')}
+                  className="text-[13px] font-semibold text-primary-600 hover:text-primary-700 transition-colors"
+                >
+                  Forgot password?
                 </button>
               </div>
             </div>

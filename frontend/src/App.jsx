@@ -19,12 +19,14 @@ import { Students } from './features/admin/Students';
 import { Alumni } from './features/admin/Alumni';
 import { Authorities } from './features/admin/Authorities';
 import { Courses } from './features/admin/Courses';
+import PasswordResets from './features/admin/PasswordResets';
 import { HodDashboard } from './features/hod/HodDashboard';
 import { FacultyList } from './features/hod/FacultyList';
 import { FacultyList as AuthorityFacultyList } from './features/authority/FacultyList';
 import FacultyRoster from './features/hod/FacultyRoster';
 import { StudentList } from './features/hod/StudentList';
 import { Sections } from './features/hod/Sections';
+import { OpenElectives } from './features/hod/OpenElectives';
 import { FacultyAssignment } from './features/hod/FacultyAssignment';
 import { MentorAssignment } from './features/hod/MentorAssignment';
 import { Timetable } from './features/hod/Timetable';
@@ -58,9 +60,13 @@ import { Discipline as StudentDiscipline } from './features/student/Discipline';
 import { LateTrackerDashboard } from './features/latetracker/Dashboard';
 import { LateManagement } from './features/hod/LateManagement';
 import { LeaveRequests } from './features/faculty/LeaveRequests';
+import { HODLeaveRequests } from './features/hod/HODLeaveRequests';
+import { HODLeaveApply } from './features/hod/HODLeaveApply';
+import { HODDutySubstitute } from './features/faculty/HODDutySubstitute';
 import { LeaveApply } from './features/faculty/LeaveApply';
 import { LeaveDetails } from './features/faculty/LeaveDetails';
 import { SubstituteApprovals } from './features/faculty/SubstituteApprovals';
+import { CompensationRegistry } from './features/faculty/CompensationRegistry';
 import LateEntryNotifications from './features/faculty/LateEntryNotifications';
 import { CADashboard } from './features/faculty/classadvisor/CADashboard';
 import { CAStudentList } from './features/faculty/classadvisor/CAStudentList';
@@ -78,12 +84,12 @@ import { GatePass } from './features/student/GatePass';
 import { StudentLeave } from './features/student/StudentLeave';
 import { MenteeGatePasses } from './features/faculty/MenteeGatePasses';
 import { GatePassApprovals as HodGatePassApprovals } from './features/hod/GatePassApprovals';
-// import { LeaveApprovals } from './features/hod/LeaveApprovals';
+import { LeaveApprovals } from './features/hod/LeaveApprovals';
 import { OMGatePassApprovals } from './features/authority/OMGatePassApprovals';
 import FacultyGatePass from './features/faculty/FacultyGatePass';
 import HODFacultyGatePass from './features/hod/HODFacultyGatePass';
 import AuthorityFacultyGatePass from './features/authority/AuthorityFacultyGatePass';
-// import { AuthorityLeaveApprovals } from './features/authority/AuthorityLeaveApprovals';
+import { AuthorityLeaveApprovals } from './features/authority/AuthorityLeaveApprovals';
 import { Profile } from './features/profile/Profile';
 import LateEntryNotification from './features/student/LateEntryNotification';
 import PrincipalDashboard from './features/authority/PrincipalDashboard';
@@ -94,12 +100,15 @@ import HRLeavePortal from './features/authority/HRLeavePortal';
 import HRSetLeaveLimits from './features/authority/HRSetLeaveLimits';
 import HRGatepassPortal from './features/authority/HRGatepassPortal';
 import HRFacultyDirectory from './features/authority/HRFacultyDirectory';
+import HRRestrictedHolidays from './features/authority/HRRestrictedHolidays';
 import AuthorityAnalytics from './features/authority/AuthorityAnalytics';
 import OMAnalytics from './features/authority/OMAnalytics';
 import AuthorityDashboardRouter from './features/authority/AuthorityDashboardRouter';
 import StudentMessaging from './features/student/StudentMessaging';
 import DeanMessaging from './features/dean/DeanMessaging';
 import MyAttendance from './features/faculty/MyAttendance';
+import ForgotPassword from './features/auth/ForgotPassword';
+
 // A simple protective wrapper that forces login and checks roles
 const ProtectedRoute = ({ children, allowedRole }) => {
   const { user } = useAuth();
@@ -131,6 +140,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       
       <Route element={<DashboardLayout />}>
         {/* Admin Routes */}
@@ -184,6 +194,11 @@ function AppRoutes() {
             <Announcements />
           </ProtectedRoute>
         } />
+        <Route path="/admin/password-resets" element={
+          <ProtectedRoute allowedRole="admin">
+            <PasswordResets />
+          </ProtectedRoute>
+        } />
         
         {/* HOD Routes */}
         <Route path="/hod" element={
@@ -209,6 +224,11 @@ function AppRoutes() {
         <Route path="/hod/sections" element={
           <ProtectedRoute allowedRole="hod">
             <Sections />
+          </ProtectedRoute>
+        } />
+        <Route path="/hod/open-electives" element={
+          <ProtectedRoute allowedRole="hod">
+            <OpenElectives />
           </ProtectedRoute>
         } />
         <Route path="/hod/assignments" element={
@@ -256,11 +276,21 @@ function AppRoutes() {
             <HODFacultyGatePass />
           </ProtectedRoute>
         } />
-        {/* <Route path="/hod/leave" element={
+        <Route path="/hod/leave" element={
           <ProtectedRoute allowedRole="hod">
             <LeaveApprovals />
           </ProtectedRoute>
-        } /> */}
+        } />
+        <Route path="/hod/my-leave" element={
+          <ProtectedRoute allowedRole="hod">
+            <HODLeaveRequests />
+          </ProtectedRoute>
+        } />
+        <Route path="/hod/apply-leave" element={
+          <ProtectedRoute allowedRole="hod">
+            <HODLeaveApply />
+          </ProtectedRoute>
+        } />
         <Route path="/hod/latetracker" element={
           <ProtectedRoute allowedRole="hod">
             <LateManagement />
@@ -281,6 +311,11 @@ function AppRoutes() {
         <Route path="/faculty/courses" element={
           <ProtectedRoute allowedRole="faculty">
             <FacultyCourses />
+          </ProtectedRoute>
+        } />
+        <Route path="/faculty/hod-duty" element={
+          <ProtectedRoute allowedRole="faculty">
+            <HODDutySubstitute />
           </ProtectedRoute>
         } />
         <Route path="/faculty/courses/:assignmentId/lms" element={
@@ -369,6 +404,11 @@ function AppRoutes() {
         <Route path="/faculty/leave/:id" element={
           <ProtectedRoute allowedRole="faculty">
             <LeaveDetails />
+          </ProtectedRoute>
+        } />
+        <Route path="/faculty/compensation-registry" element={
+          <ProtectedRoute allowedRole="faculty">
+            <CompensationRegistry />
           </ProtectedRoute>
         } />
         {/* Class Advisor Routes */}
@@ -584,17 +624,22 @@ function AppRoutes() {
             <HRGatepassPortal />
           </ProtectedRoute>
         } />
+        <Route path="/hr/restricted-holidays" element={
+          <ProtectedRoute allowedRole="authority">
+            <HRRestrictedHolidays />
+          </ProtectedRoute>
+        } />
         <Route path="/hr/faculty" element={
           <ProtectedRoute allowedRole="authority">
             <HRFacultyDirectory />
           </ProtectedRoute>
         } />
         
-        {/* <Route path="/authority/leave" element={
+        <Route path="/authority/leave" element={
           <ProtectedRoute allowedRole="authority">
             <AuthorityLeaveApprovals />
           </ProtectedRoute>
-        } /> */}
+        } />
         <Route path="/authority/discipline" element={
           <ProtectedRoute allowedRole="authority">
             <AuthorityDiscipline />

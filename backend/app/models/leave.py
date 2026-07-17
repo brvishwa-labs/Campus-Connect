@@ -14,6 +14,7 @@ from app.core.database import Base
 class LeaveStatus(str, enum.Enum):
     PENDING_COMPENSATION_VERIFICATION = "pending_compensation_verification"
     PENDING_SUBSTITUTE = "pending_substitute"
+    PENDING_ALTERNATE_HOD = "pending_alternate_hod"  # HOD leave: waiting for alternate staff to accept
     PENDING_HOD = "pending_hod"
     PENDING_DEAN = "pending_dean"
     PENDING_OM = "pending_om"
@@ -43,6 +44,7 @@ class FacultyLeaveRequest(Base):
     compensation_verifier_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     compensation_date = Column(Date, nullable=True)
     compensation_purpose = Column(String(500), nullable=True)
+    compensation_registry_id = Column(Integer, ForeignKey("compensation_registry_requests.id"), nullable=True)
     
     # Hour Permission
     hour_permission_session = Column(String(10), nullable=True)
@@ -53,6 +55,9 @@ class FacultyLeaveRequest(Base):
     
     status = Column(SQLEnum(LeaveStatus, values_callable=lambda obj: [e.value for e in obj]), default=LeaveStatus.PENDING_SUBSTITUTE)
     
+    # HOD Leave — alternate staff chosen to handle HOD duties during absence
+    alternate_hod_faculty_id = Column(Integer, ForeignKey("faculty.id"), nullable=True)
+
     # Audit tracking
     hod_approved_by = Column(Integer, ForeignKey("faculty.id"), nullable=True) # HOD is a faculty
     dean_approved_by = Column(Integer, ForeignKey("authorities.id"), nullable=True)
@@ -65,6 +70,7 @@ class FacultyLeaveRequest(Base):
 
     # Relationships
     faculty = relationship("Faculty", foreign_keys=[faculty_id])
+    alternate_hod_faculty = relationship("Faculty", foreign_keys=[alternate_hod_faculty_id])
     arrangements = relationship("FacultyDutyArrangement", back_populates="leave_request", cascade="all, delete-orphan")
 
 
@@ -174,3 +180,39 @@ class FacultyLeaveBalance(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     faculty = relationship("Faculty", foreign_keys=[faculty_id])
+
+
+class RestrictedHoliday(Base):
+    """
+    Restricted Holidays configured by HR.
+    Faculty can only apply Restricted Leave on these specific dates.
+    """
+    __tablename__ = "restricted_holidays"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    date = Column(Date, nullable=False)
+    description = Column(String(500), nullable=True)
+    academic_year = Column(String(20), nullable=False)  # e.g. "2025-2026"
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    created_by = relationship("User")
+
+
+class CompensationRegistryRequest(Base):
+    __tablename__ = "compensation_registry_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    faculty_id = Column(Integer, ForeignKey("faculty.id"), nullable=False)
+    peer_faculty_id = Column(Integer, ForeignKey("faculty.id"), nullable=False)
+    date_worked = Column(Date, nullable=False)
+    classes_substituted = Column(String(500), nullable=True)
+    status = Column(String(50), default="pending_peer_approval") # pending, approved, rejected
+    is_used = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    faculty = relationship("Faculty", foreign_keys=[faculty_id])
+    peer_faculty = relationship("Faculty", foreign_keys=[peer_faculty_id])

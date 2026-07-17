@@ -20,6 +20,7 @@ const ROLE_NAV_LINKS = {
     { name: 'Discipline', path: '/admin/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/admin/latetracker', icon: Clock },
     { name: 'Announcements', path: '/admin/announcements', icon: Bell },
+    { name: 'Password Resets', path: '/admin/password-resets', icon: ShieldAlert },
   ],
   hod: [
     { name: 'Dashboard', path: '/hod', icon: LayoutDashboard },
@@ -28,13 +29,16 @@ const ROLE_NAV_LINKS = {
     { name: 'Sections', path: '/hod/sections', icon: Settings },
     { name: 'My Courses', path: '/faculty/courses', icon: BookOpen },
     { name: 'Timetable', path: '/hod/timetable', icon: Calendar },
+    { name: 'Open Electives', path: '/hod/open-electives', icon: Users },
     { name: 'Course Assignment', path: '/hod/assignments', icon: BookOpen },
     { name: 'Mentor Assignment', path: '/hod/mentors', icon: Users },
     { name: 'Attendance', path: '/hod/attendance', icon: ClipboardList },
     { name: 'Results', path: '/hod/results', icon: BarChart2 },
     { name: 'Announcements', path: '/hod/announcements', icon: Bell },
+    { name: 'My Leave', path: '/hod/my-leave', icon: Calendar },
     { name: 'Leave Approvals', path: '/hod/leave', icon: Calendar },
     { name: 'Peer Approvals', path: '/faculty/leave/substitutes', icon: Users },
+    { name: 'HOD Duty Requests', path: '/faculty/hod-duty', icon: Users },
     { name: 'Discipline', path: '/hod/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/hod/latetracker', icon: Clock },
     { name: 'Gate Pass Approvals', path: '/hod/gatepass', icon: Clock },
@@ -46,6 +50,7 @@ const ROLE_NAV_LINKS = {
     { name: 'My Courses', path: '/faculty/courses', icon: BookOpen },
     { name: 'Leave Requests', path: '/faculty/leave', icon: Calendar },
     { name: 'Peer Approvals', path: '/faculty/leave/substitutes', icon: Users },
+    { name: 'HOD Duty Requests', path: '/faculty/hod-duty', icon: Users },
     { name: 'Mentorship', path: '/faculty/mentorship', icon: GraduationCap },
     { name: 'Report Incident', path: '/faculty/discipline', icon: ShieldAlert },
     { name: 'Gate Pass Approvals', path: '/faculty/gatepass', icon: Clock },
@@ -289,6 +294,11 @@ export default function DashboardLayout() {
       navLinks.push({
         name: 'Faculty Leaves',
         path: '/hr/leaves',
+        icon: Calendar
+      });
+      navLinks.push({
+        name: 'Restricted Holidays',
+        path: '/hr/restricted-holidays',
         icon: Calendar
       });
       navLinks.push({

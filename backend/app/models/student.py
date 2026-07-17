@@ -23,6 +23,7 @@ class Student(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=False)
+    intended_department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
     section_id = Column(Integer, ForeignKey("sections.id"), nullable=True)
 
     # --- Personal Details ---
@@ -95,7 +96,8 @@ class Student(Base):
 
     # Relationships
     user = relationship("User", back_populates="student_profile")
-    department = relationship("Department", back_populates="students")
+    department = relationship("Department", foreign_keys=[department_id], back_populates="students")
+    intended_department = relationship("Department", foreign_keys=[intended_department_id])
     section = relationship("Section", back_populates="students")
     mentor_assignment = relationship("MentorAssignment", back_populates="student", uselist=False, cascade="all, delete-orphan")
     enrollments = relationship("Enrollment", back_populates="student", cascade="all, delete-orphan")

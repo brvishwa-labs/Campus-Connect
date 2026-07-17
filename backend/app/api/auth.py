@@ -31,16 +31,24 @@ def login_for_access_token(db: Session = Depends(get_db), form_data: OAuth2Passw
             detail="Inactive user"
         )
         
+    effective_role = user.role.value
+    if user.role.value in ("faculty", "hod"):
+        from app.api.hod_helper import is_acting_hod
+        if is_acting_hod(user, db):
+            effective_role = "hod"
+        else:
+            effective_role = "faculty"
+
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(user.id), "role": user.role.value}, expires_delta=access_token_expires
+        data={"sub": str(user.id), "role": effective_role}, expires_delta=access_token_expires
     )
     
     # Return basic user info with token
     user_data = {
         "id": user.id,
         "email": user.email,
-        "role": user.role.value,
+        "role": effective_role,
         "name": user.email.split('@')[0], # Fallback until profiles are populated
         "is_class_advisor": False,
         "advisor_section_id": None,
@@ -99,6 +107,14 @@ def read_users_me(current_user: User = Depends(get_current_active_user), db: Ses
             ).first() is not None
             extra["is_mentor"] = is_mentor
     
+    effective_role = current_user.role.value
+    if current_user.role.value in ("faculty", "hod"):
+        from app.api.hod_helper import is_acting_hod
+        if is_acting_hod(current_user, db):
+            effective_role = "hod"
+        else:
+            effective_role = "faculty"
+
     # Add title for authority users
     if current_user.role == "authority":
         authority = db.query(Authority).filter(Authority.user_id == current_user.id).first()
@@ -108,7 +124,7 @@ def read_users_me(current_user: User = Depends(get_current_active_user), db: Ses
     return {
         "id": current_user.id,
         "email": current_user.email,
-        "role": current_user.role.value,
+        "role": effective_role,
         "name": current_user.email.split('@')[0],
         **extra
     }
@@ -304,8 +320,19 @@ def update_my_profile(
                 val = payload[field]
                 if val == "":
                     val = None
+                
+                if val is not None:
+                    if field in ("aadhar_number", "pan_card", "phone", "father_phone", "mother_phone", "alternate_phone"):
+                        val = str(val).replace(" ", "").replace("-", "")
+                    elif field == "blood_group":
+                        val = str(val)[:5]
+                        
                 setattr(s, field, val)
-        db.commit()
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=f"Invalid data provided: {str(e)}")
         return {"message": "Profile updated successfully"}
 
     if role in ("faculty", "hod"):
@@ -326,9 +353,288 @@ def update_my_profile(
                 val = payload[field]
                 if val == "":
                     val = None
-                setattr(f, field, val)
+                
+                if val is not None:
+                    if field in ("aadhar_number", "pan_card", "phone", "father_phone", "mother_phone", "alternate_phone"):
+                        val = str(val).replace(" ", "").replace("-", "")
+                    elif field == "blood_group":
+                        val = str(val)[:5]
+                        
+    if role == "student":
+        from sqlalchemy.orm import joinedload
+        from app.models.academic import Enrollment, MentorAssignment, CourseAssignment
+        from app.models.attendance import Attendance, AttendanceStatus
+
+        s = db.query(Student).options(
+            joinedload(Student.section).joinedload(Section.class_advisor)
+        ).filter(Student.user_id == current_user.id).first()
+        if s:
+            dept = db.query(Department).filter(Department.id == s.department_id).first()
+
+            # Class advisor
+            advisor_name = None
+            if s.section and s.section.class_advisor:
+                ca = s.section.class_advisor
+                advisor_name = f"{ca.first_name} {ca.last_name}"
+
+            # Mentor
+            mentor_name = None
+            ma = db.query(MentorAssignment).filter(MentorAssignment.student_id == s.id).first()
+            if ma:
+                mentor = db.query(Faculty).filter(Faculty.id == ma.mentor_id).first()
+                if mentor:
+                    mentor_name = f"{mentor.first_name} {mentor.last_name}"
+
+            # Enrolled courses
+            enrollments = db.query(Enrollment).filter(Enrollment.student_id == s.id).all()
+            course_ids = [e.course_id for e in enrollments]
+            from app.models.academic import Course
+            courses_list = []
+            for cid in course_ids:
+                c = db.query(Course).filter(Course.id == cid).first()
+                if c:
+                    # Per-course attendance
+                    from app.core.utils import get_sem_start_date
+                    sem_start_date = get_sem_start_date(s.department_id, db)
+                    
+                    total = db.query(Attendance).filter(
+                        Attendance.student_id == s.id, Attendance.course_id == cid,
+                        Attendance.date >= sem_start_date
+                    ).count()
+                    present = db.query(Attendance).filter(
+                        Attendance.student_id == s.id, Attendance.course_id == cid,
+                        Attendance.status == AttendanceStatus.PRESENT,
+                        Attendance.date >= sem_start_date
+                    ).count()
+                    att_pct = round((present / total * 100), 1) if total > 0 else None
+                    courses_list.append({
+                        "code": c.code, "name": c.name, "credits": c.credits,
+                        "course_type": c.course_type.value if c.course_type else None,
+                        "semester": c.semester,
+                        "attendance_percentage": att_pct,
+                        "classes_attended": present,
+                        "total_classes": total,
+                    })
+
+            # Overall attendance
+            total_all = db.query(Attendance).filter(Attendance.student_id == s.id).count()
+            present_all = db.query(Attendance).filter(
+                Attendance.student_id == s.id,
+                Attendance.status == AttendanceStatus.PRESENT
+            ).count()
+            od_all = db.query(Attendance).filter(
+                Attendance.student_id == s.id,
+                Attendance.status == AttendanceStatus.ON_DUTY
+            ).count()
+            late_all = db.query(Attendance).filter(
+                Attendance.student_id == s.id,
+                Attendance.status == AttendanceStatus.LATE
+            ).count()
+            attended_all = present_all + od_all + late_all
+            overall_att = round((attended_all / total_all * 100), 1) if total_all > 0 else None
+
+            return {**base,
+                "first_name": s.first_name, "last_name": s.last_name,
+                "register_number": s.register_number,
+                "college_email": s.college_email, "personal_email": s.personal_email,
+                "phone": s.phone, "gender": s.gender,
+                "date_of_birth": str(s.date_of_birth) if s.date_of_birth else None,
+                "blood_group": s.blood_group, "nationality": s.nationality, "community": s.community, "religion": s.religion,
+                "admission_date": str(s.admission_date) if s.admission_date else None,
+                "admission_type": s.admission_type,
+                "batch": s.batch, "current_year": s.current_year, "current_semester": s.current_semester,
+                "department_name": dept.name if dept else None,
+                "department_code": dept.code if dept else None,
+                "section_name": s.section.name if s.section else None,
+                "class_advisor": advisor_name,
+                "mentor": mentor_name,
+                "is_active": s.is_active,
+                "father_name": s.father_name, "father_phone": s.father_phone,
+                "mother_name": s.mother_name, "mother_phone": s.mother_phone,
+                "address_line1": s.address_line1, "address_line2": s.address_line2,
+                "city": s.city, "state": s.state, "pincode": s.pincode,
+                "username": current_user.email,
+                "last_login": str(current_user.updated_at) if current_user.updated_at else None,
+                "overall_attendance": overall_att,
+                "enrolled_courses": courses_list,
+            }
+
+    if role == "authority":
+        a = db.query(Authority).filter(Authority.user_id == current_user.id).first()
+        if a:
+            return {**base,
+                "first_name": a.first_name, "last_name": a.last_name,
+                "title": a.title, "employee_id": a.employee_id,
+                "email": a.email, "phone": a.phone,
+            }
+
+    # admin / late_tracker — no profile model, return user info only
+    return {**base, "first_name": current_user.email.split("@")[0], "last_name": ""}
+
+
+@router.put("/profile")
+def update_my_profile(
+    payload: dict,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Students can update personal_email, phone, address, blood_group. Any role can change password."""
+    from app.models.student import Student
+    from app.core.security import verify_password, get_password_hash
+
+    role = current_user.role.value if hasattr(current_user.role, 'value') else current_user.role
+
+    # Handle password change for any role
+    if payload.get("new_password"):
+        old_pw = payload.get("current_password", "")
+        if not verify_password(old_pw, current_user.hashed_password):
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+        if len(payload["new_password"]) < 6:
+            raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+        current_user.hashed_password = get_password_hash(payload["new_password"])
         db.commit()
+        return {"message": "Password updated successfully"}
+
+    if role == "student":
+        s = db.query(Student).filter(Student.user_id == current_user.id).first()
+        if not s:
+            raise HTTPException(status_code=404, detail="Student profile not found")
+        editable = [
+            "personal_email", "phone", "blood_group",
+            "address_line1", "address_line2", "city", "state", "pincode",
+            "gender", "date_of_birth", "nationality", "community", "religion",
+            "admission_date", "admission_type",
+            "father_name", "father_phone", "father_occupation",
+            "mother_name", "mother_phone", "mother_occupation", "annual_income",
+            "tenth_school", "tenth_board", "tenth_marks", "tenth_percentage",
+            "twelfth_school", "twelfth_board", "twelfth_marks", "twelfth_percentage",
+            "aadhar_number", "accommodation", "transportation", "bus_number"
+        ]
+        for field in editable:
+            if field in payload:
+                val = payload[field]
+                if val == "":
+                    val = None
+                
+                if val is not None:
+                    if field in ("aadhar_number", "pan_card", "phone", "father_phone", "mother_phone", "alternate_phone"):
+                        val = str(val).replace(" ", "").replace("-", "")
+                    elif field == "blood_group":
+                        val = str(val)[:5]
+                        
+                setattr(s, field, val)
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=f"Invalid data provided: {str(e)}")
+        return {"message": "Profile updated successfully"}
+
+    if role in ("faculty", "hod"):
+        f = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+        if not f:
+            raise HTTPException(status_code=404, detail="Faculty profile not found")
+        editable = [
+            "personal_email", "phone", "alternate_phone", "blood_group",
+            "address_line1", "address_line2", "city", "state", "pincode",
+            "gender", "date_of_birth", "nationality", "community", "religion",
+            "designation", "qualification", "specialization", 
+            "experience_years", "date_of_joining",
+            "pan_card", "aadhar_number", "accommodation", "transportation", "bus_number",
+            "mother_name", "father_name", "emergency_contacts", "academic_history", "past_experience"
+        ]
+        for field in editable:
+            if field in payload:
+                val = payload[field]
+                if val == "":
+                    val = None
+                
+                if val is not None:
+                    if field in ("aadhar_number", "pan_card", "phone", "father_phone", "mother_phone", "alternate_phone"):
+                        val = str(val).replace(" ", "").replace("-", "")
+                    elif field == "blood_group":
+                        val = str(val)[:5]
+                        
+                setattr(f, field, val)
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=f"Invalid data provided: {str(e)}")
         return {"message": "Profile updated successfully"}
 
     raise HTTPException(status_code=400, detail="No updatable fields provided")
 
+
+import pydantic
+class ForgotPasswordRequest(pydantic.BaseModel):
+    role: str
+    name: str
+    college_id: str
+    department: str
+    email: str
+
+@router.get("/lookup-user")
+def lookup_user(email: str, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.email == email).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found with this email")
+    
+    role = db_user.role.value if hasattr(db_user.role, 'value') else db_user.role
+    
+    name = ""
+    college_id = ""
+    department_name = ""
+    
+    if role == "student":
+        from app.models.student import Student
+        from app.models.department import Department
+        student = db.query(Student).filter(Student.user_id == db_user.id).first()
+        if student:
+            name = f"{student.first_name} {student.last_name}"
+            college_id = student.register_number
+            dept = db.query(Department).filter(Department.id == student.department_id).first()
+            if dept:
+                department_name = dept.name
+    elif role in ("faculty", "hod"):
+        from app.models.faculty import Faculty
+        from app.models.department import Department
+        faculty = db.query(Faculty).filter(Faculty.user_id == db_user.id).first()
+        if faculty:
+            name = f"{faculty.first_name} {faculty.last_name}"
+            college_id = faculty.employee_id
+            dept = db.query(Department).filter(Department.id == faculty.department_id).first()
+            if dept:
+                department_name = dept.name
+    elif role == "authority":
+        from app.models.user import Authority
+        authority = db.query(Authority).filter(Authority.user_id == db_user.id).first()
+        if authority:
+            name = f"{authority.first_name} {authority.last_name}"
+            college_id = authority.employee_id
+    elif role == "admin":
+        name = "Administrator"
+        college_id = "ADMIN"
+        department_name = "Management"
+        
+    return {
+        "email": db_user.email,
+        "role": role,
+        "name": name,
+        "college_id": college_id,
+        "department": department_name
+    }
+
+@router.post("/forgot-password")
+def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    from app.models.user import PasswordResetRequest
+    new_req = PasswordResetRequest(
+        role=request.role,
+        name=request.name,
+        college_id=request.college_id,
+        department=request.department,
+        email=request.email
+    )
+    db.add(new_req)
+    db.commit()
+    return {"message": "Password reset request submitted successfully"}

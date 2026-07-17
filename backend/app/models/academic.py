@@ -42,8 +42,8 @@ class CourseType(str, enum.Enum):
     THEORY = "theory"
     LAB = "lab"
     ELECTIVE = "elective"
+    OPEN_ELECTIVE = "open_elective"
     PROJECT = "project"
-
 
 class Course(Base):
     __tablename__ = "courses"
@@ -109,11 +109,13 @@ class Enrollment(Base):
     course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
     academic_year = Column(String(20), nullable=False)
     semester = Column(Integer, nullable=False)
+    section_id = Column(Integer, ForeignKey("sections.id"), nullable=True) # Used for virtual sections (e.g. Open Electives)
     enrolled_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     student = relationship("Student", back_populates="enrollments")
     course = relationship("Course", back_populates="enrollments")
+    section = relationship("Section")
 
 
 # ──────────────────────────────────────────────────

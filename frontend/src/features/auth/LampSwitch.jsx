@@ -51,14 +51,7 @@ const LampSwitch = ({ isOn, onToggle, isDarkMode }) => {
           SVCET
         </h1>
 
-        {!isOn && (
-          <p 
-            className="mt-8 text-sm sm:text-base font-bold animate-bounce animate-in fade-in duration-1000 delay-500 fill-mode-both"
-            style={{ color: isDarkMode ? '#f3f4f6' : '#6b7280' }}
-          >
-            Click to Login
-          </p>
-        )}
+        {/* Text removed as per user request */}
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ echo   Campus Connect - Install Dependencies
 echo ============================================
 echo.
 
-cd /d "C:\Users\ADVANCED COMPUTING\Desktop\Campus-Connect\frontend"
+cd /d "%~dp0frontend"
 
 echo [1/2] Installing frontend dependencies...
 echo.
