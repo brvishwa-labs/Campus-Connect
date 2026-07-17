@@ -274,7 +274,7 @@ export const Students = () => {
             <p className="text-sm text-gray-500 font-medium">Manage student enrollments</p>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-3 mt-4 sm:mt-0 w-full sm:w-auto">
           <input 
             type="file" 
             accept=".csv" 
@@ -284,20 +284,20 @@ export const Students = () => {
           />
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors"
+            className="flex-1 sm:flex-none flex justify-center items-center px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors whitespace-nowrap"
           >
-            <FileUp className="w-4 h-4 mr-2" /> Bulk Import CSV
+            <FileUp className="w-4 h-4 mr-2" /> Bulk Import
           </button>
           <button 
             onClick={() => setIsPromoteModalOpen(true)}
-            className="flex items-center px-4 py-2.5 bg-indigo-100 text-indigo-700 text-sm font-bold rounded-xl hover:bg-indigo-200 transition-colors"
+            className="flex-1 sm:flex-none flex justify-center items-center px-4 py-2.5 bg-indigo-100 text-indigo-700 text-sm font-bold rounded-xl hover:bg-indigo-200 transition-colors whitespace-nowrap"
           >
             <ArrowUpRight className="w-4 h-4 mr-2" />
-            Promote Students
+            Promote
           </button>
           <button 
             onClick={() => handleOpenModal()}
-            className="flex items-center px-4 py-2.5 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-700 transition-colors shadow-sm"
+            className="flex-1 sm:flex-none flex justify-center items-center px-4 py-2.5 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-700 transition-colors shadow-sm whitespace-nowrap"
           >
             <Plus className="w-4 h-4 mr-2" />
             Onboard Student
@@ -412,56 +412,60 @@ export const Students = () => {
               <p className="text-gray-500 text-sm">Get started by onboarding a new student.</p>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Student Details</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Contact</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Department & Batch</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Semester</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredStudents.map((stu) => (
-                  <tr key={stu.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-gray-900 text-sm">{stu.first_name} {stu.last_name}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">Reg No: {stu.register_number}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{stu.college_email}</div>
-                      <div className="text-xs text-gray-500">{stu.phone}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{getDeptCode(stu.department_id)}</div>
-                      <div className="text-xs text-gray-500">{stu.batch}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="px-2.5 py-1 bg-gray-100 text-gray-700 font-bold text-xs rounded-lg border border-gray-200">
-                        Semester {stu.current_semester}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => handleOpenModal(stu)}
-                        className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors mr-2"
-                        title="Edit Student"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(stu.id, `${stu.first_name} ${stu.last_name}`)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete Student"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/50 border-b border-gray-100">
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Student Details</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Department & Batch</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Semester</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredStudents.map((stu) => (
+                    <tr key={stu.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-gray-900 text-sm">{stu.first_name} {stu.last_name}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">Reg No: {stu.register_number}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-900">{stu.college_email}</div>
+                        <div className="text-xs text-gray-500">{stu.phone}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-900">{getDeptCode(stu.department_id)}</div>
+                        <div className="text-xs text-gray-500">{stu.batch}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-2.5 py-1 bg-gray-100 text-gray-700 font-bold text-xs rounded-lg border border-gray-200">
+                          Semester {stu.current_semester}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1 flex-wrap">
+                          <button 
+                            onClick={() => handleOpenModal(stu)}
+                            className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors mr-2"
+                            title="Edit Student"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(stu.id, `${stu.first_name} ${stu.last_name}`)}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete Student"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

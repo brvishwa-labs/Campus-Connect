@@ -105,40 +105,40 @@ export const LateManagement = () => {
         
         <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
           {/* Date Range Picker */}
-          <div className="flex items-center space-x-1 bg-white p-1 rounded-xl border border-gray-200 shadow-sm w-full md:w-auto">
+          <div className="flex items-center space-x-1 bg-white p-1 rounded-xl border border-gray-200 shadow-sm w-full md:w-auto overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <button 
               onClick={() => handleQuickSelect('Today')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${dateRangeType === 'Today' ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${dateRangeType === 'Today' ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-gray-50'}`}
             >
               Today
             </button>
             <button 
               onClick={() => handleQuickSelect('This Week')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${dateRangeType === 'This Week' ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${dateRangeType === 'This Week' ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-gray-50'}`}
             >
               This Week
             </button>
             <button 
               onClick={() => handleQuickSelect('This Month')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${dateRangeType === 'This Month' ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${dateRangeType === 'This Month' ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-gray-50'}`}
             >
               This Month
             </button>
-            <div className="w-px h-4 bg-gray-200 mx-1"></div>
-            <div className="flex items-center space-x-2 px-2">
-              <Calendar className="w-4 h-4 text-gray-400" />
+            <div className="w-px h-4 bg-gray-200 mx-1 shrink-0"></div>
+            <div className="flex items-center space-x-2 px-2 shrink-0">
+              <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
               <input 
                 type="date" 
                 value={startDate}
                 onChange={(e) => { setDateRangeType('Custom'); setStartDate(e.target.value); }}
-                className="text-xs font-semibold text-gray-600 bg-transparent outline-none cursor-pointer"
+                className="text-xs font-semibold text-gray-600 bg-transparent outline-none cursor-pointer w-[110px]"
               />
               <span className="text-gray-400 text-xs">to</span>
               <input 
                 type="date" 
                 value={endDate}
                 onChange={(e) => { setDateRangeType('Custom'); setEndDate(e.target.value); }}
-                className="text-xs font-semibold text-gray-600 bg-transparent outline-none cursor-pointer"
+                className="text-xs font-semibold text-gray-600 bg-transparent outline-none cursor-pointer w-[110px]"
               />
             </div>
           </div>
