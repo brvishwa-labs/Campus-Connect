@@ -13,12 +13,15 @@ import {
 } from 'recharts';
 import { format, parseISO, subMonths, isSameMonth, startOfMonth, getDaysInMonth, addDays, startOfDay, endOfDay, isSameDay, addMonths } from 'date-fns';
 
-export const FacultyProfileModal = ({ faculty, department, leaves = [], gatepasses = [], workload = null, onClose }) => {
+export const FacultyProfileModal = ({ faculty, department, leaves = [], gatepasses = [], workload = null, allowEdit = false, onClose }) => {
   if (!faculty) return null;
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   
   const [leaveBalances, setLeaveBalances] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editBalances, setEditBalances] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const fetchBalances = async () => {
@@ -37,6 +40,23 @@ export const FacultyProfileModal = ({ faculty, department, leaves = [], gatepass
 
   const facultyLeaves = leaves.filter(l => l.faculty_id === faculty.id);
   const facultyGatepasses = gatepasses.filter(g => g.faculty_id === faculty.id);
+
+  const handleSaveBalances = async () => {
+    try {
+      setIsSaving(true);
+      const token = localStorage.getItem('token');
+      const res = await axios.put(`${API_BASE_URL}/api/leave/admin/balances/${faculty.id}`, editBalances, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setLeaveBalances(res.data);
+      setIsEditing(false);
+    } catch (err) {
+      console.error('Failed to update leave balances:', err);
+      alert('Failed to update balances. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Filter for the selected month
   const monthlyLeaves = facultyLeaves.filter(l => {
@@ -348,6 +368,44 @@ export const FacultyProfileModal = ({ faculty, department, leaves = [], gatepass
                       <p className="text-sm text-slate-500">Academic Year {leaveBalances.academic_year}</p>
                     </div>
                   </div>
+                  {allowEdit && (
+                    <div className="flex items-center gap-2">
+                      {isEditing && (
+                        <button
+                          onClick={() => setIsEditing(false)}
+                          disabled={isSaving}
+                          className="px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-sm font-bold transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          if (isEditing) {
+                            handleSaveBalances();
+                          } else {
+                            setEditBalances({
+                              casual_leaves_total: leaveBalances.casual_leaves_total,
+                              restricted_leaves_total: leaveBalances.restricted_leaves_total,
+                              earned_leaves_total: leaveBalances.earned_leaves_total,
+                              vacation_leaves_total: leaveBalances.vacation_leaves_total,
+                              academic_leaves_total: leaveBalances.academic_leaves_total,
+                              compensation_leaves_total: leaveBalances.compensation_leaves_total,
+                            });
+                            setIsEditing(true);
+                          }
+                        }}
+                        disabled={isSaving}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-bold transition-colors"
+                      >
+                        {isEditing ? (
+                          <>{isSaving ? 'Saving...' : <><Save className="w-4 h-4" /> Save</>}</>
+                        ) : (
+                          <><Edit2 className="w-4 h-4" /> Edit</>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -365,11 +423,27 @@ export const FacultyProfileModal = ({ faculty, department, leaves = [], gatepass
                           <span className="text-slate-400">Used:</span> {leaveBalances[leave.key_used]}
                         </div>
                         <div className="flex items-center text-lg font-bold text-slate-900">
-                          <span className="text-indigo-600 mr-1">
-                            {leaveBalances[leave.key_total] - leaveBalances[leave.key_used]}
-                          </span>
-                          <span className="text-slate-300 mx-1">/</span>
-                          <span>{leaveBalances[leave.key_total]}</span>
+                          {isEditing ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-indigo-600">{editBalances[leave.key_total] - leaveBalances[leave.key_used]}</span>
+                              <span className="text-slate-300 mx-1">/</span>
+                              <input
+                                type="number"
+                                className="w-16 p-1 border border-slate-300 rounded text-center text-sm font-bold bg-white"
+                                value={editBalances[leave.key_total] || 0}
+                                onChange={(e) => setEditBalances({...editBalances, [leave.key_total]: parseInt(e.target.value) || 0})}
+                                min="0"
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <span className="text-indigo-600 mr-1">
+                                {leaveBalances[leave.key_total] - leaveBalances[leave.key_used]}
+                              </span>
+                              <span className="text-slate-300 mx-1">/</span>
+                              <span>{leaveBalances[leave.key_total]}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -384,11 +458,27 @@ export const FacultyProfileModal = ({ faculty, department, leaves = [], gatepass
                       <span className="text-indigo-400">Used:</span> {leaveBalances.compensation_leaves_used}
                     </div>
                     <div className="flex items-center text-lg font-bold text-indigo-900">
-                      <span className="text-indigo-600 mr-1">
-                        {leaveBalances.compensation_leaves_total - leaveBalances.compensation_leaves_used}
-                      </span>
-                      <span className="text-indigo-300 mx-1">/</span>
-                      <span>{leaveBalances.compensation_leaves_total}</span>
+                      {isEditing ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-indigo-600">{editBalances.compensation_leaves_total - leaveBalances.compensation_leaves_used}</span>
+                          <span className="text-indigo-300 mx-1">/</span>
+                          <input
+                            type="number"
+                            className="w-16 p-1 border border-indigo-300 rounded text-center text-sm font-bold bg-white"
+                            value={editBalances.compensation_leaves_total || 0}
+                            onChange={(e) => setEditBalances({...editBalances, compensation_leaves_total: parseInt(e.target.value) || 0})}
+                            min="0"
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <span className="text-indigo-600 mr-1">
+                            {leaveBalances.compensation_leaves_total - leaveBalances.compensation_leaves_used}
+                          </span>
+                          <span className="text-indigo-300 mx-1">/</span>
+                          <span>{leaveBalances.compensation_leaves_total}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
