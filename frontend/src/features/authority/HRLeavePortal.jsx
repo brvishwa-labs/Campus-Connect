@@ -197,6 +197,8 @@ const HRLeavePortal = () => {
 
   // Get leaves for the selected dates
   const leavesForSelectedDate = leaves.filter(leave => {
+    if (leave.status?.toUpperCase() !== 'APPROVED') return false;
+
     const from = startOfDay(parseISO(leave.from_date));
     const to = endOfDay(parseISO(leave.to_date));
 
