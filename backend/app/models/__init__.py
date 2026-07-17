@@ -35,6 +35,7 @@ from app.models.leave import (
     FacultyLeaveRequest, FacultyDutyArrangement, FacultyLeaveBalance,
     StudentLeaveRequest, StudentLeaveStatus,
     LeaveStatus, ArrangementStatus,
+    RestrictedHoliday,
 )
 from app.models.grade import Grade, GradeType, AssignmentGrade, Seminar
 from app.models.lms import LMSResource, ResourceType, Announcement, TimetableSlot, DayOfWeek
@@ -61,6 +62,7 @@ __all__ = [
     "Attendance", "AttendanceStatus", "Holiday",
     "FacultyLeaveRequest", "FacultyDutyArrangement", "FacultyLeaveBalance",
     "StudentLeaveRequest", "StudentLeaveStatus",
+    "RestrictedHoliday",
     "LeaveStatus", "ArrangementStatus",
     "Grade", "GradeType", "AssignmentGrade", "Seminar",
     "LMSResource", "ResourceType",

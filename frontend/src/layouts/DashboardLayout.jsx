@@ -295,6 +295,11 @@ export default function DashboardLayout() {
         icon: Calendar
       });
       navLinks.push({
+        name: 'Restricted Holidays',
+        path: '/hr/restricted-holidays',
+        icon: Calendar
+      });
+      navLinks.push({
         name: 'Gatepass Tracking',
         path: '/hr/gatepass',
         icon: Clock

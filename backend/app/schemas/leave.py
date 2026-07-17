@@ -117,6 +117,35 @@ class FacultyLeaveBalanceUpdate(BaseModel):
     academic_leaves_total: Optional[int] = None
 
 
+
+# ── Restricted Holiday Schemas ───────────────────────────────────────────────
+
+class RestrictedHolidayCreate(BaseModel):
+    name: str
+    date: date
+    academic_year: str
+    description: Optional[str] = None
+
+class RestrictedHolidayUpdate(BaseModel):
+    name: Optional[str] = None
+    date: Optional[date] = None
+    academic_year: Optional[str] = None
+    description: Optional[str] = None
+
+class RestrictedHolidayResponse(BaseModel):
+    id: int
+    name: str
+    date: date
+    academic_year: str
+    description: Optional[str] = None
+    created_by_id: Optional[int] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 # ── Compensation Registry Schemas ───────────────────────────────────────────
 
 class CompensationRegistryCreate(BaseModel):

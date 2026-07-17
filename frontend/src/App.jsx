@@ -98,6 +98,7 @@ import HRLeavePortal from './features/authority/HRLeavePortal';
 import HRSetLeaveLimits from './features/authority/HRSetLeaveLimits';
 import HRGatepassPortal from './features/authority/HRGatepassPortal';
 import HRFacultyDirectory from './features/authority/HRFacultyDirectory';
+import HRRestrictedHolidays from './features/authority/HRRestrictedHolidays';
 import AuthorityAnalytics from './features/authority/AuthorityAnalytics';
 import OMAnalytics from './features/authority/OMAnalytics';
 import AuthorityDashboardRouter from './features/authority/AuthorityDashboardRouter';
@@ -606,6 +607,11 @@ function AppRoutes() {
         <Route path="/hr/gatepass" element={
           <ProtectedRoute allowedRole="authority">
             <HRGatepassPortal />
+          </ProtectedRoute>
+        } />
+        <Route path="/hr/restricted-holidays" element={
+          <ProtectedRoute allowedRole="authority">
+            <HRRestrictedHolidays />
           </ProtectedRoute>
         } />
         <Route path="/hr/faculty" element={
