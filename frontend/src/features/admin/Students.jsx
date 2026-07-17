@@ -58,6 +58,11 @@ export const Students = () => {
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Promote state
+  const [promoteDeptId, setPromoteDeptId] = useState('');
+  const [promoteYear, setPromoteYear] = useState('');
+  const [promoteSemester, setPromoteSemester] = useState('');
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -91,7 +96,7 @@ export const Students = () => {
         phone: stu.phone,
         register_number: stu.register_number,
         password: '',
-        department_id: stu.department_id,
+        department_id: stu.intended_department_id || stu.department_id,
         batch: stu.batch,
         current_semester: stu.current_semester || 1
       });
@@ -198,8 +203,17 @@ export const Students = () => {
   const handlePromoteStudents = async () => {
     setIsPromoting(true);
     try {
-      const response = await axios.post('/api/students/promote');
-      alert(`Success! ${response.data.message}`);
+      const payload = {};
+      if (promoteDeptId) payload.department_id = promoteDeptId;
+      if (promoteYear) payload.current_year = promoteYear;
+      if (promoteSemester) payload.current_semester = promoteSemester;
+
+      const response = await axios.post('/api/students/promote', payload);
+      let msg = `Success! ${response.data.message}`;
+      if (response.data.errors && response.data.errors.length > 0) {
+        msg += `\n\nWarnings:\n${response.data.errors.join('\n')}`;
+      }
+      alert(msg);
       await fetchData();
       setIsPromoteModalOpen(false);
     } catch (err) {
@@ -666,12 +680,64 @@ export const Students = () => {
               <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mb-4">
                 <ArrowUpRight className="w-6 h-6 text-indigo-600" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Promote All Active Students?</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Promote Students</h2>
               <p className="text-gray-600 text-sm mb-6">
-                Are you sure you want to promote all active students to the next semester? 
+                Select the target group of students to promote to the next semester. 
                 Students currently in their 8th semester will be graduated and moved to the Alumni database. 
                 This action cannot be easily undone.
               </p>
+
+              <div className="space-y-4 mb-6 text-left">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <select 
+                    value={promoteDeptId}
+                    onChange={(e) => {
+                      setPromoteDeptId(e.target.value);
+                      setPromoteYear('');
+                      setPromoteSemester('');
+                    }}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors"
+                  >
+                    <option value="">Select Department...</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                  <select 
+                    value={promoteYear}
+                    onChange={(e) => {
+                      setPromoteYear(e.target.value);
+                      setPromoteSemester('');
+                    }}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors"
+                    disabled={!promoteDeptId}
+                  >
+                    <option value="">Select Year...</option>
+                    {[1, 2, 3, 4].map(y => (
+                      <option key={y} value={y}>Year {y}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+                  <select 
+                    value={promoteSemester}
+                    onChange={(e) => setPromoteSemester(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors"
+                    disabled={!promoteYear}
+                  >
+                    <option value="">Select Semester...</option>
+                    {promoteYear ? [promoteYear * 2 - 1, promoteYear * 2].map(s => (
+                      <option key={s} value={s}>Semester {s}</option>
+                    )) : []}
+                  </select>
+                </div>
+              </div>
+
               <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
                 <button 
                   type="button"
@@ -683,8 +749,8 @@ export const Students = () => {
                 <button 
                   type="button"
                   onClick={handlePromoteStudents}
-                  disabled={isPromoting}
-                  className="px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm disabled:opacity-50"
+                  disabled={isPromoting || !promoteDeptId || !promoteYear || !promoteSemester}
+                  className="px-5 py-2.5 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
                   {isPromoting ? 'Promoting...' : 'Confirm Promotion'}
                 </button>

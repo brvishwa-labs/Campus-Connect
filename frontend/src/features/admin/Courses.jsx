@@ -226,7 +226,13 @@ export const Courses = () => {
       await fetchData();
       handleCloseModal();
     } catch (err) {
-      setFormError(err.response?.data?.detail || 'Failed to save course');
+      const errorDetail = err.response?.data?.detail;
+      const errorMessage = typeof errorDetail === 'string' 
+        ? errorDetail 
+        : Array.isArray(errorDetail) 
+          ? errorDetail.map(e => e.msg).join(', ') 
+          : 'Failed to save course';
+      setFormError(errorMessage);
     } finally {
       setFormLoading(false);
     }
@@ -580,6 +586,7 @@ export const Courses = () => {
                       <option value="theory">Theory</option>
                       <option value="lab">Lab</option>
                       <option value="elective">Elective</option>
+                      <option value="open_elective">Open Elective</option>
                       <option value="project">Project</option>
                     </select>
                   </div>
