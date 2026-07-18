@@ -19,6 +19,7 @@ import { Students } from './features/admin/Students';
 import { Alumni } from './features/admin/Alumni';
 import { Authorities } from './features/admin/Authorities';
 import { Courses } from './features/admin/Courses';
+import PasswordResets from './features/admin/PasswordResets';
 import { HodDashboard } from './features/hod/HodDashboard';
 import { FacultyList } from './features/hod/FacultyList';
 import { FacultyList as AuthorityFacultyList } from './features/authority/FacultyList';
@@ -105,6 +106,8 @@ import AuthorityDashboardRouter from './features/authority/AuthorityDashboardRou
 import StudentMessaging from './features/student/StudentMessaging';
 import DeanMessaging from './features/dean/DeanMessaging';
 import MyAttendance from './features/faculty/MyAttendance';
+import ForgotPassword from './features/auth/ForgotPassword';
+
 // A simple protective wrapper that forces login and checks roles
 const ProtectedRoute = ({ children, allowedRole }) => {
   const { user } = useAuth();
@@ -136,6 +139,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       
       <Route element={<DashboardLayout />}>
         {/* Admin Routes */}
@@ -187,6 +191,11 @@ function AppRoutes() {
         <Route path="/admin/announcements" element={
           <ProtectedRoute allowedRole="admin">
             <Announcements />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/password-resets" element={
+          <ProtectedRoute allowedRole="admin">
+            <PasswordResets />
           </ProtectedRoute>
         } />
         

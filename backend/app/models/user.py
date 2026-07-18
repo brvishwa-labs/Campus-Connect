@@ -40,3 +40,17 @@ class User(Base):
     student_profile = relationship("Student", back_populates="user", uselist=False)
     faculty_profile = relationship("Faculty", back_populates="user", uselist=False)
     authority_profile = relationship("Authority", back_populates="user", uselist=False)
+
+
+class PasswordResetRequest(Base):
+    __tablename__ = "password_reset_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    role = Column(String(50), nullable=False)
+    name = Column(String(255), nullable=False)
+    college_id = Column(String(100), nullable=False)
+    department = Column(String(100), default="")
+    email = Column(String(255), nullable=False)
+    status = Column(String(50), default="pending")  # pending, resolved
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    resolved_at = Column(DateTime(timezone=True), nullable=True)

@@ -20,6 +20,7 @@ const ROLE_NAV_LINKS = {
     { name: 'Discipline', path: '/admin/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/admin/latetracker', icon: Clock },
     { name: 'Announcements', path: '/admin/announcements', icon: Bell },
+    { name: 'Password Resets', path: '/admin/password-resets', icon: ShieldAlert },
   ],
   hod: [
     { name: 'Dashboard', path: '/hod', icon: LayoutDashboard },
