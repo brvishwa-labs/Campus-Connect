@@ -35,6 +35,10 @@ const StudentCourseService = {
   /** Fetch attendance history + summary for a course */
   getCourseAttendance: (courseId) =>
     axios.get(`${BASE}/courses/${courseId}/attendance`).then(r => r.data),
+
+  /** Fetch list of experiments for a lab course */
+  getCourseExperiments: (courseId) =>
+    axios.get(`${BASE}/courses/${courseId}/experiments`).then(r => r.data),
 };
 
 export default StudentCourseService;
