@@ -171,7 +171,17 @@ def get_my_courses(
     
     for enrollment in enrollments:
         if enrollment.course and enrollment.course.is_active:
-            course_map[enrollment.course_id] = (enrollment.course, None, enrollment.id)
+            f_name = None
+            if enrollment.section_id:
+                assignment = db.query(CourseAssignment).filter(
+                    CourseAssignment.section_id == enrollment.section_id,
+                    CourseAssignment.course_id == enrollment.course_id,
+                    CourseAssignment.is_active == True
+                ).first()
+                if assignment and assignment.faculty:
+                    f = assignment.faculty
+                    f_name = f"{f.first_name} {f.last_name}"
+            course_map[enrollment.course_id] = (enrollment.course, f_name, enrollment.id)
 
     # Fetch implicit enrollments via section assignments
     if student.section_id:

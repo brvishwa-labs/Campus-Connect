@@ -25,6 +25,7 @@ import { FacultyList as AuthorityFacultyList } from './features/authority/Facult
 import FacultyRoster from './features/hod/FacultyRoster';
 import { StudentList } from './features/hod/StudentList';
 import { Sections } from './features/hod/Sections';
+import { OpenElectives } from './features/hod/OpenElectives';
 import { FacultyAssignment } from './features/hod/FacultyAssignment';
 import { MentorAssignment } from './features/hod/MentorAssignment';
 import { Timetable } from './features/hod/Timetable';
@@ -213,6 +214,11 @@ function AppRoutes() {
         <Route path="/hod/sections" element={
           <ProtectedRoute allowedRole="hod">
             <Sections />
+          </ProtectedRoute>
+        } />
+        <Route path="/hod/open-electives" element={
+          <ProtectedRoute allowedRole="hod">
+            <OpenElectives />
           </ProtectedRoute>
         } />
         <Route path="/hod/assignments" element={

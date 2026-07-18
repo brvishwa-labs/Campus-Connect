@@ -320,8 +320,19 @@ def update_my_profile(
                 val = payload[field]
                 if val == "":
                     val = None
+                
+                if val is not None:
+                    if field in ("aadhar_number", "pan_card", "phone", "father_phone", "mother_phone", "alternate_phone"):
+                        val = str(val).replace(" ", "").replace("-", "")
+                    elif field == "blood_group":
+                        val = str(val)[:5]
+                        
                 setattr(s, field, val)
-        db.commit()
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=f"Invalid data provided: {str(e)}")
         return {"message": "Profile updated successfully"}
 
     if role in ("faculty", "hod"):
@@ -342,8 +353,19 @@ def update_my_profile(
                 val = payload[field]
                 if val == "":
                     val = None
+                
+                if val is not None:
+                    if field in ("aadhar_number", "pan_card", "phone", "father_phone", "mother_phone", "alternate_phone"):
+                        val = str(val).replace(" ", "").replace("-", "")
+                    elif field == "blood_group":
+                        val = str(val)[:5]
+                        
                 setattr(f, field, val)
-        db.commit()
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=f"Invalid data provided: {str(e)}")
         return {"message": "Profile updated successfully"}
 
     raise HTTPException(status_code=400, detail="No updatable fields provided")
