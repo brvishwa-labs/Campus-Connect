@@ -617,6 +617,9 @@ def create_leave_request(
         duration_days=duration,
         reason=request.reason,
         attachment_url=request.attachment_url,
+        compensation_verifier_id=request.compensation_verifier_id,
+        compensation_date=request.compensation_date,
+        compensation_purpose=request.compensation_purpose,
         status=LeaveStatus.PENDING_SUBSTITUTE
     )
     db.add(leave_req)
@@ -740,6 +743,9 @@ def get_my_leave_requests(
     # Attach names
     for req in requests:
         req.faculty_name = f"{faculty.first_name} {faculty.last_name}"
+        if getattr(req, "compensation_verifier_id", None):
+            verifier = db.query(Faculty).filter(Faculty.id == req.compensation_verifier_id).first()
+            req.compensation_verifier_name = f"{verifier.first_name} {verifier.last_name}" if verifier else "Unknown"
         for arr in req.arrangements:
             sub = db.query(Faculty).filter(Faculty.id == arr.substitute_faculty_id).first()
             arr.substitute_faculty_name = f"{sub.first_name} {sub.last_name}" if sub else "Unknown"
@@ -799,6 +805,10 @@ def get_leave_request_detail(request_id: int, db: Session):
     fac = db.query(Faculty).filter(Faculty.id == req.faculty_id).first()
     req.faculty_name = f"{fac.first_name} {fac.last_name}" if fac else "Unknown"
     
+    if getattr(req, "compensation_verifier_id", None):
+        verifier = db.query(Faculty).filter(Faculty.id == req.compensation_verifier_id).first()
+        req.compensation_verifier_name = f"{verifier.first_name} {verifier.last_name}" if verifier else "Unknown"
+    
     for arr in req.arrangements:
         sub = db.query(Faculty).filter(Faculty.id == arr.substitute_faculty_id).first()
         arr.substitute_faculty_name = f"{sub.first_name} {sub.last_name}" if sub else "Unknown"
@@ -834,6 +844,9 @@ def get_substitute_requests(
             "duration_days": req.duration_days,
             "reason": req.reason,
             "attachment_url": req.attachment_url,
+            "compensation_verifier_id": req.compensation_verifier_id,
+            "compensation_date": req.compensation_date,
+            "compensation_purpose": req.compensation_purpose,
             "status": req.status,
             "hod_approved_by": req.hod_approved_by,
             "dean_approved_by": req.dean_approved_by,
@@ -918,9 +931,14 @@ def update_substitute_request(
     all_accepted = all(a.status == ArrangementStatus.ACCEPTED for a in req.arrangements)
     
     if all_accepted and req.status == LeaveStatus.PENDING_SUBSTITUTE:
-        req.status = LeaveStatus.PENDING_HOD
-        db.commit()
-        return {"message": "All substitutes have accepted. Leave request forwarded to HOD for approval."}
+        if req.leave_type == "Compensation Leave":
+            req.status = LeaveStatus.PENDING_COMPENSATION_VERIFICATION
+            db.commit()
+            return {"message": "All substitutes have accepted. Leave request forwarded for compensation verification."}
+        else:
+            req.status = LeaveStatus.PENDING_HOD
+            db.commit()
+            return {"message": "All substitutes have accepted. Leave request forwarded to HOD for approval."}
         
     return {"message": "Status updated successfully. Waiting for other substitute approvals."}
 
@@ -980,3 +998,57 @@ def approve_leave_request(
         
     db.commit()
     return {"message": "Request approved"}
+
+@router.get("/compensation-verifications", response_model=List[FacultyLeaveRequestResponse])
+def get_compensation_verifications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.FACULTY:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    
+    requests = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.compensation_verifier_id == faculty.id,
+        FacultyLeaveRequest.status == LeaveStatus.PENDING_COMPENSATION_VERIFICATION
+    ).all()
+    
+    response_data = []
+    for req in requests:
+        response_data.append(get_leave_request_detail(req.id, db))
+        
+    return response_data
+
+@router.put("/compensation-verifications/{request_id}")
+def verify_compensation_leave(
+    request_id: int,
+    action: str, # "approve" or "reject"
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.FACULTY:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    
+    req = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.id == request_id,
+        FacultyLeaveRequest.compensation_verifier_id == faculty.id,
+        FacultyLeaveRequest.status == LeaveStatus.PENDING_COMPENSATION_VERIFICATION
+    ).first()
+    
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found or not pending your verification")
+        
+    if action.lower() == "approve":
+        req.status = LeaveStatus.PENDING_HOD
+        db.commit()
+        return {"message": "Compensation verified successfully. Request forwarded to HOD."}
+    elif action.lower() == "reject":
+        req.status = LeaveStatus.REJECTED
+        req.rejection_reason = "Compensation claim was rejected by the verifier."
+        db.commit()
+        return {"message": "Compensation rejected. Request has been cancelled."}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action")

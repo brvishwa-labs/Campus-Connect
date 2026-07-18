@@ -44,7 +44,10 @@ export const LeaveApply = () => {
     leave_type: 'Casual Leave',
     from_date: '',
     to_date: '',
-    reason: ''
+    reason: '',
+    compensation_verifier_id: '',
+    compensation_date: '',
+    compensation_purpose: ''
   });
   
   const [arrangements, setArrangements] = useState([
@@ -80,7 +83,10 @@ export const LeaveApply = () => {
           leave_type: requestData.leave_type,
           from_date: requestData.from_date,
           to_date: requestData.to_date,
-          reason: requestData.reason
+          reason: requestData.reason,
+          compensation_verifier_id: requestData.compensation_verifier_id || '',
+          compensation_date: requestData.compensation_date || '',
+          compensation_purpose: requestData.compensation_purpose || ''
         });
         if (requestData.arrangements && requestData.arrangements.length > 0) {
           const loadedArrangements = requestData.arrangements.map(a => ({
@@ -434,6 +440,46 @@ const addArrangementRow = () => {
                     required
                   />
                 </div>
+
+                {formData.leave_type === 'Compensation Leave' && (
+                  <div className="pt-4 mt-4 border-t border-gray-100 space-y-5">
+                    <h3 className="text-sm font-bold text-gray-700 mb-3">Compensation Verification Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Overtime Date</label>
+                        <input 
+                          type="date" 
+                          name="compensation_date"
+                          value={formData.compensation_date}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                          required={formData.leave_type === 'Compensation Leave'}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Verifier (Faculty/Authority)</label>
+                        <SearchableFacultySelect
+                          value={formData.compensation_verifier_id}
+                          onChange={(val) => setFormData({...formData, compensation_verifier_id: val})}
+                          options={allFaculty}
+                          placeholder="Select Verifier..."
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Purpose of Overtime</label>
+                      <input 
+                        type="text"
+                        name="compensation_purpose"
+                        value={formData.compensation_purpose}
+                        onChange={handleInputChange}
+                        placeholder="Why did you do overtime? (e.g. Special Class, Event coordination)"
+                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                        required={formData.leave_type === 'Compensation Leave'}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -692,10 +738,7 @@ const addArrangementRow = () => {
                 <span className="text-blue-100">Vacation Leave</span>
                 <span className="text-lg font-bold">{(balance.vacation_leaves_total || 12) - (balance.vacation_leaves_used || 0)}/{balance.vacation_leaves_total || 12}</span>
               </div>
-              <div className="flex justify-between items-center border-b border-white/10 pb-3">
-                <span className="text-blue-100">Compensation Leave</span>
-                <span className="text-lg font-bold">{(balance.compensation_leaves_total || 5) - (balance.compensation_leaves_used || 0)}/{balance.compensation_leaves_total || 5}</span>
-              </div>
+
               <div className="flex justify-between items-center pb-1">
                 <span className="text-blue-100">Academic Leave</span>
                 <span className="text-lg font-bold">{(balance.academic_leaves_total || 10) - (balance.academic_leaves_used || 0)}/{balance.academic_leaves_total || 10}</span>
