@@ -4,7 +4,7 @@ import axios from 'axios';
 import { ArrowLeft, User as UserIcon, Calendar, Users, Paperclip, UploadCloud, Trash2, Search, ChevronDown, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const SearchableFacultySelect = ({ value, onChange, options, placeholder = "Select Faculty..." }) => {
+const NativeFacultySelect = ({ value, onChange, options, placeholder = "Select Faculty..." }) => {
   return (
     <select
       value={value || ''}
@@ -13,12 +13,86 @@ const SearchableFacultySelect = ({ value, onChange, options, placeholder = "Sele
       required
     >
       <option value="">{placeholder}</option>
-      {options.map((f) => (
+      {options && options.map((f) => (
         <option key={f.id} value={f.id}>
           {f.name} - {f.designation || 'Faculty'}
         </option>
       ))}
     </select>
+  );
+};
+
+const SearchableVerifierSelect = ({ value, onChange, options, placeholder = "Select Verifier..." }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options ? options.filter(o => 
+    (o.name + ' ' + (o.designation || '')).toLowerCase().includes(search.toLowerCase())
+  ) : [];
+  
+  const selectedOption = options ? options.find(o => String(o.id) === String(value)) : null;
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <div 
+        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm flex justify-between items-center cursor-pointer focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:border-primary-500 transition-all"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className={selectedOption ? "text-gray-900 truncate" : "text-gray-500"}>
+          {selectedOption ? `${selectedOption.name} - ${selectedOption.designation || 'Faculty'}` : placeholder}
+        </span>
+        <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" />
+      </div>
+      
+      {isOpen && (
+        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+          <div className="p-2 border-b border-gray-100 sticky top-0 bg-white">
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+              <input
+                type="text"
+                className="w-full pl-9 pr-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded focus:outline-none focus:border-primary-500"
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+          <div className="py-1">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((f) => (
+                <div
+                  key={f.id}
+                  className={`px-4 py-2 text-sm cursor-pointer hover:bg-primary-50 flex justify-between items-center ${String(f.id) === String(value) ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-700'}`}
+                  onClick={() => {
+                    onChange(f.id);
+                    setIsOpen(false);
+                    setSearch('');
+                  }}
+                >
+                  <span className="truncate pr-2">{f.name} <span className="text-gray-400 text-xs ml-1">({f.designation || 'Faculty'})</span></span>
+                  {String(f.id) === String(value) && <Check className="w-4 h-4 flex-shrink-0" />}
+                </div>
+              ))
+            ) : (
+              <div className="px-4 py-3 text-sm text-gray-500 text-center">No matching verifiers found</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -38,6 +112,7 @@ export const LeaveApply = () => {
   });
   const [facultyProfile, setFacultyProfile] = useState(null);
   const [allFaculty, setAllFaculty] = useState([]);
+  const [allVerifiers, setAllVerifiers] = useState([]);
   const [leaveData, setLeaveData] = useState(null); // New: holds schedule + faculty + advisor duties
   
   const [formData, setFormData] = useState({
@@ -69,12 +144,14 @@ export const LeaveApply = () => {
 
   const fetchData = async () => {
     try {
-      const [balRes, facRes] = await Promise.all([
+      const [balRes, facRes, verifiersRes] = await Promise.all([
         axios.get('/api/leave/balances'),
-        axios.get('/api/auth/profile')
+        axios.get('/api/auth/profile'),
+        axios.get('/api/leave/all-verifiers')
       ]);
       setBalance(balRes.data);
       setFacultyProfile(facRes.data);
+      setAllVerifiers(verifiersRes.data || []);
 
       if (editId) {
         const editRes = await axios.get(`/api/leave/requests/${editId}`);
@@ -377,8 +454,8 @@ const addArrangementRow = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Leave Details */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center bg-gray-50/50">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center bg-gray-50/50 rounded-t-xl">
                 <Calendar className="w-5 h-5 text-gray-500 mr-2" />
                 <h2 className="text-sm font-bold text-gray-800">Leave Details</h2>
               </div>
@@ -458,10 +535,10 @@ const addArrangementRow = () => {
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Verifier (Faculty/Authority)</label>
-                        <SearchableFacultySelect
+                        <SearchableVerifierSelect
                           value={formData.compensation_verifier_id}
                           onChange={(val) => setFormData({...formData, compensation_verifier_id: val})}
-                          options={allFaculty}
+                          options={allVerifiers}
                           placeholder="Select Verifier..."
                         />
                       </div>
@@ -570,7 +647,7 @@ const addArrangementRow = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Substitute Faculty</label>
-                          <SearchableFacultySelect
+                          <NativeFacultySelect
                             value={arr.substitute_faculty_id}
                             onChange={(val) => handleArrangementChange(idx, 'substitute_faculty_id', val)}
                             options={arr.available_substitutes || allFaculty}

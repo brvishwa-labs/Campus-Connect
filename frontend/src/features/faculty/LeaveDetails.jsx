@@ -66,10 +66,15 @@ export const LeaveDetails = () => {
 
   const timelineSteps = [
     { label: 'Submitted', date: request.created_at, status: 'completed' },
-    { label: 'Alt Faculty Approval', status: request.status === 'pending_substitute' ? 'current' : 'completed' },
-    { label: 'HOD Approval', status: ['pending_substitute'].includes(request.status) ? 'upcoming' : request.status === 'pending_hod' ? 'current' : 'completed' },
-    { label: 'Dean Approval', status: ['pending_substitute', 'pending_hod'].includes(request.status) ? 'upcoming' : request.status === 'pending_dean' ? 'current' : 'completed' },
-    { label: 'Principal Approval', status: ['pending_substitute', 'pending_hod', 'pending_dean'].includes(request.status) ? 'upcoming' : request.status === 'pending_om' ? 'current' : 'completed' },
+    ...(request.leave_type === 'Compensation Leave' ? [{
+      label: 'Compensation Verification',
+      status: request.status === 'pending_compensation_verification' ? 'current' : 
+              ['pending_substitute', 'pending_hod', 'pending_dean', 'pending_om', 'approved', 'rejected', 'withdrawn'].includes(request.status) ? 'completed' : 'upcoming'
+    }] : []),
+    { label: 'Alt Faculty Approval', status: ['pending_compensation_verification'].includes(request.status) ? 'upcoming' : request.status === 'pending_substitute' ? 'current' : 'completed' },
+    { label: 'HOD Approval', status: ['pending_compensation_verification', 'pending_substitute'].includes(request.status) ? 'upcoming' : request.status === 'pending_hod' ? 'current' : 'completed' },
+    { label: 'Dean Approval', status: ['pending_compensation_verification', 'pending_substitute', 'pending_hod'].includes(request.status) ? 'upcoming' : request.status === 'pending_dean' ? 'current' : 'completed' },
+    { label: 'Principal Approval', status: ['pending_compensation_verification', 'pending_substitute', 'pending_hod', 'pending_dean'].includes(request.status) ? 'upcoming' : request.status === 'pending_om' ? 'current' : 'completed' },
   ];
 
   return (
@@ -89,9 +94,9 @@ export const LeaveDetails = () => {
               Submitted on {new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
             </p>
           </div>
-          {['pending_substitute', 'pending_hod', 'pending_dean', 'pending_om'].includes(request.status) && (
+          {['pending_compensation_verification', 'pending_substitute', 'pending_hod', 'pending_dean', 'pending_om'].includes(request.status) && (
             <div className="flex flex-wrap gap-2 sm:gap-3 w-full sm:w-auto mt-2">
-              {request.status === 'pending_substitute' && (
+              {['pending_compensation_verification', 'pending_substitute'].includes(request.status) && (
                 <button 
                   onClick={handleModify}
                   className="flex-1 sm:flex-none justify-center bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold py-2 px-4 rounded-lg text-sm transition-colors shadow-sm flex items-center"

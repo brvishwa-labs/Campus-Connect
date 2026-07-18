@@ -72,7 +72,7 @@ export const LeaveRequests = () => {
             to="/faculty/leave/substitutes" 
             className="flex-1 sm:flex-none text-center bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold py-2 px-4 rounded-xl text-sm transition-colors shadow-sm"
           >
-            Substitute Approvals
+            Peer Approvals
           </Link>
           <Link 
             to="/faculty/leave/apply" 

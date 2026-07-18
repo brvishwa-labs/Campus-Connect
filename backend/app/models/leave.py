@@ -39,7 +39,7 @@ class FacultyLeaveRequest(Base):
     attachment_url = Column(String(500), nullable=True)
     
     # Compensation Verification fields
-    compensation_verifier_id = Column(Integer, ForeignKey("faculty.id"), nullable=True)
+    compensation_verifier_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     compensation_date = Column(Date, nullable=True)
     compensation_purpose = Column(String(500), nullable=True)
     

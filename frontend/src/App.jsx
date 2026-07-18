@@ -608,6 +608,11 @@ function AppRoutes() {
             <AuthorityAnalytics />
           </ProtectedRoute>
         } />
+        <Route path="/authority/leave/substitutes" element={
+          <ProtectedRoute allowedRole="authority">
+            <SubstituteApprovals />
+          </ProtectedRoute>
+        } />
         
         {/* Catch-all for sub-routes during Phase 2 (shows empty page) */}
         <Route path="/:role/profile" element={
