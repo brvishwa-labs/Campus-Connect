@@ -1348,7 +1348,7 @@ def get_hour_permission_data(
             "class_section": f"{department.code if department else 'Dept'} Year-{section.year} {section.name}",
             "section_id": section.id,
             "course_code": course.code,
-            "period": cs.period_display,
+            "period": f"{cs.start_time.strftime('%H:%M') if cs.start_time else ''} - {cs.end_time.strftime('%H:%M') if cs.end_time else ''}",
             "available_substitutes": subs
         })
 

@@ -43,6 +43,7 @@ class CourseType(str, enum.Enum):
     LAB = "lab"
     ELECTIVE = "elective"
     PROJECT = "project"
+    OPEN_ELECTIVE = "OPEN_ELECTIVE"
 
 
 class Course(Base):
