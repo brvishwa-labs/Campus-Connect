@@ -43,8 +43,10 @@ export default function Login() {
   const bgClass = isDarkMode ? 'bg-[#0f1115]' : 'bg-gray-100';
 
   return (
-    <div className={`min-h-screen w-full flex items-center justify-center relative overflow-hidden font-sans transition-colors duration-1000 ${bgClass}`}>
-      
+    <div 
+      className={`min-h-screen w-full flex items-center justify-center relative overflow-hidden font-sans transition-colors duration-1000 ${bgClass} ${!isLampOn ? 'cursor-pointer' : ''}`}
+      onClick={!isLampOn ? handleToggleLamp : undefined}
+    >      
       {/* Cinematic Ambient Beam (Massive background lighting) */}
       <div className={`absolute inset-0 transition-opacity duration-1000 ease-in-out z-0 pointer-events-none ${isLampOn ? 'opacity-100' : 'opacity-0'}`}>
         {/* The ambient room fill that illuminates the whole area behind the login form */}
