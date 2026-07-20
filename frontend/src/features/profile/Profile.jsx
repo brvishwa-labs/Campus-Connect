@@ -353,14 +353,25 @@ const GenericProfile = ({ profile, onUpdate }) => {
             {profile.past_experience && profile.past_experience.length > 0 ? (
               <div className="col-span-full space-y-3">
                 {profile.past_experience.map((exp, i) => {
-                  const calculatedExp = (exp.from_year && exp.to_year) ? (parseInt(exp.to_year) - parseInt(exp.from_year)) : 0;
+                  let calculatedExp = 0;
+                  if (exp.from_date && exp.to_date) {
+                    const from = new Date(exp.from_date);
+                    const to = new Date(exp.to_date);
+                    if (to > from) {
+                      calculatedExp = (to - from) / (1000 * 60 * 60 * 24 * 365.25);
+                    }
+                  }
                   return (
                     <div key={i} className="bg-gray-50 rounded-xl p-3 border border-gray-100 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-bold text-gray-900">{exp.institution}</p>
-                        <p className="text-xs text-gray-500">{exp.from_year} - {exp.to_year}</p>
+                        <p className="text-xs text-gray-500">
+                          {exp.from_date ? new Date(exp.from_date).toLocaleDateString() : 'N/A'} - {exp.to_date ? new Date(exp.to_date).toLocaleDateString() : 'N/A'}
+                        </p>
                       </div>
-                      <div className="font-medium text-sm text-primary-600 px-3 py-1 bg-primary-50 rounded-lg">{Math.max(0, calculatedExp)} Years</div>
+                      <div className="font-medium text-sm text-primary-600 px-3 py-1 bg-primary-50 rounded-lg">
+                        {calculatedExp > 0 ? calculatedExp.toFixed(1) : 0} Years
+                      </div>
                     </div>
                   );
                 })}

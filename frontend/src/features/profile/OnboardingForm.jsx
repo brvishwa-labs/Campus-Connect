@@ -191,12 +191,15 @@ export default function OnboardingForm({ profile, onComplete }) {
   const calculateTotalExperience = (experiences) => {
     let totalYears = 0;
     experiences.forEach(exp => {
-      if (exp.from_year && exp.to_year) {
-        const diff = parseInt(exp.to_year) - parseInt(exp.from_year);
-        if (diff > 0) totalYears += diff;
+      if (exp.from_date && exp.to_date) {
+        const from = new Date(exp.from_date);
+        const to = new Date(exp.to_date);
+        if (to > from) {
+          totalYears += (to - from) / (1000 * 60 * 60 * 24 * 365.25);
+        }
       }
     });
-    return totalYears;
+    return Number(totalYears.toFixed(1));
   };
 
   const handlePastExperienceChange = (index, field, value) => {
@@ -211,7 +214,7 @@ export default function OnboardingForm({ profile, onComplete }) {
   const addPastExperience = () => {
     setForm(prev => ({
       ...prev,
-      past_experience: [...prev.past_experience, { institution: '', from_year: '', to_year: '' }]
+      past_experience: [...prev.past_experience, { institution: '', from_date: '', to_date: '' }]
     }));
   };
 
@@ -400,23 +403,31 @@ export default function OnboardingForm({ profile, onComplete }) {
             <Section title="Past Experience" icon={Briefcase}>
               <div className="col-span-full space-y-4">
                 {form.past_experience.map((exp, index) => {
-                  const calculatedExp = (exp.from_year && exp.to_year) ? (parseInt(exp.to_year) - parseInt(exp.from_year)) : 0;
+                  let calculatedExp = 0;
+                  if (exp.from_date && exp.to_date) {
+                    const from = new Date(exp.from_date);
+                    const to = new Date(exp.to_date);
+                    if (to > from) {
+                      calculatedExp = (to - from) / (1000 * 60 * 60 * 24 * 365.25);
+                    }
+                  }
+                  
                   return (
                     <div key={index} className="flex flex-col md:flex-row gap-4 items-end bg-gray-50 p-4 rounded-xl border border-gray-100">
                       <div className="flex-1 w-full md:min-w-[200px]">
                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Institution *</label>
-                        <input type="text" value={exp.institution} onChange={(e) => handlePastExperienceChange(index, 'institution', e.target.value)} required className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                        <input type="text" value={exp.institution || ''} onChange={(e) => handlePastExperienceChange(index, 'institution', e.target.value)} required className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
                       </div>
-                      <div className="w-full md:w-32">
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">From Year *</label>
-                        <input type="number" value={exp.from_year} onChange={(e) => handlePastExperienceChange(index, 'from_year', e.target.value)} required placeholder="e.g. 2018" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                      <div className="w-full md:w-40">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">From Date *</label>
+                        <input type="date" value={exp.from_date || ''} onChange={(e) => handlePastExperienceChange(index, 'from_date', e.target.value)} required className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
                       </div>
-                      <div className="w-full md:w-32">
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">To Year *</label>
-                        <input type="number" value={exp.to_year} onChange={(e) => handlePastExperienceChange(index, 'to_year', e.target.value)} required placeholder="e.g. 2022" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                      <div className="w-full md:w-40">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">To Date *</label>
+                        <input type="date" value={exp.to_date || ''} onChange={(e) => handlePastExperienceChange(index, 'to_date', e.target.value)} required className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
                       </div>
                       <div className="w-full md:w-32 flex flex-col justify-end">
-                        <div className="text-sm font-bold text-primary-600 text-center mb-2">{Math.max(0, calculatedExp)} Years</div>
+                        <div className="text-sm font-bold text-primary-600 text-center mb-2">{calculatedExp > 0 ? calculatedExp.toFixed(1) : 0} Years</div>
                         <button type="button" onClick={() => removePastExperience(index)} className="px-4 py-2.5 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-xl font-bold transition-colors w-full">Remove</button>
                       </div>
                     </div>
@@ -428,7 +439,7 @@ export default function OnboardingForm({ profile, onComplete }) {
                   </button>
                   {form.past_experience.length > 0 && (
                     <div className="text-sm font-bold text-gray-700 bg-gray-100 px-4 py-2 rounded-xl w-full sm:w-auto text-center">
-                      Total Experience: <span className="text-primary-600 text-lg">{form.experience_years || 0} Years</span>
+                      Total Experience: <span className="text-primary-600 text-lg">{form.experience_years > 0 ? Number(form.experience_years).toFixed(1) : 0} Years</span>
                     </div>
                   )}
                 </div>
