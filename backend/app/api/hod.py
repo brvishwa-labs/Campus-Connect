@@ -396,13 +396,12 @@ def create_assignment(
 ):
     department, _ = get_hod_department(current_user, db)
 
-    # Validate faculty belongs to this department
+    # Validate faculty exists (can be from any department)
     faculty = db.query(Faculty).filter(
-        Faculty.id == assignment_in.faculty_id,
-        Faculty.department_id == department.id
+        Faculty.id == assignment_in.faculty_id
     ).first()
     if not faculty:
-        raise HTTPException(status_code=400, detail="Faculty member not found in your department")
+        raise HTTPException(status_code=400, detail="Faculty member not found")
 
     # Validate course belongs to this department
     course = db.query(Course).filter(
@@ -488,11 +487,10 @@ def create_mentor(
     department, _ = get_hod_department(current_user, db)
 
     faculty = db.query(Faculty).filter(
-        Faculty.id == mentor_in.mentor_id,
-        Faculty.department_id == department.id
+        Faculty.id == mentor_in.mentor_id
     ).first()
     if not faculty:
-        raise HTTPException(status_code=400, detail="Faculty member not found in your department")
+        raise HTTPException(status_code=400, detail="Faculty member not found")
 
     student = db.query(Student).filter(
         Student.id == mentor_in.student_id,
