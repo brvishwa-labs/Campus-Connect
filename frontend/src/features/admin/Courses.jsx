@@ -598,7 +598,7 @@ export const Courses = () => {
                     <input 
                       type="number" 
                       required
-                      min="1" max="10"
+                      min="0" max="10"
                       value={formData.credits}
                       onChange={(e) => setFormData({...formData, credits: e.target.value})}
                       className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none"

@@ -12,15 +12,48 @@ settings = get_settings()
 
 import os
 from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+from app.tasks.attendance_cron import startup_catchup, run_9am_cron
+from app.core.database import SessionLocal
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Ensure static directories exist before mounting
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("uploads/messages", exist_ok=True)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup ---
+    logger.info("Running startup sequence...")
+    db = SessionLocal()
+    try:
+        startup_catchup(db)
+    finally:
+        db.close()
+        
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        run_9am_cron, 
+        CronTrigger(hour=9, minute=0, second=0), 
+        id="faculty_attendance_9am"
+    )
+    scheduler.start()
+    logger.info("APScheduler started successfully.")
+    
+    yield
+    
+    # --- Shutdown ---
+    scheduler.shutdown()
+    logger.info("APScheduler stopped.")
 
 app = FastAPI(
     title="Campus Connect ERP API",
     description="Backend API for Campus Connect Education Resource Planning System",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

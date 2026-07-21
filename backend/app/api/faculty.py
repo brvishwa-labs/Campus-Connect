@@ -1912,7 +1912,7 @@ async def upload_faculty(
         raise HTTPException(status_code=400, detail="Only CSV files are allowed")
 
     content = await file.read()
-    csv_reader = csv.DictReader(io.StringIO(content.decode("utf-8")))
+    csv_reader = csv.DictReader(io.StringIO(content.decode("utf-8-sig")))
     
     success_count = 0
     errors = []
