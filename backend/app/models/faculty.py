@@ -5,7 +5,7 @@ Complete faculty profile with all personal, academic, and contact details.
 """
 
 from sqlalchemy import (
-    Column, Integer, String, Date, DateTime, ForeignKey, Boolean, Text
+    Column, Integer, String, Date, DateTime, ForeignKey, Boolean, Text, Float
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -58,7 +58,7 @@ class Faculty(Base):
     designation = Column(String(100), nullable=True)      # Asst. Prof / Assoc. Prof / Prof
     qualification = Column(String(200), nullable=True)    # M.Tech, Ph.D, etc.
     specialization = Column(String(200), nullable=True)
-    experience_years = Column(Integer, nullable=True)
+    experience_years = Column(Float, nullable=True)
     date_of_joining = Column(Date, nullable=True)
     pan_card = Column(String(50), nullable=True)
     aadhar_number = Column(String(12), nullable=True)
