@@ -314,6 +314,7 @@ def update_my_profile(
             "admission_date", "admission_type",
             "father_name", "father_phone", "father_occupation",
             "mother_name", "mother_phone", "mother_occupation", "annual_income",
+            "guardian_name", "guardian_phone", "guardian_occupation", "primary_contact",
             "tenth_school", "tenth_board", "tenth_marks", "tenth_percentage",
             "twelfth_school", "twelfth_board", "twelfth_marks", "twelfth_percentage",
             "aadhar_number", "accommodation", "transportation", "bus_number"
@@ -325,7 +326,7 @@ def update_my_profile(
                     val = None
                 
                 if val is not None:
-                    if field in ("aadhar_number", "pan_card", "phone", "father_phone", "mother_phone", "alternate_phone"):
+                    if field in ("aadhar_number", "pan_card", "phone", "father_phone", "mother_phone", "alternate_phone", "guardian_phone"):
                         val = str(val).replace(" ", "").replace("-", "")
                     elif field == "blood_group":
                         val = str(val)[:5]

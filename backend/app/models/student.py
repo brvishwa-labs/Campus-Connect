@@ -62,6 +62,10 @@ class Student(Base):
     mother_name = Column(String(150), nullable=True)
     mother_phone = Column(String(15), nullable=True)
     mother_occupation = Column(String(100), nullable=True)
+    guardian_name = Column(String(150), nullable=True)
+    guardian_phone = Column(String(15), nullable=True)
+    guardian_occupation = Column(String(100), nullable=True)
+    primary_contact = Column(String(20), nullable=True)
     annual_income = Column(Numeric(12, 2), nullable=True)
 
     # --- Address ---
