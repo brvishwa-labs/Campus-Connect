@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { User, MapPin, Users, Briefcase, GraduationCap, CheckCircle2 } from 'lucide-react';
 
@@ -87,66 +87,76 @@ export default function OnboardingForm({ profile, onComplete }) {
   const role = profile.role;
   const isStudent = role === 'student';
 
-  const [form, setForm] = useState({
-    gender: profile.gender || '',
-    date_of_birth: profile.date_of_birth || '',
-    blood_group: profile.blood_group || '',
-    nationality: profile.nationality || 'Indian',
-    community: profile.community || '',
-    religion: profile.religion || '',
-    admission_date: profile.admission_date || '',
-    admission_type: profile.admission_type || '',
-    address_line1: profile.address_line1 || '',
-    address_line2: profile.address_line2 || '',
-    city: profile.city || '',
-    state: profile.state || '',
-    pincode: profile.pincode || '',
-    
-    // Student specifics
-    ...(isStudent ? {
-      father_name: profile.father_name || '',
-      father_phone: profile.father_phone || '',
-      father_occupation: profile.father_occupation || '',
-      mother_name: profile.mother_name || '',
-      mother_phone: profile.mother_phone || '',
-      mother_occupation: profile.mother_occupation || '',
-      annual_income: profile.annual_income || '',
-      aadhar_number: profile.aadhar_number || '',
-      accommodation: profile.accommodation || '',
-      transportation: profile.transportation || '',
-      bus_number: profile.bus_number || '',
-      tenth_school: profile.tenth_school || '',
-      tenth_board: profile.tenth_board || '',
-      tenth_marks: profile.tenth_marks || '',
-      tenth_percentage: profile.tenth_percentage || '',
-      twelfth_school: profile.twelfth_school || '',
-      twelfth_board: profile.twelfth_board || '',
-      twelfth_marks: profile.twelfth_marks || '',
-      twelfth_percentage: profile.twelfth_percentage || ''
-    } : {
-      // Faculty specifics
-      designation: profile.designation || '',
-      qualification: profile.qualification || '',
-      specialization: profile.specialization || '',
-      experience_years: profile.experience_years || '',
-      date_of_joining: profile.date_of_joining || '',
-      pan_card: profile.pan_card || '',
-      aadhar_number: profile.aadhar_number || '',
-      accommodation: profile.accommodation || '',
-      transportation: profile.transportation || '',
-      bus_number: profile.bus_number || '',
-      mother_name: profile.mother_name || '',
-      father_name: profile.father_name || '',
-      emergency_contacts: profile.emergency_contacts?.length > 0 ? profile.emergency_contacts : [{ name: '', relation: '', number: '' }],
-      academic_history: profile.academic_history || { 
-        tenth: { school: '', board: '', percentage: '' }, 
-        twelfth: { school: '', board: '', percentage: '' }, 
-        ug: { degree: '', university: '', percentage: '' }, 
-        pg: { degree: '', university: '', percentage: '' }, 
-        phd: { university: '', specialization: '', year: '' } 
-      },
-      past_experience: profile.past_experience?.length > 0 ? profile.past_experience : []
-    })
+  const [form, setForm] = useState(() => {
+    let academic_history = profile.academic_history || { 
+      tenth: { school: '', board: '', percentage: '' }, 
+      twelfth: { school: '', board: '', percentage: '' }, 
+      ug: { degree: '', university: '', percentage: '' }, 
+      pg: [{ degree: '', university: '', percentage: '' }], 
+      phd: { university: '', specialization: '', year: '' } 
+    };
+
+    if (academic_history.pg && !Array.isArray(academic_history.pg)) {
+      academic_history.pg = [academic_history.pg];
+    } else if (!academic_history.pg || academic_history.pg.length === 0) {
+      academic_history.pg = [{ degree: '', university: '', percentage: '' }];
+    }
+
+    return {
+      gender: profile.gender || '',
+      date_of_birth: profile.date_of_birth || '',
+      blood_group: profile.blood_group || '',
+      nationality: profile.nationality || 'Indian',
+      community: profile.community || '',
+      religion: profile.religion || '',
+      admission_date: profile.admission_date || '',
+      admission_type: profile.admission_type || '',
+      address_line1: profile.address_line1 || '',
+      address_line2: profile.address_line2 || '',
+      city: profile.city || '',
+      state: profile.state || '',
+      pincode: profile.pincode || '',
+      
+      // Student specifics
+      ...(isStudent ? {
+        father_name: profile.father_name || '',
+        father_phone: profile.father_phone || '',
+        father_occupation: profile.father_occupation || '',
+        mother_name: profile.mother_name || '',
+        mother_phone: profile.mother_phone || '',
+        mother_occupation: profile.mother_occupation || '',
+        annual_income: profile.annual_income || '',
+        aadhar_number: profile.aadhar_number || '',
+        accommodation: profile.accommodation || '',
+        transportation: profile.transportation || '',
+        bus_number: profile.bus_number || '',
+        tenth_school: profile.tenth_school || '',
+        tenth_board: profile.tenth_board || '',
+        tenth_marks: profile.tenth_marks || '',
+        tenth_percentage: profile.tenth_percentage || '',
+        twelfth_school: profile.twelfth_school || '',
+        twelfth_board: profile.twelfth_board || '',
+        twelfth_marks: profile.twelfth_marks || '',
+        twelfth_percentage: profile.twelfth_percentage || ''
+      } : {
+        // Faculty specifics
+        designation: profile.designation || '',
+        qualification: profile.qualification || '',
+        specialization: profile.specialization || '',
+        experience_years: profile.experience_years || '',
+        date_of_joining: profile.date_of_joining || '',
+        pan_card: profile.pan_card || '',
+        aadhar_number: profile.aadhar_number || '',
+        accommodation: profile.accommodation || '',
+        transportation: profile.transportation || '',
+        bus_number: profile.bus_number || '',
+        mother_name: profile.mother_name || '',
+        father_name: profile.father_name || '',
+        emergency_contacts: profile.emergency_contacts?.length > 0 ? profile.emergency_contacts : [{ name: '', relation: '', number: '' }],
+        academic_history: academic_history,
+        past_experience: profile.past_experience?.length > 0 ? profile.past_experience : []
+      })
+    };
   });
 
   const [saving, setSaving] = useState(false);
@@ -188,8 +198,47 @@ export default function OnboardingForm({ profile, onComplete }) {
     }));
   };
 
-  const calculateTotalExperience = (experiences) => {
+  const handlePGHistoryChange = (index, field, value) => {
+    setForm(prev => {
+      const newPg = [...(prev.academic_history.pg || [])];
+      newPg[index] = { ...newPg[index], [field]: value };
+      return {
+        ...prev,
+        academic_history: {
+          ...prev.academic_history,
+          pg: newPg
+        }
+      };
+    });
+  };
+
+  const addPGDegree = () => {
+    setForm(prev => ({
+      ...prev,
+      academic_history: {
+        ...prev.academic_history,
+        pg: [...(prev.academic_history.pg || []), { degree: '', university: '', percentage: '' }]
+      }
+    }));
+  };
+
+  const removePGDegree = (index) => {
+    setForm(prev => {
+      const newPg = prev.academic_history.pg.filter((_, i) => i !== index);
+      return {
+        ...prev,
+        academic_history: {
+          ...prev.academic_history,
+          pg: newPg
+        }
+      };
+    });
+  };
+
+  const calculateTotalExperience = (experiences, doj) => {
     let totalYears = 0;
+    
+    // Add past experience
     experiences.forEach(exp => {
       if (exp.from_date && exp.to_date) {
         const from = new Date(exp.from_date);
@@ -199,15 +248,33 @@ export default function OnboardingForm({ profile, onComplete }) {
         }
       }
     });
+
+    // Add current experience in this institution
+    if (doj) {
+      const joining = new Date(doj);
+      const today = new Date();
+      if (today > joining) {
+        totalYears += (today - joining) / (1000 * 60 * 60 * 24 * 365.25);
+      }
+    }
+    
     return Number(totalYears.toFixed(1));
   };
+
+  useEffect(() => {
+    if (!isStudent && form.past_experience !== undefined) {
+      const newTotal = calculateTotalExperience(form.past_experience, form.date_of_joining);
+      if (newTotal !== form.experience_years) {
+        setForm(prev => ({ ...prev, experience_years: newTotal }));
+      }
+    }
+  }, [form.past_experience, form.date_of_joining, isStudent]);
 
   const handlePastExperienceChange = (index, field, value) => {
     setForm(prev => {
       const newExp = [...prev.past_experience];
       newExp[index] = { ...newExp[index], [field]: value };
-      const newTotal = calculateTotalExperience(newExp);
-      return { ...prev, past_experience: newExp, experience_years: newTotal };
+      return { ...prev, past_experience: newExp };
     });
   };
 
@@ -221,8 +288,7 @@ export default function OnboardingForm({ profile, onComplete }) {
   const removePastExperience = (index) => {
     setForm(prev => {
       const newExp = prev.past_experience.filter((_, i) => i !== index);
-      const newTotal = calculateTotalExperience(newExp);
-      return { ...prev, past_experience: newExp, experience_years: newTotal };
+      return { ...prev, past_experience: newExp };
     });
   };
 
@@ -384,12 +450,22 @@ export default function OnboardingForm({ profile, onComplete }) {
                   <input type="number" value={form.academic_history.ug?.percentage} onChange={(e) => handleAcademicHistoryChange('ug', 'percentage', e.target.value)} required placeholder="Percentage/CGPA" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <h3 className="col-span-full text-xs font-bold text-gray-500 uppercase tracking-wider">PG Details *</h3>
-                  <input type="text" value={form.academic_history.pg?.degree} onChange={(e) => handleAcademicHistoryChange('pg', 'degree', e.target.value)} required placeholder="Degree (e.g. M.Tech)" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
-                  <input type="text" value={form.academic_history.pg?.university} onChange={(e) => handleAcademicHistoryChange('pg', 'university', e.target.value)} required placeholder="University" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
-                  <input type="number" value={form.academic_history.pg?.percentage} onChange={(e) => handleAcademicHistoryChange('pg', 'percentage', e.target.value)} required placeholder="Percentage/CGPA" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
-                </div>
+                {form.academic_history.pg?.map((pgItem, index) => (
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100 relative group">
+                    <div className="col-span-full flex justify-between items-center">
+                      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">PG {index + 1} Details *</h3>
+                      {form.academic_history.pg.length > 1 && (
+                        <button type="button" onClick={() => removePGDegree(index)} className="text-xs font-bold text-red-500 hover:text-red-700">Remove</button>
+                      )}
+                    </div>
+                    <input type="text" value={pgItem.degree || ''} onChange={(e) => handlePGHistoryChange(index, 'degree', e.target.value)} required placeholder="Degree (e.g. M.Tech)" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                    <input type="text" value={pgItem.university || ''} onChange={(e) => handlePGHistoryChange(index, 'university', e.target.value)} required placeholder="University" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                    <input type="number" value={pgItem.percentage || ''} onChange={(e) => handlePGHistoryChange(index, 'percentage', e.target.value)} required placeholder="Percentage/CGPA" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all" />
+                  </div>
+                ))}
+                <button type="button" onClick={addPGDegree} className="w-max px-4 py-2 text-sm text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-xl font-bold transition-colors">
+                  + Add PG Degree
+                </button>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                   <h3 className="col-span-full text-xs font-bold text-gray-500 uppercase tracking-wider">PhD Details (Optional)</h3>
@@ -433,6 +509,34 @@ export default function OnboardingForm({ profile, onComplete }) {
                     </div>
                   );
                 })}
+                {form.date_of_joining && (
+                  <div className="flex flex-col md:flex-row gap-4 items-end bg-primary-50 p-4 rounded-xl border border-primary-100">
+                    <div className="flex-1 w-full md:min-w-[200px]">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Current Institution</label>
+                      <div className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-500">
+                        Sri Venkateshwaraa College of Engineering and Technology, Puducherry
+                      </div>
+                    </div>
+                    <div className="w-full md:w-40">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Date of Joining</label>
+                      <div className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-500">
+                        {new Date(form.date_of_joining).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div className="w-full md:w-40">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">To Date</label>
+                      <div className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-500">
+                        Present
+                      </div>
+                    </div>
+                    <div className="w-full md:w-32 flex flex-col justify-end">
+                      <div className="text-sm font-bold text-primary-600 text-center mb-2">
+                        {(((new Date() - new Date(form.date_of_joining)) / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1))} Years
+                      </div>
+                      <div className="px-4 py-2.5 text-sm text-primary-600 bg-primary-50 rounded-xl font-bold w-full text-center">Active</div>
+                    </div>
+                  </div>
+                )}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-2">
                   <button type="button" onClick={addPastExperience} className="px-4 py-2 text-sm text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-xl font-bold transition-colors w-full sm:w-auto">
                     + Add Experience
