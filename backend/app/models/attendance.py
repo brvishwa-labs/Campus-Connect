@@ -49,6 +49,7 @@ class Attendance(Base):
 class FacultyAttendanceStatus(str, enum.Enum):
     present = "present"
     on_leave = "on_leave"
+    absent = "absent"
 
 class FacultyAttendance(Base):
     __tablename__ = "faculty_attendance"

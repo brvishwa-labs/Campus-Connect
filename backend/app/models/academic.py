@@ -44,6 +44,7 @@ class CourseType(str, enum.Enum):
     ELECTIVE = "elective"
     OPEN_ELECTIVE = "open_elective"
     PROJECT = "project"
+    SEMINAR = "seminar"
 
 class Course(Base):
     __tablename__ = "courses"
@@ -64,6 +65,9 @@ class Course(Base):
     prerequisites = Column(Text, nullable=True)
     co_po_mapping = Column(Text, nullable=True)
     co_k_levels = Column(Text, nullable=True)
+    project_guidelines = Column(Text, nullable=True)
+    project_teams_data = Column(Text, nullable=True)
+    seminar_topics_data = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

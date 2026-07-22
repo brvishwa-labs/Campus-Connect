@@ -11,8 +11,8 @@ const CO_PO_VALUE_BADGE = {
 };
 
 const getCoPOConfig = (courseType) => ({
-  coCount: courseType === 'lab' ? 2 : 10,
-  psoCount: courseType === 'lab' ? 2 : 3,
+  coCount: (courseType === 'lab' || courseType === 'project' || courseType === 'seminar') ? 2 : 10,
+  psoCount: (courseType === 'lab' || courseType === 'project' || courseType === 'seminar') ? 2 : 3,
 });
 
 const parseMappingJSON = (raw) => {
@@ -125,6 +125,7 @@ export const Courses = () => {
     textbooks: '',
     references: '',
     prerequisites: '',
+    project_guidelines: '',
     co_po_mapping: {}
   });
   const [formError, setFormError] = useState(null);
@@ -172,6 +173,7 @@ export const Courses = () => {
         textbooks: course.textbooks || '',
         references: course.references || '',
         prerequisites: course.prerequisites || '',
+        project_guidelines: course.project_guidelines || '',
         co_po_mapping: parseMappingJSON(course.co_po_mapping)
       });
     } else {
@@ -190,6 +192,7 @@ export const Courses = () => {
         textbooks: '',
         references: '',
         prerequisites: '',
+        project_guidelines: '',
         co_po_mapping: {}
       });
     }
@@ -588,6 +591,7 @@ export const Courses = () => {
                       <option value="elective">Elective</option>
                       <option value="open_elective">Open Elective</option>
                       <option value="project">Project</option>
+                      <option value="seminar">Seminar</option>
                     </select>
                   </div>
                 </div>
@@ -598,7 +602,7 @@ export const Courses = () => {
                     <input 
                       type="number" 
                       required
-                      min="1" max="10"
+                      min="0" max="10"
                       value={formData.credits}
                       onChange={(e) => setFormData({...formData, credits: e.target.value})}
                       className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none"
@@ -617,68 +621,96 @@ export const Courses = () => {
                   </div>
                 </div>
 
+                {formData.course_type !== 'seminar' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Prerequisites</label>
+                      <textarea 
+                        rows={3}
+                        placeholder="Enter course prerequisites..."
+                        value={formData.prerequisites}
+                        onChange={(e) => setFormData({...formData, prerequisites: e.target.value})}
+                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
+                      />
+                    </div>
 
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Objectives</label>
+                      <textarea 
+                        rows={3}
+                        placeholder="Enter course objectives..."
+                        value={formData.objectives}
+                        onChange={(e) => setFormData({...formData, objectives: e.target.value})}
+                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Objectives</label>
-                  <textarea 
-                    rows={3}
-                    placeholder="Enter course objectives..."
-                    value={formData.objectives}
-                    onChange={(e) => setFormData({...formData, objectives: e.target.value})}
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Outcomes (COs)</label>
-                  <textarea 
-                    rows={3}
-                    placeholder="Enter course outcomes (COs)..."
-                    value={formData.outcomes}
-                    onChange={(e) => setFormData({...formData, outcomes: e.target.value})}
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                    {formData.course_type === 'lab' ? 'List of Experiments' : 'Syllabus'}
-                  </label>
-                  <textarea 
-                    rows={4}
-                    placeholder={formData.course_type === 'lab' ? "Enter the list of experiments for this lab..." : "Enter the syllabus topics and details for this course..."}
-                    value={formData.syllabus}
-                    onChange={(e) => setFormData({...formData, syllabus: e.target.value})}
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
-                  />
-                </div>
-
-                {formData.course_type !== 'lab' && (
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Textbooks</label>
-                    <textarea 
-                      rows={3}
-                      placeholder="Enter textbooks details..."
-                      value={formData.textbooks}
-                      onChange={(e) => setFormData({...formData, textbooks: e.target.value})}
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
-                    />
-                  </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Outcomes (COs)</label>
+                      <textarea 
+                        rows={3}
+                        placeholder="Enter course outcomes (COs)..."
+                        value={formData.outcomes}
+                        onChange={(e) => setFormData({...formData, outcomes: e.target.value})}
+                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
+                      />
+                    </div>
+                  </>
                 )}
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                    {formData.course_type === 'lab' ? 'Resources' : 'References'}
-                  </label>
-                  <textarea 
-                    rows={3}
-                    placeholder={formData.course_type === 'lab' ? "Enter resources for this lab..." : "Enter reference books and online links..."}
-                    value={formData.references}
-                    onChange={(e) => setFormData({...formData, references: e.target.value})}
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
-                  />
-                </div>
+                {formData.course_type === 'project' ? (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Project Guidelines</label>
+                    <textarea 
+                      rows={4}
+                      placeholder="Enter project guidelines and instructions..."
+                      value={formData.project_guidelines}
+                      onChange={(e) => setFormData({...formData, project_guidelines: e.target.value})}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
+                    />
+                  </div>
+                ) : formData.course_type === 'seminar' ? null : (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                        {formData.course_type === 'lab' ? 'List of Experiments' : 'Syllabus'}
+                      </label>
+                      <textarea 
+                        rows={4}
+                        placeholder={formData.course_type === 'lab' ? "Enter the list of experiments for this lab..." : "Enter the syllabus topics and details for this course..."}
+                        value={formData.syllabus}
+                        onChange={(e) => setFormData({...formData, syllabus: e.target.value})}
+                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[100px]"
+                      />
+                    </div>
+
+                    {formData.course_type !== 'lab' && (
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Textbooks</label>
+                        <textarea 
+                          rows={3}
+                          placeholder="Enter textbooks details..."
+                          value={formData.textbooks}
+                          onChange={(e) => setFormData({...formData, textbooks: e.target.value})}
+                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                        {formData.course_type === 'lab' ? 'Resources' : 'References'}
+                      </label>
+                      <textarea 
+                        rows={3}
+                        placeholder={formData.course_type === 'lab' ? "Enter resources for this lab..." : "Enter reference books and online links..."}
+                        value={formData.references}
+                        onChange={(e) => setFormData({...formData, references: e.target.value})}
+                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none resize-y min-h-[80px]"
+                      />
+                    </div>
+                  </>
+                )}
 
                 {/* ── CO–PO/PSO Mapping Section (view-only for admin) ── */}
                 <div className="border-t border-gray-100 pt-5">

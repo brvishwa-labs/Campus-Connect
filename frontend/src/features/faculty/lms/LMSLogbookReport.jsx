@@ -198,8 +198,21 @@ const LAB_SECTION_IDS = [
   'practical-schedule', 'attendance', 'lab-marks', 'footer',
 ];
 
-const DEFAULT_LAYOUT = (isLab = false) => {
-  const ids = isLab ? LAB_SECTION_IDS : DEFAULT_SECTION_IDS;
+const PROJECT_SECTION_IDS = [
+  'cover', 'course-prerequisites', 'course-objectives', 'course-outcomes',
+  'project-guidelines', 'attendance', 'po-co-mapping', 'project-teams-report', 'footer',
+];
+
+const SEMINAR_SECTION_IDS = [
+  'cover', 'course-prerequisites', 'course-objectives', 'course-outcomes',
+  'seminar-topics-report', 'attendance', 'po-co-mapping', 'footer',
+];
+
+const DEFAULT_LAYOUT = (cType = 'theory') => {
+  let ids = DEFAULT_SECTION_IDS;
+  if (cType === 'lab') ids = LAB_SECTION_IDS;
+  else if (cType === 'project') ids = PROJECT_SECTION_IDS;
+  else if (cType === 'seminar') ids = SEMINAR_SECTION_IDS;
   return ids.reduce((acc, id) => {
     acc[id] = { pageBreakBefore: false, visible: true, spacingTop: 0 };
     return acc;
@@ -207,41 +220,40 @@ const DEFAULT_LAYOUT = (isLab = false) => {
 };
 
 // Sections with default page breaks
-const DEFAULT_PAGE_BREAKS = new Set(['course-outcomes', 'course-plan', 'attendance', 'seminars', 'gradebook', 'practical-schedule', 'lab-marks']);
+const DEFAULT_PAGE_BREAKS = new Set(['course-outcomes', 'course-plan', 'attendance', 'seminars', 'gradebook', 'practical-schedule', 'lab-marks', 'project-guidelines', 'seminar-topics-report', 'po-co-mapping', 'project-teams-report']);
 
-const SECTION_LABELS = {
-  'cover':             'Cover / Header',
-  'dept-vision':       '1. Department Vision',
-  'dept-mission':      '2. Department Mission',
-  'peos':              '3. Programme Educational Objectives',
-  'pos':               '4. Programme Outcomes (POs)',
-  'psos':              '5. Programme Specific Outcomes (PSOs)',
-  'course-objectives': '6. Course Objectives',
-  'course-outcomes':   '7. Course Outcomes',
-  'po-co-mapping':     '8. CO\u2013PO Mapping',
-  'syllabus':          '9. Syllabus',
-  'textbooks':         '10. Textbooks',
-  'references':        '11. References',
-  'course-plan':       '12. Course Plan / Lesson Plan',
-  'attendance':        '13. Student Attendance Summary',
-  'seminars':          '14. Student Seminar Report',
-  'assignments':       '15. Assignments Marks Report',
-  'gradebook':         '16. Internal Assessments Grade Book',
-  'footer':            'Signatures Footer',
+const CLEAN_SECTION_NAMES = {
+  'cover':                 'Cover / Header',
+  'dept-vision':           'Department Vision',
+  'dept-mission':          'Department Mission',
+  'peos':                  'Programme Educational Objectives',
+  'pos':                   'Programme Outcomes (POs)',
+  'psos':                  'Programme Specific Outcomes (PSOs)',
+  'course-prerequisites':  'Course Prerequisites',
+  'course-objectives':     'Course Objectives',
+  'course-outcomes':       'Course Outcomes',
+  'project-guidelines':    'Project Guidelines',
+  'seminar-topics-report': 'Seminar Topics',
+  'list-of-experiments':   'List of Experiments',
+  'po-co-mapping':         'CO–PO Mapping',
+  'syllabus':              'Syllabus',
+  'textbooks':             'Textbooks',
+  'references':            'References',
+  'course-plan':           'Course Plan / Lesson Plan',
+  'practical-schedule':    'Practical Schedule',
+  'attendance':            'Student Attendance Summary',
+  'seminars':              'Student Seminar Report',
+  'assignments':           'Assignments Marks Report',
+  'gradebook':             'Internal Assessments Grade Book',
+  'lab-marks':             'Lab Mark Entry',
+  'project-teams-report':  'Project Teams',
+  'footer':                'Signatures Footer',
 };
 
-const LAB_SECTION_LABELS = {
-  'cover':              'Cover / Header',
-  'course-prerequisites':'1. Course Prerequisites',
-  'course-objectives':  '2. Course Objectives',
-  'course-outcomes':    '3. Course Outcomes',
-  'list-of-experiments':'4. List of Experiments',
-  'po-co-mapping':      '5. CO-PO Mapping',
-  'practical-schedule': '6. Practical Schedule',
-  'attendance':         '7. Student Attendance Summary',
-  'lab-marks':          '8. Lab Mark Entry',
-  'footer':             'Signatures Footer',
-};
+const SECTION_LABELS = CLEAN_SECTION_NAMES;
+const LAB_SECTION_LABELS = CLEAN_SECTION_NAMES;
+const PROJECT_SECTION_LABELS = CLEAN_SECTION_NAMES;
+const SEMINAR_SECTION_LABELS = CLEAN_SECTION_NAMES;
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 export const LMSLogbookReport = () => {
@@ -269,6 +281,8 @@ export const LMSLogbookReport = () => {
   const [isBanner, setIsBanner] = useState(true);
 
   const [isLab, setIsLab] = useState(false);
+  const [isProject, setIsProject] = useState(false);
+  const [isSeminar, setIsSeminar] = useState(false);
   const [labMarks, setLabMarks] = useState([]);
 
   const [sectionOrder, setSectionOrder] = useState([]);
@@ -285,8 +299,19 @@ export const LMSLogbookReport = () => {
       if (!foundCourse) throw new Error('Course Assignment not found.');
       setCourseAssignment(foundCourse);
       const deptId = foundCourse.course?.department_id;
-      const isLabCourse = foundCourse.course?.course_type === 'lab';
+      const cType = foundCourse.course?.course_type;
+      const isLabCourse = cType === 'lab';
+      const isProjectCourse = cType === 'project';
+      const isSeminarCourse = cType === 'seminar';
       setIsLab(isLabCourse);
+      setIsProject(isProjectCourse);
+      setIsSeminar(isSeminarCourse);
+
+      const expectedIds = isProjectCourse ? PROJECT_SECTION_IDS
+        : isSeminarCourse ? SEMINAR_SECTION_IDS
+        : isLabCourse ? LAB_SECTION_IDS
+        : DEFAULT_SECTION_IDS;
+      const currentType = isProjectCourse ? 'project' : isSeminarCourse ? 'seminar' : isLabCourse ? 'lab' : 'theory';
 
       const savedLayout = localStorage.getItem('logbook_layout_' + assignmentId);
       let loadedOrder = null;
@@ -294,7 +319,6 @@ export const LMSLogbookReport = () => {
       if (savedLayout) {
         try {
           const { order, map } = JSON.parse(savedLayout);
-          const expectedIds = isLabCourse ? LAB_SECTION_IDS : DEFAULT_SECTION_IDS;
           const orderKeys = new Set(order || []);
           const hasMismatch = expectedIds.some(id => !orderKeys.has(id)) || (order || []).some(id => !expectedIds.includes(id));
           if (!hasMismatch) {
@@ -310,8 +334,8 @@ export const LMSLogbookReport = () => {
         setSectionOrder(loadedOrder);
         setLayoutMap(loadedMap);
       } else {
-        setSectionOrder(isLabCourse ? [...LAB_SECTION_IDS] : [...DEFAULT_SECTION_IDS]);
-        setLayoutMap(DEFAULT_LAYOUT(isLabCourse));
+        setSectionOrder([...expectedIds]);
+        setLayoutMap(DEFAULT_LAYOUT(currentType));
         localStorage.removeItem('logbook_layout_' + assignmentId);
       }
 
@@ -457,6 +481,9 @@ export const LMSLogbookReport = () => {
     }
   };
 
+  const currentCourseType = isProject ? 'project' : isSeminar ? 'seminar' : isLab ? 'lab' : 'theory';
+  const expectedIds = isProject ? PROJECT_SECTION_IDS : isSeminar ? SEMINAR_SECTION_IDS : isLab ? LAB_SECTION_IDS : DEFAULT_SECTION_IDS;
+
   const handleDiscardLayout = () => {
     try {
       const saved = localStorage.getItem('logbook_layout_' + assignmentId);
@@ -465,8 +492,8 @@ export const LMSLogbookReport = () => {
         if (order) setSectionOrder(order);
         if (map) setLayoutMap(map);
       } else {
-        setSectionOrder(isLab ? [...LAB_SECTION_IDS] : [...DEFAULT_SECTION_IDS]);
-        setLayoutMap(DEFAULT_LAYOUT(isLab));
+        setSectionOrder([...expectedIds]);
+        setLayoutMap(DEFAULT_LAYOUT(currentCourseType));
       }
     } catch (e) {
       console.error(e);
@@ -474,15 +501,15 @@ export const LMSLogbookReport = () => {
   };
 
   const resetLayout = () => {
-    setSectionOrder(isLab ? [...LAB_SECTION_IDS] : [...DEFAULT_SECTION_IDS]);
-    setLayoutMap(DEFAULT_LAYOUT(isLab));
+    setSectionOrder([...expectedIds]);
+    setLayoutMap(DEFAULT_LAYOUT(currentCourseType));
     localStorage.removeItem('logbook_layout_' + assignmentId);
   };
 
   // ── Data prep ────────────────────────────────────────────────────────────────
   const course      = courseAssignment?.course || {};
   const coPoMapping = parseJSON(course.co_po_mapping);
-  const coRows      = isLab ? ['CO1', 'CO2'] : ['CO1','CO2','CO3','CO4','CO5'];
+  const coRows      = (isLab || isProject || isSeminar) ? ['CO1', 'CO2'] : ['CO1','CO2','CO3','CO4','CO5'];
   const poColumns   = ['PO1','PO2','PO3','PO4','PO5','PO6','PO7','PO8','PO9','PO10','PO11','PO12'];
   const psoColumns  = ['PSO1','PSO2'];
   const allCols     = [...poColumns, ...psoColumns];
@@ -550,9 +577,32 @@ export const LMSLogbookReport = () => {
     return Object.values(studentsMap).sort((a, b) => (a.register_number || '').localeCompare(b.register_number || ''));
   }, [attendance, labMarks, gradebook, seminars, isLab]);
 
+  // Dynamic sequential section numbers (1, 2, 3, 4, 5, 6...) based on section order & visibility
+  const sectionNumberMap = useMemo(() => {
+    const map = {};
+    let currentNum = 1;
+    sectionOrder.forEach(id => {
+      if (id !== 'cover' && id !== 'footer') {
+        if (layoutMap[id]?.visible !== false) {
+          map[id] = currentNum;
+          currentNum++;
+        }
+      }
+    });
+    return map;
+  }, [sectionOrder, layoutMap]);
+
+  const getSectionLabel = useCallback((id) => {
+    const baseName = CLEAN_SECTION_NAMES[id] || id;
+    if (id === 'cover' || id === 'footer') return baseName;
+    if (isProject || isSeminar) return baseName;
+    const num = sectionNumberMap[id];
+    return num ? `${num}. ${baseName}` : baseName;
+  }, [sectionNumberMap, isProject, isSeminar]);
+
   // ── Section renderers ────────────────────────────────────────────────────────
   const renderSection = (id) => {
-    const sectionTitle = isLab ? (LAB_SECTION_LABELS[id] || SECTION_LABELS[id] || id) : (SECTION_LABELS[id] || id);
+    const sectionTitle = getSectionLabel(id);
     switch (id) {
       case 'cover': return (
         <div style={{ textAlign: 'center', marginBottom: '28px', borderBottom: '3px solid #1e293b', paddingBottom: '20px' }}>
@@ -563,7 +613,7 @@ export const LMSLogbookReport = () => {
             />
           </div>
           <h1 style={{ fontFamily: 'Times New Roman, serif', fontSize: '18pt', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 6px 0', color: '#0f172a' }}>Course Logbook Report</h1>
-          <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '14pt', fontWeight: 'bold', color: '#334155', margin: '0 0 12px 0' }}>{course.code} \u2013 {course.name}</p>
+          <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '14pt', fontWeight: 'bold', color: '#334155', margin: '0 0 12px 0' }}>{course.code ? `${course.code} - ${course.name}` : course.name}</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px 24px', fontSize: '11pt', fontWeight: '600', color: '#334155', marginTop: '20px', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
             <div><span style={{ color: '#64748b', fontWeight: 'bold' }}>Academic Year:</span> {courseAssignment.academic_year}</div>
             <div><span style={{ color: '#64748b', fontWeight: 'bold' }}>Semester:</span> {courseAssignment.semester}</div>
@@ -581,6 +631,127 @@ export const LMSLogbookReport = () => {
       case 'psos': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(department?.psos)}</div></>);
       case 'course-prerequisites': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.prerequisites)}</div></>);
       case 'course-objectives': return (<><SectionHeader title={sectionTitle} /><div style={{ marginBottom: '18px' }}>{highlightReportText(course.objectives)}</div></>);
+      case 'project-guidelines': return (
+        <>
+          <SectionHeader title={sectionTitle} />
+          <div style={{ marginBottom: '18px' }}>
+            {highlightReportText(course.project_guidelines)}
+          </div>
+        </>
+      );
+      case 'seminar-topics-report': {
+        let parsedTopics = [];
+        try {
+          if (course.seminar_topics_data) parsedTopics = JSON.parse(course.seminar_topics_data);
+        } catch { parsedTopics = []; }
+
+        return (
+          <>
+            <SectionHeader title={sectionTitle} />
+            <div style={{ marginBottom: '18px' }}>
+              {parsedTopics.length === 0 ? (
+                <p style={{ fontStyle: 'italic', color: '#64748b' }}>No seminar topics recorded.</p>
+              ) : (
+                <table className="report-table" style={{ fontSize: '9pt', width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>#</th>
+                      <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '120px' }}>Reg No.</th>
+                      <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '180px' }}>Student Name(s)</th>
+                      <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Seminar Topic</th>
+                      <th style={{ ...thStyle, fontSize: '9pt', width: '90px' }}>Signature</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedTopics.map((row, idx) => {
+                      if (row.type === 'separator') {
+                        return (
+                          <tr key={row.id || idx} style={{ backgroundColor: '#f1f5f9', fontWeight: 'bold' }}>
+                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{idx + 1}</td>
+                            <td colSpan={4} style={{ ...tdLeftStyle, fontSize: '9pt', fontStyle: 'italic', color: '#334155' }}>
+                              {row.label || 'Separator'}
+                            </td>
+                          </tr>
+                        );
+                      }
+                      const pList = (Array.isArray(row.members_list) && row.members_list.length > 0) ? row.members_list : ((Array.isArray(row.participants_list) && row.participants_list.length > 0) ? row.participants_list : null);
+                      const regNoText = pList ? pList.map(m => m.register_no).filter(Boolean).join('\n') : (row.register_no || '\u2014');
+                      const namesText = pList ? pList.map(m => m.name || m.student_names).filter(Boolean).join('\n') : (row.student_names || '\u2014');
+
+                      return (
+                        <tr key={row.id || idx} className="report-table-row">
+                          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{idx + 1}</td>
+                          <td style={{ ...tdLeftStyle, fontSize: '9pt', whiteSpace: 'pre-line' }}>{regNoText || '\u2014'}</td>
+                          <td style={{ ...tdLeftStyle, fontSize: '9pt', whiteSpace: 'pre-line' }}>{namesText || '\u2014'}</td>
+                          <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{row.seminar_topic || '\u2014'}</td>
+                          <td style={{ ...tdStyle, fontSize: '9pt' }}></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        );
+      }
+
+      case 'project-teams-report': {
+        let parsedTeams = [];
+        try {
+          if (course.project_teams_data) parsedTeams = JSON.parse(course.project_teams_data);
+        } catch { parsedTeams = []; }
+
+        return (
+          <>
+            <SectionHeader title={sectionTitle} />
+            <div style={{ marginBottom: '18px' }}>
+              {parsedTeams.length === 0 ? (
+                <p style={{ fontStyle: 'italic', color: '#64748b' }}>No project teams recorded.</p>
+              ) : (
+                <table className="report-table" style={{ fontSize: '9pt', width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...thStyle, fontSize: '9pt', width: '40px' }}>#</th>
+                      <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '130px' }}>Reg No.</th>
+                      <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left', width: '180px' }}>Team Members</th>
+                      <th style={{ ...thStyle, fontSize: '9pt', textAlign: 'left' }}>Project Name</th>
+                      <th style={{ ...thStyle, fontSize: '9pt', width: '90px' }}>Signature</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedTeams.map((row, idx) => {
+                      if (row.type === 'separator') {
+                        return (
+                          <tr key={row.id || idx} style={{ backgroundColor: '#f1f5f9', fontWeight: 'bold' }}>
+                            <td style={{ ...tdStyle, fontSize: '9pt' }}>{idx + 1}</td>
+                            <td colSpan={4} style={{ ...tdLeftStyle, fontSize: '9pt', fontStyle: 'italic', color: '#334155' }}>
+                              {row.label || 'Separator'}
+                            </td>
+                          </tr>
+                        );
+                      }
+                      const mList = Array.isArray(row.members_list) && row.members_list.length > 0 ? row.members_list : null;
+                      const regNoText = mList ? mList.map(m => m.register_no).filter(Boolean).join('\n') : (row.register_no || '\u2014');
+                      const membersText = mList ? mList.map(m => m.name).filter(Boolean).join('\n') : (row.members || '\u2014');
+
+                      return (
+                        <tr key={row.id || idx} className="report-table-row">
+                          <td style={{ ...tdStyle, fontSize: '9pt', fontWeight: 'bold' }}>{idx + 1}</td>
+                          <td style={{ ...tdLeftStyle, fontSize: '9pt', whiteSpace: 'pre-line' }}>{regNoText || '\u2014'}</td>
+                          <td style={{ ...tdLeftStyle, fontSize: '9pt', whiteSpace: 'pre-line' }}>{membersText || '\u2014'}</td>
+                          <td style={{ ...tdLeftStyle, fontSize: '9pt' }}>{row.project_name || '\u2014'}</td>
+                          <td style={{ ...tdStyle, fontSize: '9pt' }}></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        );
+      }
 
       case 'course-outcomes': return (
         <>
@@ -1058,10 +1229,10 @@ export const LMSLogbookReport = () => {
       }
       case 'footer': return (
         <div style={{ marginTop: '48px', paddingTop: '24px', borderTop: '1px solid #94a3b8', display: 'flex', justifyContent: 'space-between' }}>
-          {['Faculty Signature', 'HOD Signature', 'Principal Signature'].map(label => (
+          {['Faculty Signature', 'HOD Signature', 'Dean Academics Signature', 'Principal Signature'].map(label => (
             <div key={label} style={{ textAlign: 'center' }}>
-              <div style={{ width: '140px', borderBottom: '1px solid #64748b', marginBottom: '6px', height: '40px' }} />
-              <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '11pt', fontWeight: 'bold', color: '#334155', margin: 0 }}>{label}</p>
+              <div style={{ width: '120px', borderBottom: '1px solid #64748b', marginBottom: '6px', height: '40px' }} />
+              <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '10pt', fontWeight: 'bold', color: '#334155', margin: 0 }}>{label}</p>
             </div>
           ))}
         </div>
@@ -2400,7 +2571,7 @@ export const LMSLogbookReport = () => {
                                 <GripVertical size={15} />
                               </div>
                               <div style={{ flex: 1, fontSize: '11px', fontWeight: '600', color: isVisible ? '#f1f5f9' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {isLab ? (LAB_SECTION_LABELS[id] || id) : (SECTION_LABELS[id] || id)}
+                                {getSectionLabel(id)}
                               </div>
                               <span style={{ flexShrink: 0, fontSize: '9px', background: 'rgba(99,102,241,0.25)', color: '#a5b4fc', borderRadius: '4px', padding: '1px 5px', fontWeight: 'bold' }}>
                                 {pageLabel}

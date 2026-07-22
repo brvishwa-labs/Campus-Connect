@@ -289,6 +289,29 @@ const GenericProfile = ({ profile, onUpdate }) => {
     }
   };
 
+  let totalCalculatedExperience = 0;
+  if (isFacultyOrHod) {
+    if (profile.past_experience) {
+      profile.past_experience.forEach(exp => {
+        if (exp.from_date && exp.to_date) {
+          const from = new Date(exp.from_date);
+          const to = new Date(exp.to_date);
+          if (to > from) {
+            totalCalculatedExperience += (to - from) / (1000 * 60 * 60 * 24 * 365.25);
+          }
+        }
+      });
+    }
+    if (profile.date_of_joining) {
+      const joining = new Date(profile.date_of_joining);
+      const today = new Date();
+      if (today > joining) {
+        totalCalculatedExperience += (today - joining) / (1000 * 60 * 60 * 24 * 365.25);
+      }
+    }
+    totalCalculatedExperience = Number(totalCalculatedExperience.toFixed(1));
+  }
+
   return (
     <>
       <SectionCard title="Personal Information" icon={User}>
@@ -341,7 +364,13 @@ const GenericProfile = ({ profile, onUpdate }) => {
                 <InfoRow label="10th Details" value={profile.academic_history.tenth?.school ? `${profile.academic_history.tenth.school}, ${profile.academic_history.tenth.board} (${profile.academic_history.tenth.percentage}%)` : null} />
                 <InfoRow label="12th Details" value={profile.academic_history.twelfth?.school ? `${profile.academic_history.twelfth.school}, ${profile.academic_history.twelfth.board} (${profile.academic_history.twelfth.percentage}%)` : null} />
                 <InfoRow label="UG Details" value={profile.academic_history.ug?.degree ? `${profile.academic_history.ug.degree}, ${profile.academic_history.ug.university} (${profile.academic_history.ug.percentage}%)` : null} />
-                <InfoRow label="PG Details" value={profile.academic_history.pg?.degree ? `${profile.academic_history.pg.degree}, ${profile.academic_history.pg.university} (${profile.academic_history.pg.percentage}%)` : null} />
+                {Array.isArray(profile.academic_history.pg) ? (
+                  profile.academic_history.pg.map((pgItem, index) => (
+                    <InfoRow key={index} label={profile.academic_history.pg.length > 1 ? `PG ${index + 1} Details` : "PG Details"} value={pgItem.degree ? `${pgItem.degree}, ${pgItem.university} (${pgItem.percentage}%)` : null} />
+                  ))
+                ) : (
+                  <InfoRow label="PG Details" value={profile.academic_history.pg?.degree ? `${profile.academic_history.pg.degree}, ${profile.academic_history.pg.university} (${profile.academic_history.pg.percentage}%)` : null} />
+                )}
                 <InfoRow label="PhD Details" value={profile.academic_history.phd?.specialization ? `${profile.academic_history.phd.specialization}, ${profile.academic_history.phd.university} (${profile.academic_history.phd.year})` : 'Not Provided'} />
               </div>
             ) : (
@@ -375,6 +404,19 @@ const GenericProfile = ({ profile, onUpdate }) => {
                     </div>
                   );
                 })}
+                {profile.date_of_joining && (
+                  <div className="bg-primary-50 rounded-xl p-3 border border-primary-100 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">Sri Venkateshwaraa College of Engineering and Technology, Puducherry</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(profile.date_of_joining).toLocaleDateString()} - Present
+                      </p>
+                    </div>
+                    <div className="font-medium text-sm text-primary-600 px-3 py-1 bg-white rounded-lg shadow-sm">
+                      {(((new Date() - new Date(profile.date_of_joining)) / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1))} Years
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-sm text-gray-400">No past experience added.</p>
@@ -387,7 +429,7 @@ const GenericProfile = ({ profile, onUpdate }) => {
             <InfoRow label="Designation"    value={profile.designation} />
             <InfoRow label="Qualification"  value={profile.qualification} />
             <InfoRow label="Specialization" value={profile.specialization} />
-            <InfoRow label="Total Experience" value={profile.experience_years ? `${profile.experience_years} years` : null} />
+            <InfoRow label="Total Experience" value={totalCalculatedExperience > 0 ? `${totalCalculatedExperience} years` : (profile.experience_years ? `${profile.experience_years} years` : null)} />
             <InfoRow label="Date of Joining" value={profile.date_of_joining} />
           </SectionCard>
         </>

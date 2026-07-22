@@ -1,0 +1,387 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import axios from 'axios';
+import { ArrowLeft, Save, Plus, Trash2, SeparatorHorizontal, CheckCircle2, AlertTriangle, Users } from 'lucide-react';
+
+export const LMSProjectTeams = () => {
+  const { assignmentId } = useParams();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  const [courseAssignment, setCourseAssignment] = useState(null);
+
+  // Array of row items. Row types: 'team' | 'separator'
+  // Item structure for team: { id: string, members_list: [{ register_no: string, name: string }], register_no: string, members: string, project_name: string }
+  // Item structure for separator: { id: string, type: 'separator', label: string }
+  const [rows, setRows] = useState([]);
+
+  const getMembersList = useCallback((row) => {
+    if (Array.isArray(row.members_list) && row.members_list.length > 0) {
+      return row.members_list;
+    }
+    const regNos = (row.register_no || '').split(/[\n,]+/).map(s => s.trim());
+    const names = (row.members || '').split(/[\n,]+/).map(s => s.trim());
+    const maxLen = Math.max(regNos.length, names.length, 1);
+    const list = [];
+    for (let i = 0; i < maxLen; i++) {
+      list.push({ register_no: regNos[i] || '', name: names[i] || '' });
+    }
+    return list;
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const coursesRes = await axios.get('/api/faculty/me/courses?t=' + Date.now());
+      const foundCourse = coursesRes.data.find(c => c.id.toString() === assignmentId);
+      if (!foundCourse) throw new Error('Course Assignment not found.');
+      setCourseAssignment(foundCourse);
+
+      const rawData = foundCourse.course?.project_teams_data;
+      if (rawData) {
+        try {
+          const parsed = JSON.parse(rawData);
+          if (Array.isArray(parsed)) {
+            setRows(parsed);
+          }
+        } catch {
+          setRows([]);
+        }
+      } else {
+        setRows([]);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to load project team data.');
+    } finally {
+      setLoading(false);
+    }
+  }, [assignmentId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const addTeamRow = () => {
+    const newRow = {
+      id: 'team_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      type: 'team',
+      members_list: [{ register_no: '', name: '' }],
+      register_no: '',
+      members: '',
+      project_name: ''
+    };
+    setRows(prev => [...prev, newRow]);
+  };
+
+  const addSeparatorRow = () => {
+    const newRow = {
+      id: 'sep_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      type: 'separator',
+      label: 'Team Break / Separator'
+    };
+    setRows(prev => [...prev, newRow]);
+  };
+
+  const addMemberToTeam = (teamId) => {
+    setRows(prev => prev.map(row => {
+      if (row.id !== teamId) return row;
+      const currentMembers = getMembersList(row);
+      const updatedMembers = [...currentMembers, { register_no: '', name: '' }];
+      return {
+        ...row,
+        members_list: updatedMembers,
+        register_no: updatedMembers.map(m => m.register_no).filter(Boolean).join('\n'),
+        members: updatedMembers.map(m => m.name).filter(Boolean).join('\n'),
+      };
+    }));
+  };
+
+  const removeMemberFromTeam = (teamId, memberIdx) => {
+    setRows(prev => prev.map(row => {
+      if (row.id !== teamId) return row;
+      const currentMembers = getMembersList(row);
+      if (currentMembers.length <= 1) return row;
+      const updatedMembers = currentMembers.filter((_, idx) => idx !== memberIdx);
+      return {
+        ...row,
+        members_list: updatedMembers,
+        register_no: updatedMembers.map(m => m.register_no).filter(Boolean).join('\n'),
+        members: updatedMembers.map(m => m.name).filter(Boolean).join('\n'),
+      };
+    }));
+  };
+
+  const updateTeamMember = (teamId, memberIdx, field, value) => {
+    setRows(prev => prev.map(row => {
+      if (row.id !== teamId) return row;
+      const currentMembers = getMembersList(row);
+      const updatedMembers = currentMembers.map((m, idx) =>
+        idx === memberIdx ? { ...m, [field]: value } : m
+      );
+      return {
+        ...row,
+        members_list: updatedMembers,
+        register_no: updatedMembers.map(m => m.register_no).filter(Boolean).join('\n'),
+        members: updatedMembers.map(m => m.name).filter(Boolean).join('\n'),
+      };
+    }));
+  };
+
+  const updateRow = (id, field, value) => {
+    setRows(prev => prev.map(row => row.id === id ? { ...row, [field]: value } : row));
+  };
+
+  const deleteRow = (id) => {
+    setRows(prev => prev.filter(row => row.id !== id));
+  };
+
+  const handleSave = async () => {
+    if (!courseAssignment?.course?.id) return;
+    setSaving(true);
+    setSuccess(false);
+    setError(null);
+    try {
+      const sanitizedRows = rows.map(row => {
+        if (row.type === 'team') {
+          const mList = getMembersList(row);
+          return {
+            ...row,
+            members_list: mList,
+            register_no: mList.map(m => m.register_no).filter(Boolean).join('\n'),
+            members: mList.map(m => m.name).filter(Boolean).join('\n'),
+          };
+        }
+        return row;
+      });
+
+      const serialized = JSON.stringify(sanitizedRows);
+      await axios.put('/api/courses/' + courseAssignment.course.id, {
+        project_teams_data: serialized
+      });
+      setCourseAssignment(prev => prev ? {
+        ...prev,
+        course: { ...prev.course, project_teams_data: serialized }
+      } : prev);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.detail || 'Failed to save project teams.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  const course = courseAssignment?.course || {};
+
+  return (
+    <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+      {/* Top Navigation & Title */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <Link
+            to={`/faculty/courses/${assignmentId}/lms`}
+            className="text-gray-500 hover:text-primary-600 transition-colors flex items-center gap-1 text-sm font-medium mb-2"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+          </Link>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Project Teams</h1>
+              <p className="text-xs text-gray-500 font-medium">
+                {course.code ? `${course.code} - ${course.name}` : course.name}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={addTeamRow}
+            className="flex items-center gap-1.5 px-4 py-2 bg-purple-50 text-purple-700 font-bold text-sm rounded-xl border border-purple-200 hover:bg-purple-100 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add Team Row
+          </button>
+          <button
+            onClick={addSeparatorRow}
+            className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 font-bold text-sm rounded-xl border border-gray-200 hover:bg-gray-200 transition-colors"
+          >
+            <SeparatorHorizontal className="w-4 h-4" /> Add Separator
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white font-bold text-sm rounded-xl hover:bg-primary-700 transition-colors shadow-sm disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Teams'}
+          </button>
+        </div>
+      </div>
+
+      {/* Alerts */}
+      {success && (
+        <div className="flex items-center gap-2 p-4 bg-green-50 text-green-700 border border-green-200 rounded-xl text-sm font-medium">
+          <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+          Project teams saved successfully!
+        </div>
+      )}
+      {error && (
+        <div className="flex items-center gap-2 p-4 bg-red-50 text-red-700 border border-red-200 rounded-xl text-sm font-medium">
+          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* Main Card */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6">
+        <p className="text-xs text-gray-500 mb-4 font-medium">
+          Enter team details below. Click <span className="font-bold text-purple-700">+</span> next to any roll number / student name box to add additional team members for that team.
+        </p>
+
+        <div className="overflow-x-auto border border-gray-200 rounded-xl">
+          <table className="w-full text-left text-sm border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200 text-gray-700 font-bold text-xs uppercase tracking-wider">
+                <th className="py-3 px-4 w-12 text-center">#</th>
+                <th className="py-3 px-4 w-48">Register No.</th>
+                <th className="py-3 px-4">Team Members</th>
+                <th className="py-3 px-4 w-64">Project Name</th>
+                <th className="py-3 px-4 w-28 text-center">Signature</th>
+                <th className="py-3 px-4 w-16 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-gray-400 font-medium italic">
+                    No project teams added yet. Click "Add Team Row" to begin.
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row, idx) => {
+                  if (row.type === 'separator') {
+                    return (
+                      <tr key={row.id} className="bg-purple-50/60 border-y-2 border-purple-200">
+                        <td className="py-2.5 px-4 text-center font-bold text-purple-700 text-xs">{idx + 1}</td>
+                        <td colSpan={4} className="py-2.5 px-4">
+                          <input
+                            type="text"
+                            value={row.label || ''}
+                            onChange={(e) => updateRow(row.id, 'label', e.target.value)}
+                            placeholder="Separator Label (e.g., Team Break / Group A)"
+                            className="w-full bg-transparent font-bold text-purple-800 text-xs border-b border-dashed border-purple-300 focus:outline-none focus:border-purple-600"
+                          />
+                        </td>
+                        <td className="py-2.5 px-4 text-center">
+                          <button
+                            onClick={() => deleteRow(row.id)}
+                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                            title="Delete Separator"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  const membersList = getMembersList(row);
+
+                  return (
+                    <tr key={row.id} className="hover:bg-gray-50/50 transition-colors align-top">
+                      <td className="py-3 px-4 text-center font-bold text-gray-500 text-xs pt-4">{idx + 1}</td>
+                      
+                      {/* Paired Register No and Student Name inputs */}
+                      <td colSpan={2} className="py-3 px-4">
+                        <div className="space-y-2">
+                          {membersList.map((m, mIdx) => (
+                            <div key={mIdx} className="flex items-center gap-2">
+                              <span className="text-[11px] font-bold text-purple-600 w-5 text-right shrink-0">{mIdx + 1}.</span>
+                              <div className="w-44 shrink-0">
+                                <input
+                                  type="text"
+                                  value={m.register_no || ''}
+                                  onChange={(e) => updateTeamMember(row.id, mIdx, 'register_no', e.target.value)}
+                                  placeholder="Reg No. (e.g. 21CSE001)"
+                                  className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 focus:bg-white transition-all outline-none"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <input
+                                  type="text"
+                                  value={m.name || ''}
+                                  onChange={(e) => updateTeamMember(row.id, mIdx, 'name', e.target.value)}
+                                  placeholder="Student Name"
+                                  className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 focus:bg-white transition-all outline-none"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => addMemberToTeam(row.id)}
+                                className="px-2 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg transition-colors border border-purple-200 flex items-center gap-1 shrink-0 text-xs font-bold shadow-xs"
+                                title="Add next teammate (+)"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                              {membersList.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeMemberFromTeam(row.id, mIdx)}
+                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                                  title="Remove teammate"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-4 pt-4">
+                        <input
+                          type="text"
+                          value={row.project_name || ''}
+                          onChange={(e) => updateRow(row.id, 'project_name', e.target.value)}
+                          placeholder="Enter Project Title"
+                          className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 focus:bg-white transition-all outline-none"
+                        />
+                      </td>
+                      <td className="py-3 px-4 text-center text-xs text-gray-400 italic pt-4">
+                        Blank for print
+                      </td>
+                      <td className="py-3 px-4 text-center pt-4">
+                        <button
+                          onClick={() => deleteRow(row.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete Team Row"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};

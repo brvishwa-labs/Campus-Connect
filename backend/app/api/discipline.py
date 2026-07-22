@@ -12,7 +12,7 @@ from app.models.department import Department
 from app.models.discipline import DisciplineRecord, IncidentCategory
 from app.schemas.discipline import (
     DisciplineCreate, DisciplineUpdate, DisciplineResponse, 
-    DisciplineAnalytics, CategoryCount, TrendPoint, DepartmentCount, MentorCount, StudentCount
+    DisciplineAnalytics, CategoryCount, TrendPoint, DepartmentCount, MentorCount, StudentCount, ReporterCount
 )
 
 router = APIRouter()
@@ -252,23 +252,45 @@ def get_analytics(
     if current_user.role in ["authority", "admin", "hod"]:
         from app.models.academic import MentorAssignment
         from app.models.faculty import Faculty
+        from app.models.department import Department
         
-        mentor_query = db.query(
-            Faculty.first_name, Faculty.last_name,
-            func.count(DisciplineRecord.id)
-        ).select_from(DisciplineRecord)\
-         .join(Student, DisciplineRecord.student_id == Student.id)\
-         .join(MentorAssignment, MentorAssignment.student_id == Student.id)\
-         .join(Faculty, MentorAssignment.mentor_id == Faculty.id)
+        # 1. Fetch all relevant faculty and their department
+        faculty_query = db.query(Faculty).join(Department, Faculty.department_id == Department.id)
         
         if current_user.role == "hod" and current_user.faculty_profile and current_user.faculty_profile.department_id:
-            mentor_query = mentor_query.filter(Student.department_id == current_user.faculty_profile.department_id)
+            faculty_query = faculty_query.filter(Faculty.department_id == current_user.faculty_profile.department_id)
         elif department_id:
-            mentor_query = mentor_query.filter(Student.department_id == department_id)
+            faculty_query = faculty_query.filter(Faculty.department_id == department_id)
             
-        mentor_dist_data = mentor_query.group_by(Faculty.id).all()
-        mentor_distribution = [MentorCount(mentor=f"{c[0]} {c[1]}", count=c[2]) for c in mentor_dist_data]
-        mentor_distribution.sort(key=lambda x: x.count, reverse=True)
+        all_faculties = faculty_query.all()
+        
+        # 2. Fetch incidents mapped to mentors
+        incidents = db.query(
+            MentorAssignment.mentor_id,
+            DisciplineRecord.id
+        ).select_from(DisciplineRecord).join(
+            MentorAssignment, MentorAssignment.student_id == DisciplineRecord.student_id
+        ).all()
+        
+        mentor_stats = {}
+        for incident in incidents:
+            if incident.mentor_id not in mentor_stats:
+                mentor_stats[incident.mentor_id] = 0
+            mentor_stats[incident.mentor_id] += 1
+            
+        mentor_list = []
+        for fac in all_faculties:
+            count = mentor_stats.get(fac.id, 0)
+            mentor_list.append(
+                MentorCount(
+                    mentor=f"{fac.first_name} {fac.last_name}",
+                    department_name=fac.department.code if fac.department else "N/A",
+                    count=count
+                )
+            )
+            
+        mentor_list.sort(key=lambda x: x.count, reverse=True)
+        mentor_distribution = mentor_list
 
     # Student Distribution (For Authority/Admin and HOD)
     student_distribution = None
@@ -302,11 +324,67 @@ def get_analytics(
         ]
         student_distribution.sort(key=lambda x: x.count, reverse=True)
 
+    # Reporter Distribution (All Faculty & HODs to track usage)
+    reporter_distribution = None
+    if current_user.role in ["authority", "admin", "hod"]:
+        from app.models.faculty import Faculty
+        from app.models.department import Department
+        
+        # 1. Fetch all relevant faculty and their department
+        faculty_query = db.query(Faculty).join(Department, Faculty.department_id == Department.id)
+        
+        if current_user.role == "hod" and current_user.faculty_profile and current_user.faculty_profile.department_id:
+            faculty_query = faculty_query.filter(Faculty.department_id == current_user.faculty_profile.department_id)
+        elif department_id:
+            faculty_query = faculty_query.filter(Faculty.department_id == department_id)
+            
+        all_faculties = faculty_query.all()
+        
+        # 2. Fetch all incidents to aggregate
+        incidents = db.query(DisciplineRecord.reported_by_id, DisciplineRecord.incident_type).all()
+        
+        reporter_stats = {}
+        for incident in incidents:
+            if incident.reported_by_id not in reporter_stats:
+                reporter_stats[incident.reported_by_id] = []
+            
+            # Extract string value safely
+            val = incident.incident_type
+            val_str = val.value if hasattr(val, 'value') else str(val)
+            # Remove "IncidentCategory." prefix if it exists (for enums)
+            if val_str.startswith("IncidentCategory."):
+                val_str = val_str.split(".")[1]
+            reporter_stats[incident.reported_by_id].append(val_str)
+            
+        reporter_list = []
+        for fac in all_faculties:
+            fac_incidents = reporter_stats.get(fac.user_id, [])
+            count = len(fac_incidents)
+            
+            breakdown = "None"
+            if count > 0:
+                from collections import Counter
+                counts = Counter(fac_incidents)
+                breakdown = ", ".join([f"{k} ({v})" for k, v in counts.items()])
+                
+            reporter_list.append(
+                ReporterCount(
+                    reporter_name=f"{fac.first_name} {fac.last_name}",
+                    department_name=fac.department.code if fac.department else "N/A",
+                    incident_breakdown=breakdown,
+                    count=count
+                )
+            )
+            
+        reporter_list.sort(key=lambda x: x.count, reverse=True)
+        reporter_distribution = reporter_list
+
     return DisciplineAnalytics(
         total_incidents=total,
         category_distribution=categories,
         recent_trend=trends,
         department_distribution=dept_distribution,
         mentor_distribution=mentor_distribution,
-        student_distribution=student_distribution
+        student_distribution=student_distribution,
+        reporter_distribution=reporter_distribution
     )

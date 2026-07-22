@@ -50,6 +50,7 @@ class DepartmentCount(BaseModel):
 
 class MentorCount(BaseModel):
     mentor: str
+    department_name: str
     count: int
 
 class StudentCount(BaseModel):
@@ -58,10 +59,10 @@ class StudentCount(BaseModel):
     mentor: str
     count: int
 
-class StudentCount(BaseModel):
-    student_name: str
-    register_number: str
-    mentor: str
+class ReporterCount(BaseModel):
+    reporter_name: str
+    department_name: str
+    incident_breakdown: str
     count: int
 
 class TrendPoint(BaseModel):
@@ -75,3 +76,4 @@ class DisciplineAnalytics(BaseModel):
     department_distribution: Optional[List[DepartmentCount]] = None
     mentor_distribution: Optional[List[MentorCount]] = None
     student_distribution: Optional[List[StudentCount]] = None
+    reporter_distribution: Optional[List[ReporterCount]] = None

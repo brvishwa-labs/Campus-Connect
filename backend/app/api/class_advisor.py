@@ -27,6 +27,7 @@ from app.models.attendance import Attendance, AttendanceStatus
 from app.models.lms import TimetableSlot, LMSResource
 from app.models.department import Department
 from app.models.course_plan import CoursePlan
+from app.models.leave import StudentLeaveRequest, StudentLeaveStatus
 from app.schemas.class_advisor import (
     ClassInfoResponse, CADashboardResponse,
     CAStudentListItem, CAStudentProfileResponse, EnrolledSubject,
@@ -467,6 +468,7 @@ def get_attendance_for_date(
 
     # Fetch existing records for this date using selected course id and optional hour
     existing = {}
+    on_leave_set = set()
     if student_ids:
         target_course_id = course_id
         if target_course_id is None:
@@ -482,6 +484,15 @@ def get_attendance_for_date(
 
         records = q.all()
         existing = {r.student_id: r.status.value for r in records}
+        
+        # Fetch approved leaves for these students on this date
+        leaves = db.query(StudentLeaveRequest).filter(
+            StudentLeaveRequest.student_id.in_(student_ids),
+            StudentLeaveRequest.status == StudentLeaveStatus.APPROVED,
+            StudentLeaveRequest.from_date <= date,
+            StudentLeaveRequest.to_date >= date
+        ).all()
+        on_leave_set = {leave.student_id for leave in leaves}
 
     return [
         AttendanceStudentRow(
@@ -489,7 +500,8 @@ def get_attendance_for_date(
             register_number=s.register_number,
             first_name=s.first_name,
             last_name=s.last_name,
-            status=existing.get(s.id)
+            status=existing.get(s.id),
+            on_leave=(s.id in on_leave_set)
         )
         for s in students
     ]
