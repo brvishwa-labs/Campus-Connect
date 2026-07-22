@@ -415,7 +415,7 @@ def lookup_user(email: str, db: Session = Depends(get_db)):
             if dept:
                 department_name = dept.name
     elif role == "authority":
-        from app.models.user import Authority
+        from app.models.authority import Authority
         authority = db.query(Authority).filter(Authority.user_id == db_user.id).first()
         if authority:
             name = f"{authority.first_name} {authority.last_name}"

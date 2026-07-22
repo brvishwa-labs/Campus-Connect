@@ -9,6 +9,7 @@ class CourseTypeEnum(str, Enum):
     elective = "elective"
     open_elective = "open_elective"
     project = "project"
+    seminar = "seminar"
 
 class CourseBase(BaseModel):
     department_id: int
@@ -26,6 +27,9 @@ class CourseBase(BaseModel):
     prerequisites: Optional[str] = None
     co_po_mapping: Optional[str] = None
     co_k_levels: Optional[str] = None
+    project_guidelines: Optional[str] = None
+    project_teams_data: Optional[str] = None
+    seminar_topics_data: Optional[str] = None
 
 class CourseCreate(CourseBase):
     pass
@@ -46,6 +50,9 @@ class CourseUpdate(BaseModel):
     prerequisites: Optional[str] = None
     co_po_mapping: Optional[str] = None
     co_k_levels: Optional[str] = None
+    project_guidelines: Optional[str] = None
+    project_teams_data: Optional[str] = None
+    seminar_topics_data: Optional[str] = None
     is_active: Optional[bool] = None
 
 class CourseResponse(CourseBase):
