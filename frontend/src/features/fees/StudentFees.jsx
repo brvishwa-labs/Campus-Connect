@@ -214,7 +214,7 @@ export default function StudentFees() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <SummaryCard
             icon={DollarSign}
-            label="Total Fee Due"
+            label="Total fee"
             value={fmt(summary?.total_due)}
             subtitle="Total fees assigned for this semester"
             gradient="from-blue-500 to-blue-600"
