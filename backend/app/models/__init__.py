@@ -43,6 +43,13 @@ from app.models.course_plan import CoursePlan, CoursePlanTopic
 from app.models.messaging import Conversation, Message
 from app.models.notification_view import NotificationView
 
+# Fees Module (additive)
+from app.models.fees import (
+    FeeStructure, StudentFeeAssignment, Payment,
+    TallyLedgerMapping, UnmappedLedgerEntry,
+    PaymentMode, PaymentSource, UnmappedStatus,
+)
+
 __all__ = [
     "User", "UserRole",
     "Department", "ProgramOutcome",
@@ -71,4 +78,8 @@ __all__ = [
     "CoursePlan", "CoursePlanTopic",
     "Conversation", "Message",
     "NotificationView",
+    # Fees Module
+    "FeeStructure", "StudentFeeAssignment", "Payment",
+    "TallyLedgerMapping", "UnmappedLedgerEntry",
+    "PaymentMode", "PaymentSource", "UnmappedStatus",
 ]

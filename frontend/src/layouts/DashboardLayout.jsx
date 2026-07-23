@@ -3,7 +3,7 @@ import { Outlet, Navigate, Link, useLocation, useNavigate } from 'react-router-d
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { 
-  LayoutDashboard, Users, BookOpen, GraduationCap, Settings, LogOut, Bell, Search, Moon, Sun, Home, Calendar, ShieldAlert, Clock, Menu, X, ChevronDown, ChevronRight, ClipboardList, BarChart2, TrendingUp, Info, User, Shield, Award, MessageSquare
+  LayoutDashboard, Users, BookOpen, GraduationCap, Settings, LogOut, Bell, Search, Moon, Sun, Home, Calendar, ShieldAlert, Clock, Menu, X, ChevronDown, ChevronRight, ClipboardList, BarChart2, TrendingUp, Info, User, Shield, Award, MessageSquare, Upload, AlertTriangle, CreditCard, Eye, MapPin
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import MessagingFloatingWidget from '../components/MessagingFloatingWidget';
@@ -21,6 +21,7 @@ const ROLE_NAV_LINKS = {
     { name: 'Late Tracker', path: '/admin/latetracker', icon: Clock },
     { name: 'Announcements', path: '/admin/announcements', icon: Bell },
     { name: 'Password Resets', path: '/admin/password-resets', icon: ShieldAlert },
+    { name: 'Fees & Accounts', path: '/admin/fees', icon: TrendingUp },
   ],
   hod: [
     { name: 'Dashboard', path: '/hod', icon: LayoutDashboard },
@@ -70,6 +71,7 @@ const ROLE_NAV_LINKS = {
     { name: 'Late Entry Notification', path: '/student/late-entry', icon: Bell },
     { name: 'Announcements', path: '/student/announcements', icon: Bell },
     { name: 'Message Dean', path: '/student/messaging', icon: MessageSquare },
+    { name: 'My Fees', path: '/student/fees', icon: TrendingUp },
   ],
   authority: [
     { name: 'Dashboard', path: '/authority', icon: LayoutDashboard },
@@ -82,6 +84,15 @@ const ROLE_NAV_LINKS = {
     { name: 'Gate Pass Approvals', path: '/authority/gatepass', icon: Clock },
     { name: 'Faculty Gate Pass Approvals', path: '/authority/faculty-gatepass', icon: Clock },
     { name: 'Announcements', path: '/authority/announcements', icon: Bell },
+  ],
+  accountant: [
+    { name: 'Upload Center', path: '/accountant', icon: Upload },
+    { name: 'Unmapped Queue', path: '/accountant', icon: AlertTriangle },
+    { name: 'Manual Payment', path: '/accountant', icon: CreditCard },
+    { name: 'Fee Structure', path: '/accountant', icon: BookOpen },
+    { name: 'Student Ledger', path: '/accountant', icon: Eye },
+    { name: 'Reports', path: '/accountant', icon: BarChart2 },
+    { name: 'Ledger Mappings', path: '/accountant', icon: MapPin },
   ]
 };
 

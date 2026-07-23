@@ -110,6 +110,8 @@ import StudentMessaging from './features/student/StudentMessaging';
 import DeanMessaging from './features/dean/DeanMessaging';
 import MyAttendance from './features/faculty/MyAttendance';
 import ForgotPassword from './features/auth/ForgotPassword';
+import AccountantPortal from './features/fees/AccountantPortal';
+import StudentFees from './features/fees/StudentFees';
 
 // A simple protective wrapper that forces login and checks roles
 const ProtectedRoute = ({ children, allowedRole }) => {
@@ -122,6 +124,10 @@ const ProtectedRoute = ({ children, allowedRole }) => {
   if (allowedRole && user.role !== allowedRole) {
     // HODs act as faculty for their own courses
     if (allowedRole === 'faculty' && user.role === 'hod') {
+      return children;
+    }
+    // Accountants access their own portal
+    if (allowedRole === 'accountant' && user.role === 'accountant') {
       return children;
     }
     // Redirect to their actual role's dashboard if they try to access another
@@ -199,6 +205,11 @@ function AppRoutes() {
         <Route path="/admin/password-resets" element={
           <ProtectedRoute allowedRole="admin">
             <PasswordResets />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/fees" element={
+          <ProtectedRoute allowedRole="admin">
+            <AccountantPortal />
           </ProtectedRoute>
         } />
         
@@ -546,6 +557,25 @@ function AppRoutes() {
         <Route path="/student/messaging" element={
           <ProtectedRoute allowedRole="student">
             <StudentMessaging />
+          </ProtectedRoute>
+        } />
+        <Route path="/student/fees" element={
+          <ProtectedRoute allowedRole="student">
+            <StudentFees />
+          </ProtectedRoute>
+        } />
+      </Route>
+
+      {/* Accountant Routes — inside DashboardLayout */}
+      <Route element={<DashboardLayout />}>
+        <Route path="/accountant" element={
+          <ProtectedRoute allowedRole="accountant">
+            <AccountantPortal />
+          </ProtectedRoute>
+        } />
+        <Route path="/accountant/*" element={
+          <ProtectedRoute allowedRole="accountant">
+            <AccountantPortal />
           </ProtectedRoute>
         } />
       </Route>
