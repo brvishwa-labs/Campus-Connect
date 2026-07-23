@@ -620,15 +620,27 @@ async def upload_opening_balance_file(
                     StudentFeeAssignment.academic_year == ay
                 ).first()
 
+                # Calculate what the amount_due should be so that Pending Balance = amount from Tally
+                other_assignments_sum = db.query(func.sum(StudentFeeAssignment.amount_due)).filter(
+                    StudentFeeAssignment.student_id == student.id,
+                    StudentFeeAssignment.id != (assignment.id if assignment else -1)
+                ).scalar()
+                other_assignments_sum = float(other_assignments_sum or 0)
+
+                total_paid_row = db.query(func.sum(Payment.amount)).filter(Payment.student_id == student.id).scalar()
+                total_paid = float(total_paid_row or 0)
+
+                new_amount_due = float(amount) + total_paid - other_assignments_sum
+
                 if assignment:
-                    assignment.amount_due = amount
+                    assignment.amount_due = Decimal(str(new_amount_due))
                     if assignment.fee_structure_id is None and fs_id:
                         assignment.fee_structure_id = fs_id  # backfill if now available
                 else:
                     assignment = StudentFeeAssignment(
                         student_id=student.id,
                         fee_structure_id=fs_id,
-                        amount_due=amount,
+                        amount_due=Decimal(str(new_amount_due)),
                         semester=student.current_semester,
                         academic_year=ay
                     )
@@ -771,15 +783,26 @@ def resolve_unmapped(
             StudentFeeAssignment.academic_year == ay
         ).first()
 
+        other_assignments_sum = db.query(func.sum(StudentFeeAssignment.amount_due)).filter(
+            StudentFeeAssignment.student_id == student.id,
+            StudentFeeAssignment.id != (assignment.id if assignment else -1)
+        ).scalar()
+        other_assignments_sum = float(other_assignments_sum or 0)
+
+        total_paid_row = db.query(func.sum(Payment.amount)).filter(Payment.student_id == student.id).scalar()
+        total_paid = float(total_paid_row or 0)
+
+        new_amount_due = float(entry.amount) + total_paid - other_assignments_sum
+
         if assignment:
-            assignment.amount_due = entry.amount
+            assignment.amount_due = Decimal(str(new_amount_due))
             if assignment.fee_structure_id is None and fs_id:
                 assignment.fee_structure_id = fs_id  # backfill if now available
         else:
             assignment = StudentFeeAssignment(
                 student_id=student.id,
                 fee_structure_id=fs_id,
-                amount_due=entry.amount,
+                amount_due=Decimal(str(new_amount_due)),
                 semester=student.current_semester,
                 academic_year=ay
             )
