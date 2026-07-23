@@ -82,7 +82,7 @@ def update_course(
             raise HTTPException(status_code=403, detail="You are not assigned to this course")
         
         # Faculty can only edit specific fields
-        allowed_fields = {"prerequisites", "objectives", "outcomes", "syllabus", "textbooks", "references", "co_po_mapping", "co_k_levels"}
+        allowed_fields = {"prerequisites", "objectives", "outcomes", "syllabus", "textbooks", "references", "co_po_mapping", "co_k_levels", "project_guidelines", "project_teams_data", "seminar_topics_data"}
         update_data = {k: v for k, v in update_data.items() if k in allowed_fields}
     elif current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins and assigned faculty can update courses")

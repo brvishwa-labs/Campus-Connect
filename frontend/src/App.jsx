@@ -56,6 +56,8 @@ import { LMSGradebook } from './features/faculty/lms/LMSGradebook';
 import { LMSCOPOMapping } from './features/faculty/lms/LMSCOPOMapping';
 import { LMSLogbookReport } from './features/faculty/lms/LMSLogbookReport';
 import { LMSLabMarks } from './features/faculty/lms/LMSLabMarks';
+import { LMSProjectTeams } from './features/faculty/lms/LMSProjectTeams';
+import { LMSSeminarTopics } from './features/faculty/lms/LMSSeminarTopics';
 import { Discipline as StudentDiscipline } from './features/student/Discipline';
 import { LateTrackerDashboard } from './features/latetracker/Dashboard';
 import { LateManagement } from './features/hod/LateManagement';
@@ -377,6 +379,18 @@ function AppRoutes() {
         <Route path="/faculty/courses/:assignmentId/lms/lab-marks" element={
           <ProtectedRoute allowedRole="faculty">
             <LMSLabMarks />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/faculty/courses/:assignmentId/lms/project-teams" element={
+          <ProtectedRoute allowedRole="faculty">
+            <LMSProjectTeams />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/faculty/courses/:assignmentId/lms/seminar-topics" element={
+          <ProtectedRoute allowedRole="faculty">
+            <LMSSeminarTopics />
           </ProtectedRoute>
         } />
 

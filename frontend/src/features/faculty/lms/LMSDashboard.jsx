@@ -34,7 +34,10 @@ export const LMSDashboard = () => {
     );
   }
 
-  const isLab = courseDetails?.course?.course_type === 'lab';
+  const courseType = courseDetails?.course?.course_type;
+  const isLab = courseType === 'lab';
+  const isProject = courseType === 'project';
+  const isSeminar = courseType === 'seminar';
 
   const features = [
     {
@@ -134,6 +137,26 @@ export const LMSDashboard = () => {
       path: `/faculty/courses/${assignmentId}/lms/co-po-mapping`,
     },
     {
+      title: 'Project Teams',
+      description: 'Manage project teams, register numbers, project names, and member lists.',
+      icon: <Users className="w-8 h-8 text-purple-600" />,
+      bg: 'bg-purple-50',
+      border: 'border-purple-100',
+      hover: 'hover:border-purple-300 hover:shadow-purple-100',
+      path: `/faculty/courses/${assignmentId}/lms/project-teams`,
+      projectOnly: true,
+    },
+    {
+      title: 'Seminar Topics',
+      description: 'Manage seminar topics, register numbers, student names, and topics list.',
+      icon: <Users className="w-8 h-8 text-amber-600" />,
+      bg: 'bg-amber-50',
+      border: 'border-amber-100',
+      hover: 'hover:border-amber-300 hover:shadow-amber-100',
+      path: `/faculty/courses/${assignmentId}/lms/seminar-topics`,
+      seminarOnly: true,
+    },
+    {
       title: 'Generate Logbook Report',
       description: 'Generate and print the complete logbook report for this course.',
       icon: <Printer className="w-8 h-8 text-slate-600" />,
@@ -156,8 +179,16 @@ export const LMSDashboard = () => {
   ];
 
   const visibleFeatures = features.filter(f => {
-    if (isLab) return !f.excludeForLab;        // hide theory-only cards
-    return !f.labOnly;                          // hide lab-only card for non-lab
+    if (isProject) {
+      return ['Timetable', 'Attendance', 'Att. History', 'POs mapping with COs', 'Project Teams', 'Generate Logbook Report'].includes(f.title);
+    }
+    if (isSeminar) {
+      return ['Timetable', 'Attendance', 'Att. History', 'POs mapping with COs', 'Seminar Topics', 'Generate Logbook Report'].includes(f.title);
+    }
+    if (isLab) {
+      return !f.excludeForLab && !f.projectOnly && !f.seminarOnly; // hide theory-only cards
+    }
+    return !f.labOnly && !f.projectOnly && !f.seminarOnly;
   });
 
   return (

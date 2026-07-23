@@ -81,6 +81,9 @@ class SimpleCourse(BaseModel):
     prerequisites: Optional[str] = None
     co_po_mapping: Optional[str] = None
     co_k_levels: Optional[str] = None
+    project_guidelines: Optional[str] = None
+    project_teams_data: Optional[str] = None
+    seminar_topics_data: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
