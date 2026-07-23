@@ -81,6 +81,7 @@ class AttendanceStudentRow(BaseModel):
     first_name: str
     last_name: str
     status: Optional[str] = None      # "present" | "absent" | None (not marked yet)
+    on_leave: Optional[bool] = False
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import {
   Link2, Plus, X, ChevronRight, Folder, Calendar, Layers, Users,
   BookOpen, User, CheckCircle2, AlertTriangle, Loader2, Trash2,
-  RefreshCw, Award, BarChart2, GraduationCap
+  RefreshCw, Award, BarChart2, GraduationCap, Search, ChevronDown
 } from 'lucide-react';
 
 // ─── Toast Notification ──────────────────────────────────────
@@ -69,6 +69,88 @@ const DeleteDialog = ({ course, faculty, onConfirm, onCancel, loading }) => (
     </div>
   </div>
 );
+
+// ─── Searchable Dropdown Component ─────────────────────────────
+const SearchableFacultyDropdown = ({ faculty, formData, setFormData, getFacultyWorkload, getWorkloadLabel }) => {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtered = faculty.filter(f => `${f.first_name} ${f.last_name}`.toLowerCase().includes(query.toLowerCase()));
+  const selectedFaculty = faculty.find(f => f.id === formData.faculty_id);
+  const selectedLoad = selectedFaculty ? getFacultyWorkload(selectedFaculty.id) : 0;
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div 
+        onClick={() => setOpen(!open)}
+        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium cursor-pointer flex justify-between items-center"
+      >
+        <span className={selectedFaculty ? "text-gray-900" : "text-gray-400"}>
+          {selectedFaculty 
+            ? `${selectedFaculty.first_name} ${selectedFaculty.last_name} — ${selectedLoad} assigned (${getWorkloadLabel(selectedLoad)})`
+            : "Select Faculty..."}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </div>
+
+      {open && (
+        <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+          <div className="p-2 border-b border-gray-50">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input 
+                autoFocus
+                type="text"
+                placeholder="Search faculty..."
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-transparent rounded-lg text-sm outline-none focus:bg-white focus:border-primary-200 focus:ring-2 focus:ring-primary-100 transition-all"
+              />
+            </div>
+          </div>
+          <div className="max-h-60 overflow-y-auto p-1">
+            {filtered.length === 0 ? (
+              <div className="p-4 text-center text-sm text-gray-400">No faculty found</div>
+            ) : (
+              filtered.map(f => {
+                const load = getFacultyWorkload(f.id);
+                return (
+                  <div 
+                    key={f.id}
+                    onClick={() => {
+                      setFormData({ ...formData, faculty_id: f.id });
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                    className={`px-3 py-2.5 rounded-lg text-sm cursor-pointer transition-colors flex items-center justify-between
+                      ${formData.faculty_id === f.id ? "bg-primary-50 text-primary-700 font-bold" : "text-gray-700 hover:bg-gray-50"}
+                    `}
+                  >
+                    <span>{f.first_name} {f.last_name}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+                      {load} assigned ({getWorkloadLabel(load)})
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── Main Component ──────────────────────────────────────────
 export const FacultyAssignment = () => {
@@ -634,21 +716,13 @@ export const FacultyAssignment = () => {
                   <span>Faculty</span>
                   <span className="text-primary-500 normal-case font-semibold">Check workload in roster</span>
                 </label>
-                <select
-                  required
-                  value={formData.faculty_id}
-                  onChange={e => setFormData({ ...formData, faculty_id: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-all outline-none"
-                >
-                  {faculty.map(f => {
-                    const load = getFacultyWorkload(f.id);
-                    return (
-                      <option key={f.id} value={f.id}>
-                        {f.first_name} {f.last_name} — {load} assigned ({getWorkloadLabel(load)})
-                      </option>
-                    );
-                  })}
-                </select>
+                <SearchableFacultyDropdown 
+                  faculty={faculty}
+                  formData={formData}
+                  setFormData={setFormData}
+                  getFacultyWorkload={getFacultyWorkload}
+                  getWorkloadLabel={getWorkloadLabel}
+                />
               </div>
 
               {/* Course */}

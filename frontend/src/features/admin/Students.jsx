@@ -234,8 +234,12 @@ export const Students = () => {
     setError(null);
     
     try {
+      const token = localStorage.getItem('token');
       const response = await axios.post('/api/students/upload', uploadData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`
+        }
       });
       await fetchData();
       alert(`Success! ${response.data.success_count} students imported.\n\nErrors (if any):\n${response.data.errors.join('\n')}`);

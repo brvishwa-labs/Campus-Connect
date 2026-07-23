@@ -328,7 +328,14 @@ export const CADailyAttendance = () => {
                 <div key={s.student_id} className="flex items-center px-3 sm:px-6 py-3 sm:py-4 hover:bg-gray-50 transition-colors">
                   <div className="w-8 sm:w-12 text-xs sm:text-sm text-gray-400 font-medium">{idx + 1}</div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate">{s.first_name} {s.last_name}</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate flex items-center gap-2">
+                      {s.first_name} {s.last_name}
+                      {s.on_leave && (
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] rounded-full font-bold uppercase tracking-wider">
+                          Informed
+                        </span>
+                      )}
+                    </p>
                     <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{s.register_number}</p>
                   </div>
                   

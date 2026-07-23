@@ -111,6 +111,14 @@ export default function MyAttendance() {
       );
     }
 
+    if (record.status === 'absent') {
+      return (
+        <div className="flex flex-col items-center justify-center bg-red-50 text-red-700 w-8 h-8 md:w-10 md:h-10 rounded-xl shadow-sm border border-red-200 ring-2 ring-red-100 transition-all hover:scale-110">
+          <span className="font-black text-sm md:text-lg">A</span>
+        </div>
+      );
+    }
+
     return null;
   };
 
@@ -127,6 +135,7 @@ export default function MyAttendance() {
         <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-gray-600 bg-white border border-gray-200 px-4 py-2 rounded-xl shadow-sm">
           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-500"></div> Present (P)</div>
           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-orange-500"></div> Leave</div>
+          <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500"></div> Absent (A)</div>
         </div>
       </div>
 
