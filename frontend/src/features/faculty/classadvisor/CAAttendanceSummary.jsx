@@ -44,23 +44,6 @@ export const CAAttendanceSummary = () => {
     fetchSummary();
   }, []);
 
-  // Calendar Logic
-  const year = currentMonth.getFullYear();
-  const month = currentMonth.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = new Date(year, month, 1).getDay();
-
-  const handlePrevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
-  const handleNextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
-
-  const isToday = (day) => {
-    const today = new Date();
-    return today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
-  };
-
-  const isSelected = (day) => {
-    return selectedDate.getDate() === day && selectedDate.getMonth() === month && selectedDate.getFullYear() === year;
-  };
 
   // Report Generation
   const handleGenerateReport = async () => {
