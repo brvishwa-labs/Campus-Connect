@@ -3,20 +3,14 @@ import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import {
   DollarSign, CheckCircle, AlertCircle, CreditCard,
-  FileText, Clock, RefreshCw, TrendingDown, Banknote
+  FileText, Clock, RefreshCw, Banknote, BookOpen,
+  FlaskConical, GraduationCap, ReceiptText, Layers
 } from 'lucide-react';
 
 /**
- * StudentFees — Fees summary and payment history for the logged-in student.
- *
- * Designed as a STANDALONE component — it does NOT modify Profile.jsx.
- * It is mounted at /student/fees and linked from the sidebar.
- *
- * Data sources:
- *   GET /api/fees/student/{student_id}/summary
- *   GET /api/fees/student/{student_id}/history
- *
- * The student's ID is resolved from the existing auth context → /api/student-portal/me
+ * StudentFees â€” Fees summary and payment history for the logged-in student.
+ * Now shows a per-fee-type breakdown (Tuition Fee, Exam Fee, etc.)
+ * in addition to total due / paid / balance.
  */
 
 function fmt(amount) {
@@ -36,6 +30,48 @@ const Card = ({ children, className = '' }) => (
 const Spinner = () => (
   <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
 );
+
+// Maps fee_type label to icon + color style
+const FEE_TYPE_STYLES = {
+  'Opening Balance': {
+    icon: Layers,
+    iconBg: 'bg-blue-100',
+    iconColor: 'text-blue-600',
+    badge: 'bg-blue-100 text-blue-700',
+    rowBg: 'hover:bg-blue-50/40',
+  },
+  'Tuition Fee': {
+    icon: GraduationCap,
+    iconBg: 'bg-indigo-100',
+    iconColor: 'text-indigo-600',
+    badge: 'bg-indigo-100 text-indigo-700',
+    rowBg: 'hover:bg-indigo-50/40',
+  },
+  'Exam Fee': {
+    icon: ReceiptText,
+    iconBg: 'bg-amber-100',
+    iconColor: 'text-amber-600',
+    badge: 'bg-amber-100 text-amber-700',
+    rowBg: 'hover:bg-amber-50/40',
+  },
+  'Lab Fee': {
+    icon: FlaskConical,
+    iconBg: 'bg-emerald-100',
+    iconColor: 'text-emerald-600',
+    badge: 'bg-emerald-100 text-emerald-700',
+    rowBg: 'hover:bg-emerald-50/40',
+  },
+};
+
+function getFeeStyle(feeType) {
+  return FEE_TYPE_STYLES[feeType] || {
+    icon: DollarSign,
+    iconBg: 'bg-gray-100',
+    iconColor: 'text-gray-600',
+    badge: 'bg-gray-100 text-gray-700',
+    rowBg: 'hover:bg-gray-50/40',
+  };
+}
 
 function SummaryCard({ icon: Icon, label, value, subtitle, gradient, textColor }) {
   return (
@@ -76,18 +112,17 @@ export default function StudentFees() {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 10;
 
-  // Step 1: Get the student's internal student.id from their portal profile
+  // Step 1: resolve student ID
   useEffect(() => {
     const fetchStudentId = async () => {
       try {
         const res = await axios.get('/api/student-portal/me');
         setStudentId(res.data?.id);
-      } catch (err) {
+      } catch {
         setError('Could not load your student profile. Please try again.');
         setLoading(false);
       }
     };
-
     if (user?.role === 'student') {
       fetchStudentId();
     } else {
@@ -96,7 +131,7 @@ export default function StudentFees() {
     }
   }, [user]);
 
-  // Step 2: Fetch fee data once we have the student ID
+  // Step 2: fetch fee data
   const fetchFeeData = useCallback(async () => {
     if (!studentId) return;
     setLoading(true);
@@ -111,8 +146,7 @@ export default function StudentFees() {
     } catch (err) {
       const msg = err.response?.data?.detail;
       if (err.response?.status === 404 || msg?.includes('not found')) {
-        // No fee data yet — show empty state instead of error
-        setSummary({ total_due: 0, total_paid: 0, pending_balance: 0 });
+        setSummary({ total_due: 0, total_paid: 0, pending_balance: 0, fee_breakdown: [] });
         setHistory([]);
       } else {
         setError(msg || 'Failed to load fee information. Please try again later.');
@@ -125,7 +159,6 @@ export default function StudentFees() {
     if (studentId) fetchFeeData();
   }, [studentId, fetchFeeData]);
 
-  // Pagination
   const paginatedHistory = history.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(history.length / PAGE_SIZE);
 
@@ -134,7 +167,7 @@ export default function StudentFees() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Spinner />
-          <p className="text-sm text-gray-500">Loading your fee information…</p>
+          <p className="text-sm text-gray-500">Loading your fee informationâ€¦</p>
         </div>
       </div>
     );
@@ -159,6 +192,7 @@ export default function StudentFees() {
   }
 
   const isPending = summary?.pending_balance > 0;
+  const feeBreakdown = summary?.fee_breakdown || [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -172,7 +206,7 @@ export default function StudentFees() {
             <div>
               <h1 className="text-xl font-bold text-gray-900">My Fees</h1>
               <p className="text-sm text-gray-500">
-                {summary?.student_name && `${summary.student_name} · `}
+                {summary?.student_name && `${summary.student_name} Â· `}
                 {summary?.register_number && `Reg: ${summary.register_number}`}
               </p>
             </div>
@@ -187,8 +221,9 @@ export default function StudentFees() {
       </div>
 
       <div className="max-w-5xl mx-auto px-6 py-6 space-y-6">
+
         {/* Balance Alert Banner */}
-        {isPending && (
+        {isPending ? (
           <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4">
             <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
@@ -198,25 +233,25 @@ export default function StudentFees() {
               </p>
             </div>
           </div>
-        )}
-
-        {!isPending && summary && (
-          <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
-            <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-emerald-800">All Dues Cleared</p>
-              <p className="text-sm text-emerald-700 mt-0.5">Your fee account is up to date. No pending dues.</p>
+        ) : (
+          summary && (
+            <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+              <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-emerald-800">All Dues Cleared</p>
+                <p className="text-sm text-emerald-700 mt-0.5">Your fee account is up to date. No pending dues.</p>
+              </div>
             </div>
-          </div>
+          )
         )}
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <SummaryCard
             icon={DollarSign}
-            label="Total fee"
+            label="Total Fee"
             value={fmt(summary?.total_due)}
-            subtitle="Total fees assigned for this semester"
+            subtitle="Total fees assigned"
             gradient="from-blue-500 to-blue-600"
             textColor="text-blue-700"
           />
@@ -238,18 +273,123 @@ export default function StudentFees() {
           />
         </div>
 
+        {/* ── Fee Breakdown ── */}
+        {feeBreakdown.length > 0 && (
+          <Card className="overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-gray-400" />
+              <h2 className="font-semibold text-gray-900">Fee Breakdown</h2>
+              <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5 ml-1">
+                {feeBreakdown.length} {feeBreakdown.length === 1 ? 'item' : 'items'}
+              </span>
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {['Fee Type', 'Academic Year', 'Semester', 'Amount Due', 'Paid', 'Balance'].map(h => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {feeBreakdown.map((fee, idx) => {
+                    const style = getFeeStyle(fee.fee_type);
+                    const Icon = style.icon;
+                    const isCleared = (fee.balance ?? fee.amount_due) === 0;
+                    return (
+                      <tr key={fee.id} className={`transition-colors ${style.rowBg} ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/20'}`}>
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg ${style.iconBg} flex items-center justify-center flex-shrink-0`}>
+                              <Icon className={`w-4 h-4 ${style.iconColor}`} />
+                            </div>
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${style.badge}`}>
+                              {fee.fee_type}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5 text-gray-600">{fee.academic_year || '—'}</td>
+                        <td className="px-5 py-3.5 text-gray-600">Semester {fee.semester}</td>
+                        <td className="px-5 py-3.5 text-gray-700">{fmt(fee.amount_due)}</td>
+                        <td className="px-5 py-3.5 font-medium text-emerald-700">{fmt(fee.amount_paid ?? 0)}</td>
+                        <td className="px-5 py-3.5">
+                          {isCleared ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                              <CheckCircle className="w-3 h-3" /> Cleared
+                            </span>
+                          ) : (
+                            <span className="font-bold text-red-600">{fmt(fee.balance ?? fee.amount_due)}</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="bg-gray-50 border-t-2 border-gray-100">
+                  <tr>
+                    <td colSpan={3} className="px-5 py-3 text-sm font-bold text-gray-700">Total</td>
+                    <td className="px-5 py-3 font-bold text-gray-800">{fmt(summary?.total_due)}</td>
+                    <td className="px-5 py-3 font-bold text-emerald-700">{fmt(summary?.total_paid)}</td>
+                    <td className="px-5 py-3 font-bold text-red-600">{fmt(summary?.pending_balance)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="sm:hidden divide-y divide-gray-50">
+              {feeBreakdown.map((fee) => {
+                const style = getFeeStyle(fee.fee_type);
+                const Icon = style.icon;
+                const isCleared = (fee.balance ?? fee.amount_due) === 0;
+                return (
+                  <div key={fee.id} className="px-5 py-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl ${style.iconBg} flex items-center justify-center flex-shrink-0`}>
+                          <Icon className={`w-5 h-5 ${style.iconColor}`} />
+                        </div>
+                        <div>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg inline-block ${style.badge}`}>{fee.fee_type}</span>
+                          <p className="text-xs text-gray-500 mt-0.5">{fee.academic_year} · Sem {fee.semester}</p>
+                        </div>
+                      </div>
+                      {isCleared ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                          <CheckCircle className="w-3 h-3" /> Cleared
+                        </span>
+                      ) : (
+                        <span className="font-bold text-red-600 text-sm">{fmt(fee.balance ?? fee.amount_due)}</span>
+                      )}
+                    </div>
+                    <div className="flex gap-4 text-xs text-gray-500 pl-12">
+                      <span>Due: <span className="font-medium text-gray-700">{fmt(fee.amount_due)}</span></span>
+                      <span>Paid: <span className="font-medium text-emerald-700">{fmt(fee.amount_paid ?? 0)}</span></span>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="px-5 py-3 flex items-center justify-between bg-gray-50 border-t-2 border-gray-100">
+                <p className="text-sm font-bold text-gray-700">Total Pending</p>
+                <p className="font-bold text-red-600">{fmt(summary?.pending_balance)}</p>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Payment History */}
         <Card className="overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-gray-400" />
-              <h2 className="font-semibold text-gray-900">Payment History</h2>
-              {history.length > 0 && (
-                <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
-                  {history.length} payments
-                </span>
-              )}
-            </div>
+          <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-gray-400" />
+            <h2 className="font-semibold text-gray-900">Payment History</h2>
+            {history.length > 0 && (
+              <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+                {history.length} payments
+              </span>
+            )}
           </div>
 
           {history.length === 0 ? (
@@ -270,9 +410,7 @@ export default function StudentFees() {
                   <thead className="bg-gray-50">
                     <tr>
                       {['Date', 'Amount', 'Mode', 'Source', 'Receipt No.', 'Voucher No.', 'Notes'].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">
-                          {h}
-                        </th>
+                        <th key={h} className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -291,9 +429,9 @@ export default function StudentFees() {
                             {p.source === 'tally_upload' ? 'Tally' : 'Manual'}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-gray-500 font-mono text-xs">{p.receipt_no || '—'}</td>
-                        <td className="px-4 py-3.5 text-gray-500 font-mono text-xs">{p.voucher_no || '—'}</td>
-                        <td className="px-4 py-3.5 text-gray-400 max-w-xs truncate" title={p.notes}>{p.notes || '—'}</td>
+                        <td className="px-4 py-3.5 text-gray-500 font-mono text-xs">{p.receipt_no || 'â€”'}</td>
+                        <td className="px-4 py-3.5 text-gray-500 font-mono text-xs">{p.voucher_no || 'â€”'}</td>
+                        <td className="px-4 py-3.5 text-gray-400 max-w-xs truncate" title={p.notes}>{p.notes || 'â€”'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -314,9 +452,7 @@ export default function StudentFees() {
                       <Clock className="w-3 h-3" />
                       {p.payment_date}
                     </div>
-                    {p.receipt_no && (
-                      <p className="text-xs text-gray-400">Receipt: {p.receipt_no}</p>
-                    )}
+                    {p.receipt_no && <p className="text-xs text-gray-400">Receipt: {p.receipt_no}</p>}
                   </div>
                 ))}
               </div>
@@ -325,22 +461,16 @@ export default function StudentFees() {
               {totalPages > 1 && (
                 <div className="px-5 py-4 border-t border-gray-50 flex items-center justify-between">
                   <p className="text-sm text-gray-500">
-                    Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, history.length)} of {history.length} payments
+                    Showing {page * PAGE_SIZE + 1}â€“{Math.min((page + 1) * PAGE_SIZE, history.length)} of {history.length} payments
                   </p>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => setPage(p => Math.max(p - 1, 0))}
-                      disabled={page === 0}
-                      className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
-                    >
-                      ← Prev
+                    <button onClick={() => setPage(p => Math.max(p - 1, 0))} disabled={page === 0}
+                      className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors">
+                      â† Prev
                     </button>
-                    <button
-                      onClick={() => setPage(p => Math.min(p + 1, totalPages - 1))}
-                      disabled={page === totalPages - 1}
-                      className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
-                    >
-                      Next →
+                    <button onClick={() => setPage(p => Math.min(p + 1, totalPages - 1))} disabled={page === totalPages - 1}
+                      className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors">
+                      Next â†’
                     </button>
                   </div>
                 </div>
@@ -365,6 +495,7 @@ export default function StudentFees() {
             </div>
           </div>
         </Card>
+
       </div>
     </div>
   );
