@@ -72,25 +72,23 @@ class FeeStructure(Base):
 
 class StudentFeeAssignment(Base):
     """
-    Assigns a FeeStructure to a specific student for a semester.
-    Created manually via the admin portal or triggered after promotion.
-    fee_structure_id is nullable so opening balances can be set without
-    a FeeStructure row existing.
+    Assigns a fee amount to a specific student for a semester.
+    Multiple rows are allowed per student per semester — one per fee type
+    (e.g. "Opening Balance", "Exam Fee").
     """
     __tablename__ = "student_fee_assignments"
 
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False, index=True)
-    fee_structure_id = Column(Integer, ForeignKey("fee_structures.id"), nullable=True)  # nullable: opening balances don't require a fee structure
+    fee_structure_id = Column(Integer, ForeignKey("fee_structures.id"), nullable=True)  # nullable: fee uploads don't require a structure
+    fee_type = Column(String(100), nullable=True, default="Opening Balance")  # e.g. "Opening Balance", "Exam Fee", "Other"
     amount_due = Column(Numeric(12, 2), nullable=False)
     semester = Column(Integer, nullable=False)
     academic_year = Column(String(20), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    __table_args__ = (
-        UniqueConstraint("student_id", "semester", "academic_year",
-                         name="uq_fee_assignment_student_sem_year"),
-    )
+    # NOTE: Unique constraint removed — multiple fee types per student/sem/year allowed.
+    # Uniqueness is enforced at the (student_id, semester, academic_year, fee_type) level in application code.
 
     # Relationships
     student = relationship("Student", foreign_keys=[student_id])

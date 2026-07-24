@@ -50,7 +50,7 @@ import datetime
 from typing import Optional, List
 from decimal import Decimal, InvalidOperation
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
@@ -737,6 +737,159 @@ async def upload_opening_balance_file(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# FEE UPLOAD — Management File (Tally Group Summary format, any fee type)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/fee-upload")
+async def upload_management_fee_file(
+    file: UploadFile = File(...),
+    fee_type: str = Form(...),          # e.g. "Opening Balance", "Exam Fee", "Other"
+    academic_year: Optional[str] = Form(None),
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Parse a Tally Group Summary export (Particulars / Closing Balance format)
+    and CREATE a new StudentFeeAssignment per matched student, tagged with
+    the accountant-chosen fee_type (e.g. "Opening Balance", "Exam Fee").
+
+    - Matching: TallyLedgerMapping first → smart-match fallback
+    - Unmatched rows are returned as failed_rows (no Unmapped Queue)
+    - A new assignment row is always created (never overwrites existing ones)
+    - Returns: {matched, failed, failed_rows}
+    """
+    upload_batch = datetime.datetime.utcnow().isoformat()
+
+    # Derive current academic year if not provided
+    now = datetime.datetime.utcnow()
+    if academic_year:
+        current_ay = academic_year
+    else:
+        year = now.year
+        if now.month >= 7:
+            current_ay = f"{year}-{year + 1}"
+        else:
+            current_ay = f"{year - 1}-{year}"
+
+    try:
+        rows = _parse_file(file)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to parse file: {str(exc)}")
+
+    if not rows:
+        raise HTTPException(status_code=422, detail="No valid data rows found in the uploaded file.")
+
+    rows_processed = 0
+    matched_count = 0
+    failed_rows = []   # rows that could not be matched to a student
+
+    for row in rows:
+        rows_processed += 1
+        ledger_name = row["ledger_name"]
+        amount = row["amount"]
+
+        # Step 1: Try confirmed TallyLedgerMapping
+        mapping = db.query(TallyLedgerMapping).filter(
+            TallyLedgerMapping.ledger_name_raw == ledger_name
+        ).first()
+
+        target_student_id = None
+        is_new_match = False
+
+        if mapping:
+            target_student_id = mapping.student_id
+        else:
+            # Step 2: Smart regex match
+            smart_id, suggested_query = _smart_match_student(ledger_name, db)
+            if smart_id:
+                target_student_id = smart_id
+                is_new_match = True
+
+        if not target_student_id:
+            failed_rows.append({
+                "ledger_name": ledger_name,
+                "amount": float(amount),
+                "reason": "Could not match to any student",
+            })
+            continue
+
+        student = db.query(Student).filter(Student.id == target_student_id).first()
+        if not student:
+            failed_rows.append({
+                "ledger_name": ledger_name,
+                "amount": float(amount),
+                "reason": "Student record not found in database",
+            })
+            continue
+
+        # Optional: look up FeeStructure for enrichment
+        fs = db.query(FeeStructure).filter(
+            FeeStructure.department_id == student.department_id,
+            FeeStructure.semester == student.current_semester,
+        ).order_by(FeeStructure.id.desc()).first()
+        fs_id = fs.id if fs else None
+        ay = fs.academic_year if fs else current_ay
+
+        # Create new assignment row (additive — separate row per fee_type)
+        # If the same student already has an assignment for this fee_type+semester+year, update it
+        existing_assignment = db.query(StudentFeeAssignment).filter(
+            StudentFeeAssignment.student_id == student.id,
+            StudentFeeAssignment.semester == student.current_semester,
+            StudentFeeAssignment.academic_year == ay,
+            StudentFeeAssignment.fee_type == fee_type,
+        ).first()
+
+        if existing_assignment:
+            # Update amount (re-upload scenario)
+            existing_assignment.amount_due = Decimal(str(float(amount)))
+            if existing_assignment.fee_structure_id is None and fs_id:
+                existing_assignment.fee_structure_id = fs_id
+        else:
+            assignment = StudentFeeAssignment(
+                student_id=student.id,
+                fee_structure_id=fs_id,
+                fee_type=fee_type,
+                amount_due=Decimal(str(float(amount))),
+                semester=student.current_semester,
+                academic_year=ay,
+            )
+            db.add(assignment)
+
+        # Save new ledger mapping if discovered via smart match
+        if is_new_match:
+            new_mapping = TallyLedgerMapping(
+                ledger_name_raw=ledger_name,
+                student_id=target_student_id,
+                confirmed_by=None,
+            )
+            db.add(new_mapping)
+
+        matched_count += 1
+
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(exc)}")
+
+    summary = {
+        "rows_processed": rows_processed,
+        "matched": matched_count,
+        "failed": len(failed_rows),
+        "failed_rows": failed_rows,
+        "fee_type": fee_type,
+        "academic_year": current_ay,
+        "filename": file.filename,
+        "uploaded_at": upload_batch,
+        "type": "fee_upload",
+    }
+    _upload_history.insert(0, summary)
+    return summary
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # UNMAPPED QUEUE
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1251,26 +1404,65 @@ def generate_assignments(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _get_student_fee_data(student_id: int, db: Session) -> dict:
-    """Shared helper: compute summary and history for a student."""
+    """
+    Shared helper: compute fee summary and payment history for a student.
+
+    Payment allocation priority:
+      1. All fee types EXCEPT 'Opening Balance' are reduced first (in creation order).
+      2. 'Opening Balance' is only reduced after every other fee type reaches ₹0.
+    """
     student = db.query(Student).filter(Student.id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    # Total due = sum of all assignments for this student
-    total_due_row = db.query(func.sum(StudentFeeAssignment.amount_due)).filter(
-        StudentFeeAssignment.student_id == student_id
-    ).scalar()
-    total_due = float(total_due_row or 0)
+    # All fee assignments — split into priority groups
+    all_assignments = (
+        db.query(StudentFeeAssignment)
+        .filter(StudentFeeAssignment.student_id == student_id)
+        .order_by(StudentFeeAssignment.created_at)
+        .all()
+    )
 
-    # Total paid = sum of all payments
+    # Separate Opening Balance from other fees
+    primary_fees   = [a for a in all_assignments if (a.fee_type or "").strip().lower() != "opening balance"]
+    opening_bal    = [a for a in all_assignments if (a.fee_type or "").strip().lower() == "opening balance"]
+    # Priority order: primary fees first, opening balance last
+    ordered = primary_fees + opening_bal
+
+    # Total due
+    total_due = float(sum(a.amount_due for a in ordered))
+
+    # Total paid = sum of all confirmed payments
     total_paid_row = db.query(func.sum(Payment.amount)).filter(
         Payment.student_id == student_id
     ).scalar()
     total_paid = float(total_paid_row or 0)
 
-    balance = max(total_due - total_paid, 0)
+    # ── Payment Allocation ──────────────────────────────────────────────────
+    # Distribute total_paid across fee types in priority order.
+    # Each rupee reduces primary fees before touching Opening Balance.
+    remaining_payment = total_paid
+    fee_breakdown = []
 
-    # Payment history
+    for a in ordered:
+        due = float(a.amount_due)
+        applied = min(remaining_payment, due)   # how much payment absorbs this fee
+        remaining_payment -= applied
+        remaining_payment = max(remaining_payment, 0)
+
+        fee_breakdown.append({
+            "id":            a.id,
+            "fee_type":      a.fee_type or "Fee",
+            "amount_due":    due,
+            "amount_paid":   round(applied, 2),
+            "balance":       round(max(due - applied, 0), 2),
+            "semester":      a.semester,
+            "academic_year": a.academic_year,
+        })
+
+    overall_balance = max(total_due - total_paid, 0)
+
+    # ── Payment History ─────────────────────────────────────────────────────
     payments = (
         db.query(Payment)
         .filter(Payment.student_id == student_id)
@@ -1280,28 +1472,31 @@ def _get_student_fee_data(student_id: int, db: Session) -> dict:
 
     history = [
         {
-            "id": p.id,
-            "amount": float(p.amount),
+            "id":           p.id,
+            "amount":       float(p.amount),
             "payment_date": str(p.payment_date),
-            "mode": p.mode.value,
-            "source": p.source.value,
-            "receipt_no": p.receipt_no,
-            "voucher_no": p.voucher_no,
-            "notes": p.notes,
-            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "mode":         p.mode.value,
+            "source":       p.source.value,
+            "receipt_no":   p.receipt_no,
+            "voucher_no":   p.voucher_no,
+            "notes":        p.notes,
+            "created_at":   p.created_at.isoformat() if p.created_at else None,
         }
         for p in payments
     ]
 
     return {
-        "student_id": student_id,
-        "student_name": f"{student.first_name} {student.last_name}",
+        "student_id":      student_id,
+        "student_name":    f"{student.first_name} {student.last_name}",
         "register_number": student.register_number,
-        "total_due": total_due,
-        "total_paid": total_paid,
-        "pending_balance": balance,
-        "history": history,
+        "total_due":       total_due,
+        "total_paid":      total_paid,
+        "pending_balance": overall_balance,
+        "fee_breakdown":   fee_breakdown,
+        "history":         history,
     }
+
+
 
 
 @router.get("/student/{student_id}/summary")
@@ -1328,7 +1523,9 @@ def get_student_fee_summary(
         "total_due": data["total_due"],
         "total_paid": data["total_paid"],
         "pending_balance": data["pending_balance"],
+        "fee_breakdown": data["fee_breakdown"],
     }
+
 
 
 @router.get("/student/{student_id}/history")

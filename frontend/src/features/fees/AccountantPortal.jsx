@@ -4,7 +4,8 @@ import {
   Upload, FileText, AlertCircle, CheckCircle, XCircle, Search,
   Plus, Edit2, Trash2, RefreshCw, BarChart2, Users, DollarSign,
   CreditCard, MapPin, BookOpen, TrendingUp, Clock, AlertTriangle,
-  ChevronDown, X, Check, Eye
+  ChevronDown, X, Check, Eye,
+  FlaskConical, GraduationCap, ReceiptText, Layers
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
@@ -17,6 +18,48 @@ function fmt(amount) {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency', currency: 'INR', maximumFractionDigits: 0
   }).format(amount || 0);
+}
+
+// Maps fee_type label to icon + color style
+const FEE_TYPE_STYLES = {
+  'Opening Balance': {
+    icon: Layers,
+    iconBg: 'bg-blue-100',
+    iconColor: 'text-blue-600',
+    badge: 'bg-blue-100 text-blue-700',
+    rowBg: 'hover:bg-blue-50/40',
+  },
+  'Tuition Fee': {
+    icon: GraduationCap,
+    iconBg: 'bg-indigo-100',
+    iconColor: 'text-indigo-600',
+    badge: 'bg-indigo-100 text-indigo-700',
+    rowBg: 'hover:bg-indigo-50/40',
+  },
+  'Exam Fee': {
+    icon: ReceiptText,
+    iconBg: 'bg-amber-100',
+    iconColor: 'text-amber-600',
+    badge: 'bg-amber-100 text-amber-700',
+    rowBg: 'hover:bg-amber-50/40',
+  },
+  'Lab Fee': {
+    icon: FlaskConical,
+    iconBg: 'bg-emerald-100',
+    iconColor: 'text-emerald-600',
+    badge: 'bg-emerald-100 text-emerald-700',
+    rowBg: 'hover:bg-emerald-50/40',
+  },
+};
+
+function getFeeStyle(feeType) {
+  return FEE_TYPE_STYLES[feeType] || {
+    icon: DollarSign,
+    iconBg: 'bg-gray-100',
+    iconColor: 'text-gray-600',
+    badge: 'bg-gray-100 text-gray-700',
+    rowBg: 'hover:bg-gray-50/40',
+  };
 }
 
 // ─── Shared UI primitives ────────────────────────────────────────────────────
@@ -294,19 +337,31 @@ function UploadCenter({ showToast }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TAB: Opening Balances Import
+// TAB: Fee Upload (Management File — any fee type)
 // ═══════════════════════════════════════════════════════════════════════════════
-function OpeningBalanceUpload({ showToast }) {
+const FEE_TYPE_OPTIONS = [
+  'Opening Balance',
+  'Exam Fee',
+  'Tuition Fee',
+  'Lab Fee',
+  'Other',
+];
+
+function FeeUpload({ showToast }) {
+  const [feeType, setFeeType] = useState('Opening Balance');
+  const [customFeeType, setCustomFeeType] = useState('');
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
   const fileRef = useRef(null);
 
+  const effectiveFeeType = feeType === 'Other' ? (customFeeType.trim() || 'Other') : feeType;
+
   const fetchHistory = useCallback(async () => {
     try {
       const res = await api.get('/api/fees/uploads/history');
-      setHistory((res.data || []).filter(h => h.type === 'opening_balance'));
+      setHistory((res.data || []).filter(h => h.type === 'fee_upload'));
     } catch { /* silently */ }
   }, []);
 
@@ -314,16 +369,24 @@ function OpeningBalanceUpload({ showToast }) {
 
   const handleFile = async (file) => {
     if (!file) return;
+    if (!effectiveFeeType) {
+      showToast('Please enter a fee type label before uploading.', 'error');
+      return;
+    }
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('fee_type', effectiveFeeType);
     setUploading(true);
     setResult(null);
     try {
-      const res = await api.post('/api/fees/opening-balance-upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const res = await api.post('/api/fees/fee-upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       setResult({ success: true, data: res.data });
-      showToast(`Import complete: ${res.data.auto_matched} matched, ${res.data.unmapped_count} unmapped`, 'success');
+      showToast(
+        `✓ ${res.data.matched} students updated${res.data.failed > 0 ? `, ${res.data.failed} unmatched` : ''}`,
+        res.data.failed > 0 ? 'info' : 'success'
+      );
       fetchHistory();
     } catch (err) {
       const msg = err.response?.data?.detail || 'Upload failed. Check file format.';
@@ -341,46 +404,115 @@ function OpeningBalanceUpload({ showToast }) {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h2 className="text-xl font-bold text-gray-900">Opening Balance Import</h2>
-        <p className="text-sm text-gray-500 mt-1">Upload a Tally Group Summary export to set each student's current outstanding balance. Use this once initially, or whenever balances need re-syncing from Tally. This does not create payment records — use Upload Center for daily payment transactions.</p>
+        <h2 className="text-xl font-bold text-gray-900">Fee Upload</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          Upload the Tally Group Summary report received from management to add fees to students.
+          Select the fee type first, then upload the file. Each upload creates a separate fee record
+          per student — it does <strong>not</strong> affect daily payment records.
+        </p>
       </div>
 
-      {/* Drop Zone */}
-      <div
-        onDragOver={e => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
-        onClick={() => fileRef.current?.click()}
-        className={`border-2 border-dashed rounded-2xl p-12 flex flex-col items-center gap-4 cursor-pointer transition-all ${
-          dragging ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-        }`}
-      >
-        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${dragging ? 'bg-blue-100' : 'bg-gray-100'}`}>
-          {uploading ? <Spinner /> : <FileText className={`w-8 h-8 ${dragging ? 'text-blue-600' : 'text-gray-400'}`} />}
+      {/* Fee Type Selector */}
+      <Card className="p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+            <BookOpen className="w-4 h-4 text-indigo-600" />
+          </div>
+          <h3 className="font-semibold text-gray-900">Step 1 — Select Fee Type</h3>
         </div>
-        <div className="text-center">
-          <p className="font-semibold text-gray-700">{uploading ? 'Uploading…' : 'Drop your Tally Group Summary export here'}</p>
-          <p className="text-sm text-gray-400 mt-1">or click to browse — CSV, XLSX supported</p>
+        <div className="flex flex-wrap gap-2">
+          {FEE_TYPE_OPTIONS.map(opt => (
+            <button
+              key={opt}
+              onClick={() => { setFeeType(opt); if (opt !== 'Other') setCustomFeeType(''); }}
+              className={`px-4 py-2 rounded-xl text-sm font-medium border transition-all ${
+                feeType === opt
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+              }`}
+            >
+              {opt}
+            </button>
+          ))}
         </div>
-        <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
-          onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); e.target.value = ''; }} />
-      </div>
+        {feeType === 'Other' && (
+          <input
+            className="mt-3 w-full sm:w-72 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+            placeholder="Enter custom fee type label…"
+            value={customFeeType}
+            onChange={e => setCustomFeeType(e.target.value)}
+          />
+        )}
+        {effectiveFeeType && (
+          <p className="mt-3 text-xs text-indigo-600 font-medium">
+            ✓ Fee type label: <span className="font-bold">{effectiveFeeType}</span>
+          </p>
+        )}
+      </Card>
+
+      {/* Step 2: Upload */}
+      <Card className="p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+            <Upload className="w-4 h-4 text-blue-600" />
+          </div>
+          <h3 className="font-semibold text-gray-900">Step 2 — Upload Group Summary File</h3>
+        </div>
+        <div className="text-xs text-gray-500 bg-gray-50 rounded-xl px-4 py-3 mb-4 flex items-start gap-2">
+          <AlertCircle className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
+          <span>Expected format: Tally Group Summary export (Particulars / Closing Balance columns). Rows: <code>Student Name (Dept - GROUP/BATCH) | Amount</code></span>
+        </div>
+        <div
+          onDragOver={e => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+          onClick={() => fileRef.current?.click()}
+          className={`border-2 border-dashed rounded-2xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-all ${
+            dragging ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+          }`}
+        >
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+            dragging ? 'bg-blue-100' : uploading ? 'bg-indigo-50' : 'bg-gray-100'
+          }`}>
+            {uploading
+              ? <Spinner />
+              : <Upload className={`w-7 h-7 ${dragging ? 'text-blue-600' : 'text-gray-400'}`} />
+            }
+          </div>
+          <div className="text-center">
+            <p className="font-semibold text-gray-700">
+              {uploading ? `Uploading “${effectiveFeeType}” file…` : 'Drop the Group Summary file here'}
+            </p>
+            <p className="text-sm text-gray-400 mt-1">or click to browse — CSV, XLSX supported</p>
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); e.target.value = ''; }}
+          />
+        </div>
+      </Card>
 
       {/* Result Summary */}
       {result && (
-        <Card className={`p-5 border-l-4 ${result.success ? 'border-l-emerald-500' : 'border-l-red-500'}`}>
+        <Card className={`p-5 border-l-4 ${result.success ? (result.data.failed > 0 ? 'border-l-amber-400' : 'border-l-emerald-500') : 'border-l-red-500'}`}>
           {result.success ? (
-            <div>
-              <div className="flex items-center gap-2 mb-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-semibold text-emerald-700">Import Successful</h3>
+                <h3 className="font-semibold text-emerald-700">
+                  Upload Complete — “{result.data.fee_type}”
+                </h3>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 {[
                   { label: 'Rows Processed', value: result.data.rows_processed, color: 'blue' },
-                  { label: 'Balances Updated', value: result.data.auto_matched, color: 'green' },
-                  { label: 'Unmapped', value: result.data.unmapped_count, color: 'yellow' },
+                  { label: 'Students Updated', value: result.data.matched, color: 'green' },
+                  { label: 'Unmatched', value: result.data.failed, color: result.data.failed > 0 ? 'yellow' : 'gray' },
                 ].map(item => (
                   <div key={item.label} className="bg-gray-50 rounded-xl p-3 text-center">
                     <p className="text-2xl font-bold text-gray-900">{item.value}</p>
@@ -388,6 +520,35 @@ function OpeningBalanceUpload({ showToast }) {
                   </div>
                 ))}
               </div>
+
+              {/* Failed rows table */}
+              {result.data.failed_rows && result.data.failed_rows.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-amber-700 mb-2 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" /> Unmatched Rows ({result.data.failed_rows.length})
+                  </h4>
+                  <div className="overflow-x-auto rounded-xl border border-amber-100">
+                    <table className="w-full text-sm">
+                      <thead className="bg-amber-50">
+                        <tr>
+                          {['Ledger Name (from file)', 'Amount', 'Reason'].map(h => (
+                            <th key={h} className="px-3 py-2 text-left text-xs font-bold text-amber-700 uppercase tracking-wider">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-amber-50">
+                        {result.data.failed_rows.map((row, i) => (
+                          <tr key={i} className="hover:bg-amber-50/50">
+                            <td className="px-3 py-2 text-gray-800 font-mono text-xs">{row.ledger_name}</td>
+                            <td className="px-3 py-2 text-gray-700">₹{row.amount?.toLocaleString('en-IN')}</td>
+                            <td className="px-3 py-2 text-amber-700">{row.reason}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex items-start gap-3">
@@ -412,7 +573,7 @@ function OpeningBalanceUpload({ showToast }) {
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {['File', 'Uploaded At', 'Processed', 'Updated', 'Unmapped'].map(h => (
+                  {['File', 'Fee Type', 'Uploaded At', 'Processed', 'Matched', 'Failed'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -420,13 +581,17 @@ function OpeningBalanceUpload({ showToast }) {
               <tbody className="divide-y divide-gray-50">
                 {history.map((h, i) => (
                   <tr key={i} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-gray-900 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-blue-400" />{h.filename || 'Unknown'}
+                    <td className="px-4 py-3 font-medium text-gray-900">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                        <span className="truncate max-w-xs">{h.filename || 'Unknown'}</span>
+                      </div>
                     </td>
+                    <td className="px-4 py-3"><Badge label={h.fee_type || '—'} color="purple" /></td>
                     <td className="px-4 py-3 text-gray-600">{new Date(h.uploaded_at).toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3">{h.rows_processed}</td>
-                    <td className="px-4 py-3"><Badge label={h.auto_matched} color="green" /></td>
-                    <td className="px-4 py-3"><Badge label={h.unmapped_count} color={h.unmapped_count > 0 ? 'yellow' : 'gray'} /></td>
+                    <td className="px-4 py-3"><Badge label={h.matched} color="green" /></td>
+                    <td className="px-4 py-3"><Badge label={h.failed} color={h.failed > 0 ? 'yellow' : 'gray'} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -1000,6 +1165,71 @@ function StudentLedgerView({ showToast }) {
             <SummaryCard icon={AlertCircle} label="Pending Balance" value={fmt(summary.pending_balance)} color={summary.pending_balance > 0 ? 'red' : 'green'} />
           </div>
 
+          {summary.fee_breakdown && summary.fee_breakdown.length > 0 && (
+            <Card className="overflow-hidden mb-6">
+              <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-gray-400" />
+                <h3 className="font-semibold text-gray-900">Fee Breakdown</h3>
+                <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5 ml-1">
+                  {summary.fee_breakdown.length} {summary.fee_breakdown.length === 1 ? 'item' : 'items'}
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {['Fee Type', 'Academic Year', 'Semester', 'Amount Due', 'Paid', 'Balance'].map(h => (
+                        <th key={h} className="px-5 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {summary.fee_breakdown.map((fee, idx) => {
+                      const style = getFeeStyle(fee.fee_type);
+                      const Icon = style.icon;
+                      const isCleared = (fee.balance ?? fee.amount_due) === 0;
+                      return (
+                        <tr key={fee.id} className={`transition-colors ${style.rowBg} ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/20'}`}>
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-lg ${style.iconBg} flex items-center justify-center flex-shrink-0`}>
+                                <Icon className={`w-4 h-4 ${style.iconColor}`} />
+                              </div>
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${style.badge}`}>
+                                {fee.fee_type}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-3.5 text-gray-600">{fee.academic_year || '—'}</td>
+                          <td className="px-5 py-3.5 text-gray-600">Semester {fee.semester}</td>
+                          <td className="px-5 py-3.5 text-gray-700">{fmt(fee.amount_due)}</td>
+                          <td className="px-5 py-3.5 font-medium text-emerald-700">{fmt(fee.amount_paid ?? 0)}</td>
+                          <td className="px-5 py-3.5">
+                            {isCleared ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                                <CheckCircle className="w-3 h-3" /> Cleared
+                              </span>
+                            ) : (
+                              <span className="font-bold text-red-600">{fmt(fee.balance ?? fee.amount_due)}</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="bg-gray-50 border-t-2 border-gray-100">
+                    <tr>
+                      <td colSpan={3} className="px-5 py-3 text-sm font-bold text-gray-700">Total</td>
+                      <td className="px-5 py-3 font-bold text-gray-800">{fmt(summary.total_due)}</td>
+                      <td className="px-5 py-3 font-bold text-emerald-700">{fmt(summary.total_paid)}</td>
+                      <td className="px-5 py-3 font-bold text-red-600">{fmt(summary.pending_balance)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </Card>
+          )}
+
           <Card className="overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-50">
               <h3 className="font-semibold text-gray-900">Payment History — {summary.student_name} ({summary.register_number})</h3>
@@ -1313,8 +1543,8 @@ function LedgerMappings({ showToast }) {
 // MAIN ACCOUNTANT PORTAL
 // ═══════════════════════════════════════════════════════════════════════════════
 const TABS = [
-  { id: 'upload', label: 'Upload Center', icon: Upload },
-  { id: 'opening_balance', label: 'Opening Balances', icon: FileText },
+  { id: 'upload', label: 'Daily Collection', icon: Upload },
+  { id: 'fee_upload', label: 'Fee Upload', icon: FileText },
   { id: 'unmapped', label: 'Unmapped Queue', icon: AlertTriangle },
   { id: 'manual', label: 'Manual Payment', icon: CreditCard },
   { id: 'structure', label: 'Fee Structure', icon: BookOpen },
@@ -1333,7 +1563,7 @@ export default function AccountantPortal() {
 
   const tabContent = {
     upload: <UploadCenter showToast={showToast} />,
-    opening_balance: <OpeningBalanceUpload showToast={showToast} />,
+    fee_upload: <FeeUpload showToast={showToast} />,
     unmapped: <UnmappedQueue showToast={showToast} />,
     manual: <ManualPayment showToast={showToast} />,
     structure: <FeeStructureManager showToast={showToast} />,
