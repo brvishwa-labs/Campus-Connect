@@ -49,6 +49,10 @@ class Conversation(Base):
     dean_unread_count = Column(Integer, default=0, nullable=False)
     student_unread_count = Column(Integer, default=0, nullable=False)
 
+    # Conversation management (Dean only)
+    is_pinned = Column(Boolean, default=False, nullable=False)
+    is_for_review = Column(Boolean, default=False, nullable=False)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

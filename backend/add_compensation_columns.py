@@ -5,10 +5,11 @@ from sqlalchemy import create_engine, text
 # Add the parent directory to Python path so we can import from app
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# pyrefly: ignore [missing-import]
 from app.core.config import get_settings
 
 def run_migration():
-    settings = get_settings()
+    settings = get_settings()   
     print(f"Connecting to database: {settings.DATABASE_URL.split('@')[-1]}")
     engine = create_engine(settings.DATABASE_URL)
     

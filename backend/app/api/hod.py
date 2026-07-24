@@ -144,7 +144,8 @@ def hod_faculty_all(
 ):
     # Returns ALL faculty across all departments.
     # Used only by Course Assignment so HODs can assign any faculty to a course.
-    if current_user.role != "hod":
+    from app.api.hod_helper import is_acting_hod
+    if not is_acting_hod(current_user, db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access restricted to HODs")
     faculty = db.query(Faculty).all()
     return [

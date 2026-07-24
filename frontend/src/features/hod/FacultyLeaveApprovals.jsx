@@ -18,7 +18,8 @@ const fmt = (iso) =>
   iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'â€”';
 
 const StatusBadge = ({ status }) => {
-  const cfg = STATUS_CFG[status] || STATUS_CFG.pending_hod;
+  const statusStr = (status || 'pending_hod').toLowerCase();
+  const cfg = STATUS_CFG[statusStr] || STATUS_CFG.pending_hod;
   return (
     <span className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
       {cfg.label}
@@ -29,8 +30,9 @@ const StatusBadge = ({ status }) => {
 const LeaveCard = ({ req, onAction, acting }) => {
   const [expanded, setExpanded] = useState(false);
   const [reason, setReason] = useState('');
-  const canAct = req.status === 'pending_hod';
-  const cfg = STATUS_CFG[req.status] || STATUS_CFG.pending_hod;
+  const statusStr = (req.status || 'pending_hod').toLowerCase();
+  const canAct = statusStr === 'pending_hod';
+  const cfg = STATUS_CFG[statusStr] || STATUS_CFG.pending_hod;
 
   return (
     <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${cfg.border}`}>
@@ -106,14 +108,14 @@ const LeaveCard = ({ req, onAction, acting }) => {
         )}
 
         {/* Action area */}
-        {canAct && (
-          <div className="space-y-2 pt-2 border-t border-gray-100">
+        {canAct ? (
+          <div className="space-y-2 pt-1 border-t border-gray-100">
             <input
               type="text"
-              placeholder="Remarks / reason for rejection (optional)"
+              placeholder="Remarks (optional)"
               value={reason}
               onChange={e => setReason(e.target.value)}
-              className="w-full px-3 py-2 text-[12px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400"
+              className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
             />
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -131,10 +133,16 @@ const LeaveCard = ({ req, onAction, acting }) => {
                 disabled={acting === req.id}
                 className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-[13px] font-bold py-2.5 rounded-xl transition-all disabled:opacity-60"
               >
-                <XCircle className="w-4 h-4" />
+                {acting === req.id
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <XCircle className="w-4 h-4" />}
                 Reject
               </button>
             </div>
+          </div>
+        ) : (
+          <div className="pt-2 mt-2 border-t border-gray-100">
+            <p className="text-[12px] font-semibold text-gray-400 text-center uppercase tracking-wider">Request Processed</p>
           </div>
         )}
       </div>
@@ -172,6 +180,7 @@ export const FacultyLeaveApprovals = () => {
         params: { action, reason },
       });
       await fetchRequests();
+      window.dispatchEvent(new Event('refetch-badges'));
     } catch (err) {
       setError(err.response?.data?.detail || 'Action failed.');
     } finally {

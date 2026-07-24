@@ -126,6 +126,10 @@ const ProtectedRoute = ({ children, allowedRole }) => {
     if (allowedRole === 'faculty' && user.role === 'hod') {
       return children;
     }
+    // Acting HODs (faculty with delegated HOD role) can access HOD approval routes
+    if (allowedRole === 'hod' && user.role === 'faculty') {
+      return children;
+    }
     // Accountants access their own portal
     if (allowedRole === 'accountant' && user.role === 'accountant') {
       return children;
@@ -302,6 +306,16 @@ function AppRoutes() {
         <Route path="/hod/apply-leave" element={
           <ProtectedRoute allowedRole="hod">
             <HODLeaveApply />
+          </ProtectedRoute>
+        } />
+        <Route path="/hod/compensation-registry" element={
+          <ProtectedRoute allowedRole="hod">
+            <CompensationRegistry />
+          </ProtectedRoute>
+        } />
+        <Route path="/hod/leave/substitutes" element={
+          <ProtectedRoute allowedRole="hod">
+            <SubstituteApprovals />
           </ProtectedRoute>
         } />
         <Route path="/hod/latetracker" element={

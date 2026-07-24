@@ -75,6 +75,7 @@ export default function AuthorityFacultyGatePass() {
       fetchQueue();
       setShowRejectModal(false);
       setRejectReason('');
+      window.dispatchEvent(new Event('refetch-badges'));
     } catch (err) {
       console.error(err);
       alert('Failed to process request.');

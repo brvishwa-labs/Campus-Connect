@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
@@ -913,6 +914,28 @@ def get_my_leave_requests(
             
     return requests
 
+@router.get("/authority-role")
+def get_authority_role(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.AUTHORITY:
+        return {"role": None}
+    from app.models.authority import Authority
+    auth = db.query(Authority).filter(Authority.user_id == current_user.id).first()
+    if not auth:
+        return {"role": None}
+    
+    title = auth.title.lower()
+    if "dean" in title:
+        return {"role": "pending_dean"}
+    elif "om" in title or "office manager" in title:
+        return {"role": "pending_om"}
+    elif "principal" in title:
+        return {"role": "pending_principal"}
+    
+    return {"role": None}
+
 @router.get("/requests", response_model=List[FacultyLeaveRequestResponse])
 def get_all_leave_requests(
     db: Session = Depends(get_db),
@@ -939,9 +962,9 @@ def get_all_leave_requests(
         from app.models.authority import Authority
         auth = db.query(Authority).filter(Authority.user_id == current_user.id).first()
         if "dean" in auth.title.lower():
-            query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_DEAN, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
+            query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_DEAN, LeaveStatus.PENDING_OM, LeaveStatus.PENDING_PRINCIPAL, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
         elif "om" in auth.title.lower() or "office manager" in auth.title.lower():
-            query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_OM, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
+            query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_OM, LeaveStatus.PENDING_PRINCIPAL, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
         elif "principal" in auth.title.lower():
             query = query.filter(FacultyLeaveRequest.status.in_([LeaveStatus.PENDING_PRINCIPAL, LeaveStatus.APPROVED, LeaveStatus.REJECTED]))
         elif "hr" in auth.title.lower():
@@ -1110,13 +1133,18 @@ def update_substitute_request(
         db.commit()
         return {"message": "Arrangement rejected. Leave request has been rejected."}
     
-    # Only move to PENDING_HOD if ALL arrangements are accepted
+    # Only move to next stage if ALL arrangements are accepted
     all_accepted = all(a.status == ArrangementStatus.ACCEPTED for a in req.arrangements)
     
-    if all_accepted and req.status == LeaveStatus.PENDING_SUBSTITUTE:
-        req.status = LeaveStatus.PENDING_HOD
-        db.commit()
-        return {"message": "All substitutes have accepted. Leave request forwarded to HOD for approval."}
+    if all_accepted:
+        if req.status == LeaveStatus.PENDING_SUBSTITUTE:
+            req.status = LeaveStatus.PENDING_HOD
+            db.commit()
+            return {"message": "All substitutes have accepted. Leave request forwarded to HOD for approval."}
+        elif req.status == LeaveStatus.PENDING_ALTERNATE_HOD:
+            req.status = LeaveStatus.PENDING_DEAN
+            db.commit()
+            return {"message": "All substitutes have accepted. HOD leave request forwarded to Dean for approval."}
         
     return {"message": "Status updated successfully. Waiting for other substitute approvals."}
 
@@ -1692,8 +1720,50 @@ def get_available_compensation_registries(
 # ===============================================================================
 # HOD LEAVE ENDPOINTS
 # Flow: HOD applies -> selects alternate staff -> alternate accepts ->
-#       Dean approves -> Principal approves -> OM approves -> APPROVED
+#       Dean approves -> OM approves -> Principal approves -> APPROVED
 # ===============================================================================
+
+@router.get("/hod-delegation-status")
+def get_hod_delegation_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Returns whether the current user has an active HOD delegation.
+    Used by the frontend to show delegation banners.
+    Returns: { is_delegated: bool, delegated_by: str|None, department_name: str|None, from_date: str|None, to_date: str|None }
+    """
+    import datetime as dt
+    today = dt.date.today()
+
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not faculty:
+        return {"is_delegated": False}
+
+    # Check if this faculty is an active alternate HOD for someone on approved leave
+    active_leave = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.alternate_hod_faculty_id == faculty.id,
+        FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+        FacultyLeaveRequest.from_date <= today,
+        FacultyLeaveRequest.to_date >= today
+    ).first()
+
+    if not active_leave:
+        return {"is_delegated": False}
+
+    # Get the actual HOD's name
+    hod_faculty = db.query(Faculty).filter(Faculty.id == active_leave.faculty_id).first()
+    department = db.query(Department).filter(Department.hod_id == active_leave.faculty_id).first()
+
+    return {
+        "is_delegated": True,
+        "delegated_by": f"{hod_faculty.first_name} {hod_faculty.last_name}" if hod_faculty else "HOD",
+        "department_name": department.name if department else None,
+        "from_date": str(active_leave.from_date),
+        "to_date": str(active_leave.to_date),
+        "leave_type": active_leave.leave_type
+    }
+
 
 @router.get("/hod-leave-preparation-data")
 def get_hod_leave_preparation_data(
@@ -1840,6 +1910,85 @@ def get_hod_my_leave_requests(
     return [get_leave_request_detail(req.id, db) for req in reqs]
 
 
+@router.get("/delegation-status")
+def get_delegation_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Returns the current HOD delegation status for a faculty member.
+    """
+    default_res = {
+        "has_delegation": False,
+        "has_pending": False,
+        "is_active_today": False,
+        "active_leave": None
+    }
+    if current_user.role not in [UserRole.FACULTY, UserRole.HOD]:
+        return default_res
+        
+    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not faculty:
+        return default_res
+        
+    today = datetime.date.today()
+
+    # 1. Pending HOD duty arrangements
+    pending_arrs = db.query(FacultyDutyArrangement).join(FacultyLeaveRequest).filter(
+        FacultyDutyArrangement.substitute_faculty_id == faculty.id,
+        FacultyDutyArrangement.subject == "HOD Duties",
+        FacultyDutyArrangement.status == ArrangementStatus.PENDING,
+        FacultyLeaveRequest.status.notin_([LeaveStatus.REJECTED, LeaveStatus.WITHDRAWN]),
+        FacultyLeaveRequest.to_date >= today
+    ).all()
+
+    pending_leaves = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.alternate_hod_faculty_id == faculty.id,
+        FacultyLeaveRequest.status == LeaveStatus.PENDING_ALTERNATE_HOD,
+        FacultyLeaveRequest.to_date >= today
+    ).all()
+
+    # 2. Accepted / upcoming delegation requests
+    upcoming_or_current = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.alternate_hod_faculty_id == faculty.id,
+        FacultyLeaveRequest.status.in_([
+            LeaveStatus.PENDING_DEAN,
+            LeaveStatus.PENDING_HOD,
+            LeaveStatus.PENDING_OM,
+            LeaveStatus.PENDING_PRINCIPAL,
+            LeaveStatus.APPROVED
+        ]),
+        FacultyLeaveRequest.to_date >= today
+    ).all()
+
+    # 3. Active approved delegation TODAY
+    active_today_leave = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.alternate_hod_faculty_id == faculty.id,
+        FacultyLeaveRequest.status == LeaveStatus.APPROVED,
+        FacultyLeaveRequest.from_date <= today,
+        FacultyLeaveRequest.to_date >= today
+    ).first()
+
+    has_pending = len(pending_arrs) > 0 or len(pending_leaves) > 0
+    has_delegation = has_pending or len(upcoming_or_current) > 0
+    is_active_today = active_today_leave is not None
+
+    hod_info = None
+    if active_today_leave and active_today_leave.faculty:
+        hod_info = {
+            "hod_name": f"{active_today_leave.faculty.first_name} {active_today_leave.faculty.last_name}",
+            "from_date": str(active_today_leave.from_date),
+            "to_date": str(active_today_leave.to_date)
+        }
+
+    return {
+        "has_delegation": has_delegation,
+        "has_pending": has_pending,
+        "is_active_today": is_active_today,
+        "active_leave": hod_info
+    }
+
+
 @router.get("/hod-substitute-pending", response_model=List[FacultyLeaveRequestResponse])
 def get_hod_substitute_pending(
     db: Session = Depends(get_db),
@@ -1867,6 +2016,61 @@ def get_hod_substitute_pending(
         FacultyLeaveRequest.status == LeaveStatus.PENDING_ALTERNATE_HOD
     ).all()
     return [get_leave_request_detail(req.id, db) for req in leave_requests]
+
+
+class ReassignDelegateRequest(BaseModel):
+    new_faculty_id: int
+
+@router.put("/requests/{request_id}/reassign-delegate")
+def reassign_hod_delegate(
+    request_id: int,
+    request: ReassignDelegateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Allows HOD to reassign the acting HOD duties if the initial delegate declines."""
+    if current_user.role != UserRole.HOD:
+        raise HTTPException(status_code=403, detail="Only HOD can use this endpoint")
+        
+    hod_faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+    if not hod_faculty:
+        raise HTTPException(status_code=403, detail="Faculty profile not found")
+        
+    req = db.query(FacultyLeaveRequest).filter(
+        FacultyLeaveRequest.id == request_id,
+        FacultyLeaveRequest.faculty_id == hod_faculty.id
+    ).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Leave request not found or access denied")
+        
+    if req.status != LeaveStatus.PENDING_ALTERNATE_HOD:
+        raise HTTPException(status_code=400, detail="Cannot reassign delegate at this stage")
+        
+    new_alt = db.query(Faculty).filter(
+        Faculty.id == request.new_faculty_id,
+        Faculty.is_active == True,
+        Faculty.department_id == hod_faculty.department_id
+    ).first()
+    if not new_alt:
+        raise HTTPException(status_code=400, detail="Selected alternate staff not found or not in your department")
+        
+    # Update the request
+    req.alternate_hod_faculty_id = new_alt.id
+    
+    # Update the arrangement
+    arr = db.query(FacultyDutyArrangement).filter(
+        FacultyDutyArrangement.leave_request_id == req.id,
+        FacultyDutyArrangement.subject == "HOD Duties"
+    ).first()
+    
+    if not arr:
+        raise HTTPException(status_code=404, detail="HOD duty arrangement not found")
+        
+    arr.substitute_faculty_id = new_alt.id
+    arr.status = ArrangementStatus.PENDING
+    
+    db.commit()
+    return {"message": "Delegate reassigned successfully"}
 
 
 @router.put("/hod-duty/{arr_id}")
@@ -1909,10 +2113,8 @@ def respond_to_hod_duty(
         return {"message": "Accepted. Waiting for remaining arrangements to be confirmed."}
     elif status.lower() == "rejected":
         arr.status = ArrangementStatus.REJECTED
-        req.status = LeaveStatus.REJECTED
-        req.rejection_reason = "Alternate staff rejected the HOD duty arrangement."
         db.commit()
-        return {"message": "Rejected. The HOD leave request has been cancelled."}
+        return {"message": "Rejected. The HOD will be prompted to reassign the delegation."}
     else:
         raise HTTPException(status_code=400, detail="Invalid status. Use 'accepted' or 'rejected'.")
 

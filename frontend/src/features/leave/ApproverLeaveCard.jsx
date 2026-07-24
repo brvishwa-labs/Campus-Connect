@@ -17,8 +17,9 @@ const fmt = (iso) =>
 
 export const ApproverLeaveCard = ({ req, actionStatus, onAction, acting }) => {
   const [remarks, setRemarks] = useState('');
-  const cfg    = STATUS_CFG[req.status] || STATUS_CFG.pending_hod;
-  const canAct = req.status === actionStatus;
+  const statusStr = (req.status || 'pending_hod').toLowerCase();
+  const cfg    = STATUS_CFG[statusStr] || STATUS_CFG.pending_hod;
+  const canAct = statusStr === (actionStatus || '').toLowerCase();
 
   return (
     <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${cfg.border}`}>
@@ -111,7 +112,7 @@ export const ApproverLeaveCard = ({ req, actionStatus, onAction, acting }) => {
         )}
 
         {/* Action area */}
-        {canAct && (
+        {canAct ? (
           <div className="space-y-2 pt-1 border-t border-gray-100">
             <input
               type="text"
@@ -134,10 +135,14 @@ export const ApproverLeaveCard = ({ req, actionStatus, onAction, acting }) => {
                 disabled={acting === req.id}
                 className="flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-[12px] font-bold py-2.5 rounded-xl transition-all disabled:opacity-60"
               >
-                <XCircle className="w-3.5 h-3.5" />
+                {acting === req.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
                 Reject
               </button>
             </div>
+          </div>
+        ) : (
+          <div className="pt-2 mt-2 border-t border-gray-100">
+            <p className="text-[12px] font-semibold text-gray-400 text-center uppercase tracking-wider">Request Processed</p>
           </div>
         )}
       </div>
