@@ -63,16 +63,37 @@ export default function MyAttendance() {
   const presentCount = attendance.filter(r => r.status === 'present').length;
   const leaveCount = attendance.filter(r => r.status === 'on_leave').length;
 
-  // Helper to map leave types to Acronyms (e.g. Casual -> CL, On-Duty -> OD)
-  const getLeaveAcronym = (leaveType) => {
+  // ─── Leave type → { acronym, colors } ────────────────────────────────────
+  // Each leave type gets a unique color identity so the calendar is
+  // self-explanatory at a glance without relying on the tooltip alone.
+  const LEAVE_STYLES = {
+    CL:  { label: 'Casual Leave',       dot: 'bg-blue-500',    badge: 'bg-blue-50 text-blue-700 border-blue-200 ring-blue-100' },
+    ML:  { label: 'Medical Leave',      dot: 'bg-rose-500',    badge: 'bg-rose-50 text-rose-700 border-rose-200 ring-rose-100' },
+    OD:  { label: 'On Duty',           dot: 'bg-purple-500',  badge: 'bg-purple-50 text-purple-700 border-purple-200 ring-purple-100' },
+    RL:  { label: 'Restricted Leave',   dot: 'bg-teal-500',    badge: 'bg-teal-50 text-teal-700 border-teal-200 ring-teal-100' },
+    EL:  { label: 'Earned Leave',       dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200 ring-emerald-100' },
+    VL:  { label: 'Vacation Leave',     dot: 'bg-amber-500',   badge: 'bg-amber-50 text-amber-700 border-amber-200 ring-amber-100' },
+    HP:  { label: 'Hour Permission',    dot: 'bg-indigo-500',  badge: 'bg-indigo-50 text-indigo-700 border-indigo-200 ring-indigo-100' },
+    CML: { label: 'Compensation Leave', dot: 'bg-cyan-500',    badge: 'bg-cyan-50 text-cyan-700 border-cyan-200 ring-cyan-100' },
+    AL:  { label: 'Academic Leave',     dot: 'bg-sky-500',     badge: 'bg-sky-50 text-sky-700 border-sky-200 ring-sky-100' },
+    L:   { label: 'Leave',             dot: 'bg-orange-500',  badge: 'bg-orange-50 text-orange-700 border-orange-200 ring-orange-100' },
+  };
+
+  // Maps a leave_type string to its acronym key
+  const getLeaveKey = (leaveType) => {
     if (!leaveType) return 'L';
-    const normalized = leaveType.toLowerCase().trim();
-    if (normalized.includes('casual')) return 'CL';
-    if (normalized.includes('sick') || normalized.includes('medical')) return 'ML';
-    if (normalized.includes('earned')) return 'EL';
-    if (normalized.includes('vacation')) return 'VL';
-    if (normalized.includes('duty') || normalized.includes('od')) return 'OD';
-    return 'L'; // Default leave acronym
+    const n = leaveType.toLowerCase().trim();
+    if (n.includes('restricted'))                                        return 'RL';
+    if (n.includes('on duty') || n.includes('on-duty') || n === 'od')   return 'OD';
+    if (n.includes('medical'))                                           return 'ML';
+    if (n.includes('casual'))                                            return 'CL';
+    if (n.includes('sick'))                                              return 'ML';
+    if (n.includes('earned'))                                            return 'EL';
+    if (n.includes('vacation'))                                          return 'VL';
+    if (n.includes('hour permission'))                                   return 'HP';
+    if (n.includes('compensation'))                                      return 'CML';
+    if (n.includes('academic'))                                          return 'AL';
+    return 'L';
   };
 
   // Build Calendar Days
@@ -100,13 +121,14 @@ export default function MyAttendance() {
     }
 
     if (record.status === 'on_leave') {
-      const acronym = getLeaveAcronym(record.leave_type);
+      const key = getLeaveKey(record.leave_type);
+      const style = LEAVE_STYLES[key] || LEAVE_STYLES['L'];
       return (
-        <div 
-          className="flex flex-col items-center justify-center bg-orange-50 text-orange-700 w-8 h-8 md:w-10 md:h-10 rounded-xl shadow-sm border border-orange-200 ring-2 ring-orange-100 transition-all hover:scale-110 cursor-help"
+        <div
+          className={`flex flex-col items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-xl shadow-sm border ring-2 transition-all hover:scale-110 cursor-help ${style.badge}`}
           title={record.leave_type || 'On Leave'}
         >
-          <span className="font-black text-xs md:text-sm">{acronym}</span>
+          <span className="font-black text-xs md:text-sm leading-none">{key}</span>
         </div>
       );
     }
@@ -132,10 +154,27 @@ export default function MyAttendance() {
           <p className="text-sm text-gray-500 mt-1">Track your daily presence and leave history.</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-gray-600 bg-white border border-gray-200 px-4 py-2 rounded-xl shadow-sm">
-          <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-500"></div> Present (P)</div>
-          <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-orange-500"></div> Leave</div>
-          <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500"></div> Absent (A)</div>
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-600 bg-white border border-gray-200 px-4 py-2 rounded-xl shadow-sm">
+          {/* Present */}
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+            <span>P</span><span className="text-gray-400 font-normal">= Present</span>
+          </div>
+          <div className="w-px h-4 bg-gray-200"></div>
+          {/* Leave types — each with its own color */}
+          {Object.entries(LEAVE_STYLES).filter(([k]) => k !== 'L').map(([key, s]) => (
+            <div key={key} className="flex items-center gap-1">
+              <div className={`w-2.5 h-2.5 rounded-full ${s.dot}`}></div>
+              <span className="font-bold">{key}</span>
+              <span className="text-gray-400 font-normal hidden sm:inline">= {s.label.replace(' Leave','').replace('Hour Permission','HP')}</span>
+            </div>
+          ))}
+          <div className="w-px h-4 bg-gray-200"></div>
+          {/* Absent */}
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+            <span>A</span><span className="text-gray-400 font-normal">= Absent</span>
+          </div>
         </div>
       </div>
 

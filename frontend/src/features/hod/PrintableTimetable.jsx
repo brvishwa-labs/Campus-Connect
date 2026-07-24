@@ -15,7 +15,7 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
   return (
     <div 
       ref={ref} 
-      className="bg-[#ffffff] text-[#000000] p-8 font-sans mx-auto flex flex-col"
+      className="bg-[#ffffff] text-[#000000] p-10 font-sans mx-auto flex flex-col relative"
       style={{
         width: '1000px', // Fixed width to ensure consistent PDF rendering
         minHeight: '1414px', // A4 aspect ratio
@@ -23,6 +23,19 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
         boxSizing: 'border-box'
       }}
     >
+      {/* OUTER PAGE BORDER (matching logbook report layout) */}
+      <div 
+        style={{
+          position: 'absolute',
+          top: '16px',
+          left: '16px',
+          right: '16px',
+          bottom: '16px',
+          border: '1.5px solid #000000',
+          pointerEvents: 'none',
+          boxSizing: 'border-box'
+        }}
+      />
       {/* HEADER SECTION */}
       <div className="flex items-center justify-center border-b-2 border-[#000000] pb-4 mb-4">
         <div className="h-32 w-full flex-shrink-0">
@@ -158,21 +171,25 @@ export const PrintableTimetable = React.forwardRef(({ grid, assignments, section
       </div>
 
       {/* SIGNATURES */}
-      <div className="flex justify-between items-end mt-auto pt-8 text-sm font-bold">
+      <div className="flex justify-between items-end mt-auto pt-8 text-[11px] font-bold">
         <div className="text-center">
-          <div className="border-t border-[#000000] w-40 mb-2 mx-auto"></div>
+          <div className="border-t border-[#000000] w-36 mb-2 mx-auto"></div>
           TIME TABLE COORDINATOR
         </div>
         <div className="text-center">
-          <div className="border-t border-[#000000] w-48 mb-2 mx-auto"></div>
-          DEAN-ACADEMICS / HOD
+          <div className="border-t border-[#000000] w-28 mb-2 mx-auto"></div>
+          HOD
         </div>
         <div className="text-center">
-          <div className="border-t border-[#000000] w-40 mb-2 mx-auto"></div>
+          <div className="border-t border-[#000000] w-36 mb-2 mx-auto"></div>
+          DEAN ACADEMICS
+        </div>
+        <div className="text-center">
+          <div className="border-t border-[#000000] w-32 mb-2 mx-auto"></div>
           VICE PRINCIPAL
         </div>
         <div className="text-center">
-          <div className="border-t border-[#000000] w-40 mb-2 mx-auto"></div>
+          <div className="border-t border-[#000000] w-32 mb-2 mx-auto"></div>
           PRINCIPAL
         </div>
       </div>

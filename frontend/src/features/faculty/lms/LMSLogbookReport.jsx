@@ -1229,10 +1229,10 @@ export const LMSLogbookReport = () => {
       }
       case 'footer': return (
         <div style={{ marginTop: '48px', paddingTop: '24px', borderTop: '1px solid #94a3b8', display: 'flex', justifyContent: 'space-between' }}>
-          {['Faculty Signature', 'HOD Signature', 'Principal Signature'].map(label => (
+          {['Faculty Signature', 'HOD Signature', 'Dean Academics Signature', 'Principal Signature'].map(label => (
             <div key={label} style={{ textAlign: 'center' }}>
-              <div style={{ width: '140px', borderBottom: '1px solid #64748b', marginBottom: '6px', height: '40px' }} />
-              <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '11pt', fontWeight: 'bold', color: '#334155', margin: 0 }}>{label}</p>
+              <div style={{ width: '120px', borderBottom: '1px solid #64748b', marginBottom: '6px', height: '40px' }} />
+              <p style={{ fontFamily: 'Times New Roman, serif', fontSize: '10pt', fontWeight: 'bold', color: '#334155', margin: 0 }}>{label}</p>
             </div>
           ))}
         </div>
