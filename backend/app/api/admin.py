@@ -29,6 +29,12 @@ class HolidayCreate(BaseModel):
     date: date_type
     name: str
 
+class GlobalCourseCreate(BaseModel):
+    name: str
+    base_code: str
+    short_name: Optional[str] = None
+    credits: int = 0
+    course_type: str = "global"
 
 # ─────────────────────────────────────────────────────────
 # Admin stats
@@ -223,3 +229,49 @@ def resolve_password_reset(
     req.resolved_at = datetime.now(timezone.utc)
     db.commit()
     return {"message": "Request marked as resolved"}
+
+# ─────────────────────────────────────────────────────────
+# Global Courses
+# ─────────────────────────────────────────────────────────
+@router.post("/global-courses", status_code=status.HTTP_201_CREATED)
+def create_global_courses(
+    payload: GlobalCourseCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Creates course records for a global course across all departments and semesters 1-8.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create global courses")
+        
+    departments = db.query(Department).all()
+    if not departments:
+        raise HTTPException(status_code=400, detail="No departments found in the system.")
+        
+    created_count = 0
+    
+    for dept in departments:
+        for sem in range(1, 9):
+            # E.g. "PET-CSE-1"
+            course_code = f"{payload.base_code}-{dept.code}-{sem}"
+            
+            # Check if this course code already exists to avoid duplicates
+            existing = db.query(Course).filter(Course.code == course_code).first()
+            if not existing:
+                new_course = Course(
+                    department_id=dept.id,
+                    code=course_code,
+                    name=payload.name,
+                    short_name=payload.short_name,
+                    credits=payload.credits,
+                    course_type=payload.course_type,
+                    semester=sem,
+                    is_active=True
+                )
+                db.add(new_course)
+                created_count += 1
+                
+    db.commit()
+    
+    return {"message": f"Successfully created {created_count} global course records across all departments and semesters."}

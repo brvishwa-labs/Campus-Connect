@@ -110,6 +110,16 @@ export const Courses = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   
+  // Global Course Modal state
+  const [isGlobalModalOpen, setIsGlobalModalOpen] = useState(false);
+  const [globalFormData, setGlobalFormData] = useState({
+    name: '',
+    base_code: '',
+    short_name: '',
+    credits: 0,
+    course_type: 'global'
+  });
+  
   // Form state
   const [formData, setFormData] = useState({ 
     department_id: '',
@@ -241,6 +251,35 @@ export const Courses = () => {
     }
   };
 
+  const handleGlobalSubmit = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    setFormError(null);
+
+    try {
+      const payload = {
+        ...globalFormData,
+        credits: parseInt(globalFormData.credits)
+      };
+
+      const res = await axios.post('/api/admin/global-courses', payload);
+      alert(res.data.message);
+      await fetchData();
+      setIsGlobalModalOpen(false);
+      setGlobalFormData({
+        name: '',
+        base_code: '',
+        short_name: '',
+        credits: 0,
+        course_type: 'global'
+      });
+    } catch (err) {
+      setFormError(err.response?.data?.detail || 'Failed to create global courses');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
   const handleDelete = async (id, name) => {
     if (window.confirm(`Are you sure you want to delete ${name}?`)) {
       try {
@@ -336,12 +375,20 @@ export const Courses = () => {
             <p className="text-sm text-gray-500 font-medium">Manage courses across departments, years, and semesters</p>
           </div>
         </div>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="flex items-center px-5 py-2.5 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-700 transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4 mr-2" /> Add Course
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setIsGlobalModalOpen(true)}
+            className="flex items-center px-5 py-2.5 bg-white text-indigo-600 border border-indigo-200 text-sm font-bold rounded-xl hover:bg-indigo-50 transition-colors shadow-sm"
+          >
+            <Layers className="w-4 h-4 mr-2" /> Add Global Course
+          </button>
+          <button 
+            onClick={() => handleOpenModal()}
+            className="flex items-center px-5 py-2.5 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-700 transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4 mr-2" /> Add Course
+          </button>
+        </div>
       </div>
 
       {/* Main Content Area */}
@@ -592,6 +639,7 @@ export const Courses = () => {
                       <option value="open_elective">Open Elective</option>
                       <option value="project">Project</option>
                       <option value="seminar">Seminar</option>
+                      <option value="global">Global (Attendance Only)</option>
                     </select>
                   </div>
                 </div>
@@ -755,6 +803,128 @@ export const Courses = () => {
                 className="px-5 py-2.5 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-700 transition-colors shadow-sm disabled:opacity-50"
               >
                 {formLoading ? 'Saving...' : editingId ? 'Save Changes' : 'Create Course'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Course Modal */}
+      {isGlobalModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
+              <h3 className="text-lg font-bold text-gray-900">Add Global Course</h3>
+              <button 
+                onClick={() => setIsGlobalModalOpen(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3">
+                <div className="mt-0.5 text-amber-600">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-amber-800">What is a Global Course?</h4>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Submitting this form will automatically generate course records across <b>ALL</b> departments and <b>ALL 8 Semesters</b>.
+                    For example, a Base Code of "PET" will create "PET-CSE-1", "PET-ECE-2", etc.
+                  </p>
+                </div>
+              </div>
+
+              <form id="global-course-form" onSubmit={handleGlobalSubmit} className="space-y-5">
+                {formError && (
+                  <div className="p-3 bg-red-50 text-red-600 text-sm font-medium rounded-xl border border-red-100">
+                    {formError}
+                  </div>
+                )}
+                
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="e.g. PET, PLACEMENT (Soft Skill)"
+                    value={globalFormData.name}
+                    onChange={(e) => setGlobalFormData({...globalFormData, name: e.target.value})}
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Base Course Code</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="e.g. PET"
+                      value={globalFormData.base_code}
+                      onChange={(e) => setGlobalFormData({...globalFormData, base_code: e.target.value.toUpperCase()})}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Short Name (Optional)</label>
+                    <input 
+                      type="text" 
+                      maxLength={20}
+                      placeholder="e.g. PL-SS"
+                      value={globalFormData.short_name}
+                      onChange={(e) => setGlobalFormData({...globalFormData, short_name: e.target.value.toUpperCase()})}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Credits</label>
+                    <input 
+                      type="number" 
+                      required
+                      min="0" max="10"
+                      value={globalFormData.credits}
+                      onChange={(e) => setGlobalFormData({...globalFormData, credits: e.target.value})}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Course Type</label>
+                    <select 
+                      required
+                      value={globalFormData.course_type}
+                      onChange={(e) => setGlobalFormData({...globalFormData, course_type: e.target.value})}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all outline-none"
+                    >
+                      <option value="global">Global (Attendance Only)</option>
+                      <option value="theory">Theory</option>
+                      <option value="lab">Lab</option>
+                    </select>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div className="p-6 border-t border-gray-100 flex justify-end space-x-3 shrink-0 bg-white">
+              <button 
+                type="button"
+                onClick={() => setIsGlobalModalOpen(false)}
+                className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit"
+                form="global-course-form"
+                disabled={formLoading}
+                className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+              >
+                {formLoading ? 'Generating...' : 'Generate Global Courses'}
               </button>
             </div>
           </div>
