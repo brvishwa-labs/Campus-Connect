@@ -268,6 +268,17 @@ const StudentProfile = ({ profile, onUpdate }) => {
         )}
       </div>
 
+      {/* Parent / Guardian Info */}
+      <SectionCard title="Parent / Guardian Details" icon={Users}>
+        <InfoRow label="Primary Contact" value={profile.primary_contact ? profile.primary_contact.charAt(0).toUpperCase() + profile.primary_contact.slice(1) : 'Father'} />
+        <InfoRow label="Father's Name"   value={profile.father_name} />
+        <InfoRow label="Father's Phone"  value={profile.father_phone} />
+        <InfoRow label="Mother's Name"   value={profile.mother_name} />
+        <InfoRow label="Mother's Phone"  value={profile.mother_phone} />
+        {profile.guardian_name && <InfoRow label="Guardian's Name" value={profile.guardian_name} />}
+        {profile.guardian_phone && <InfoRow label="Guardian's Phone" value={profile.guardian_phone} />}
+      </SectionCard>
+
       {/* Account & Security */}
       <ChangePassword role={profile.role} />
     </>
@@ -335,9 +346,10 @@ const GenericProfile = ({ profile, onUpdate }) => {
             {profile.transportation === 'BUS' && <InfoRow label="Bus Number" value={profile.bus_number} />}
           </SectionCard>
 
-          <SectionCard title="Parent Details" icon={Users}>
+          <SectionCard title="Parent / Guardian Details" icon={Users}>
             <InfoRow label="Father's Name" value={profile.father_name} />
             <InfoRow label="Mother's Name" value={profile.mother_name} />
+            {profile.guardian_name && <InfoRow label="Guardian's Name" value={profile.guardian_name} />}
           </SectionCard>
 
           <SectionCard title="Emergency Contacts" icon={Users}>

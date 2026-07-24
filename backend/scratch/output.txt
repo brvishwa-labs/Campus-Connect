@@ -1,0 +1,115 @@
+
+================================================================================
+  CSE 2nd Year — Incomplete Profiles  (26 students)
+================================================================================
+No.   Register Number      Name                           Missing Fields
+----- -------------------- ------------------------------ ------------------------------
+1     25TD0601             ABISHEK P                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+2     25TD0602             ABISHEK S                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+3     25TD0617             DIVYESH A                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+4     25TD0620             GUGAN K                        DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+5     25TD0622             HARINIVASS K                   DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+6     25TD0623             HEPHZIBBAH D                   DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+7     25TD0625             ILAKIAN C                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+8     25TD0626             IRFAN MOHAMMED K               DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+9     25TD0627             JAIKRISHNA S                   DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+10    25TD0628             JAMES J                        DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+11    25TD0633             JOYAL B                        DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+12    25TD0634             KABIL K                        DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+13    25TD0635             KABILSHA K                     DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+14    25TD0638             KARTHIKRAJ P                   Father Name
+15    25TD0644             KISHORE R                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+16    25TD0645             KISHORE V                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+17    25TD0652             MAHABOOB KHAN K                Father Name
+18    25TD0653             MAHALAKSHMI S                  DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+19    25TD0657             MOHAMED SAHIL S                DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+20    25TD0662             NISHANTH M                     DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+21    25TD0664             PRADEEP G                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+22    25TD0670             RAGHAVI K                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+23    25TD0683             SHARMA S                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+24    25TD0686             SUJITH V                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+25    25TD0691             VAIRA KIRUTHIKA M              DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+26    25TD0694             VIMALATHITHAN N                DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+
+================================================================================
+  CSE 3rd Year — Incomplete Profiles  (28 students)
+================================================================================
+No.   Register Number      Name                           Missing Fields
+----- -------------------- ------------------------------ ------------------------------
+1     24TD0761             CHANDHRU M                     DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+2     24TD0762             Charu Arumugam                 DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+3     24TD0766             Dharshini M                    DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+4     24TD0767             Dhinagar S                     DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+5     24TD0768             Dhivyadharshini R              DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+6     24TD0769             Dhivyadharshini S              DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+7     24TD0770             Dinesh kumar S                 DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+8     24TD0772             Divyesh M                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+9     24TD0774             Felcina P                      Mother Name
+10    24TD0776             Gopinath R                     DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+11    24TD0785             Harishkumar K                  DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+12    24TD0786             Hemavathy S                    Father Name
+13    24TD0787             Iniyan S                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+14    24TD0789             Jayanth Karpageswar R          Mother Name
+15    24TD0790             Jhoncy V R                     DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+16    24TD0796             Lavanya A                      Father Name
+17    24TD0799             Mathivanan V                   Mother Name
+18    24TD0800             Meena S                        DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+19    24TD0812             pradhoshwaran V.K              DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+20    24TD0814             Prakashidha S                  Mother Name
+21    24TD0820             Priyanka S                     DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+22    24TD0824             Rakesh S                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+23    24TD0834             Shafana S                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+24    24TD0835             Shahara Banu S                 DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+25    24TD0836             Shakshitha M                   DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+26    24TD0842             Sree krishnan I                Mother Name
+27    24TD0845             Sunil Kumar A                  DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+28    24TDL020             Siranjeevi M                   DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+
+================================================================================
+  CSE 4th Year — Incomplete Profiles  (42 students)
+================================================================================
+No.   Register Number      Name                           Missing Fields
+----- -------------------- ------------------------------ ------------------------------
+1     23TD0651             Aarthi A                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+2     23TD0658             Arish Kumar K                  DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+3     23TD0659             Ashwin C                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+4     23TD0662             Bhuvaneshwaran A               DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+5     23TD0664             Deepalakshmi G                 DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+6     23TD0667             Dhanush V                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+7     23TD0668             Dharshani S                    DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+8     23TD0670             Dulasi Krishna P               DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+9     23TD0671             Faizal Mohamed P               DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+10    23TD0673             Ganesh P                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+11    23TD0674             Gokul S                        DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+12    23TD0675             Hariharan A                    DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+13    23TD0676             Harikrishnan S                 DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+14    23TD0678             Harish Kumar R                 DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+15    23TD0679             Harishraj V                    DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+16    23TD0680             Hemachandran G                 DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+17    23TD0684             Jeevaraajan S                  DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+18    23TD0690             Kiruba Karan V.                DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+19    23TD0691             Krishna S                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+20    23TD0692             Madhan R                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+21    23TD0694             Mahesh V                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+22    23TD0695             Manoj V                        DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+23    23TD0696             Mohamed Asif M                 DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+24    23TD0701             Namachivayam S                 DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+25    23TD0702             Nandhakumar B                  DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+26    23TD0703             Nikilesh Yogan G               DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+27    23TD0704             Padhrinath G                   DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+28    23TD0706             Pavithra K                     DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+29    23TD0707             Prakashraj S                   DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+30    23TD0710             Rama S                         DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+31    23TD0712             Ranjith S                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+32    23TD0714             Roshekaa R                     DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+33    23TD0715             Sabreen S                      DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+34    23TD0719             Sathya J                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+35    23TD0722             Sharanshanth R                 DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+36    23TD0723             Sivaranjani K                  DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+37    23TD0726             Sriram I                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+38    23TD0728             Swetha R                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+39    23TD0729             Thulasimani V                  DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+40    23TD0733             Vithya Sakar S                 DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+41    23TD0736             Yuvasree P                     DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+42    23TDL015             Madhan R                       DOB, Gender, Blood Group, Father Name, Mother Name, Address, Community, Aadhar
+

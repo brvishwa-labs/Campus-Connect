@@ -108,7 +108,7 @@ export const DisciplineManagement = ({ role }) => {
       const [recordsRes, analyticsRes, studentsRes, deptsRes] = await Promise.all([
         axios.get('/api/discipline/'),
         axios.get('/api/discipline/analytics'),
-        axios.get('/api/students/?limit=1000'),
+        axios.get('/api/students/?limit=10000'),
         axios.get('/api/departments/')
       ]);
       

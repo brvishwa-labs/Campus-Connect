@@ -125,6 +125,10 @@ export default function OnboardingForm({ profile, onComplete }) {
         mother_name: profile.mother_name || '',
         mother_phone: profile.mother_phone || '',
         mother_occupation: profile.mother_occupation || '',
+        guardian_name: profile.guardian_name || '',
+        guardian_phone: profile.guardian_phone || '',
+        guardian_occupation: profile.guardian_occupation || '',
+        primary_contact: profile.primary_contact || 'father',
         annual_income: profile.annual_income || '',
         aadhar_number: profile.aadhar_number || '',
         accommodation: profile.accommodation || '',
@@ -294,6 +298,24 @@ export default function OnboardingForm({ profile, onComplete }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isStudent) {
+      if (!form.father_phone && !form.mother_phone && !form.guardian_phone) {
+        setError('At least one Parent/Guardian phone number is required.');
+        return;
+      }
+      if (form.primary_contact === 'father' && !form.father_phone) {
+        setError('Father is selected as primary contact, but Father Phone is empty.');
+        return;
+      }
+      if (form.primary_contact === 'mother' && !form.mother_phone) {
+        setError('Mother is selected as primary contact, but Mother Phone is empty.');
+        return;
+      }
+      if (form.primary_contact === 'guardian' && !form.guardian_phone) {
+        setError('Guardian is selected as primary contact, but Guardian Phone is empty.');
+        return;
+      }
+    }
     setSaving(true);
     setError(null);
     try {
@@ -368,12 +390,32 @@ export default function OnboardingForm({ profile, onComplete }) {
         {isStudent && (
           <>
             <Section title="Parent / Guardian Details" icon={Users}>
-              <Input form={form} onChange={handleChange} label="Father's Name" name="father_name" required />
-              <Input form={form} onChange={handleChange} label="Father's Phone" name="father_phone" type="tel" required />
+              <div className="col-span-full mb-2">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Primary Contact (WhatsApp)</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
+                    <input type="radio" name="primary_contact" value="father" checked={form.primary_contact === 'father'} onChange={handleChange} className="text-primary-600 focus:ring-primary-500" />
+                    Father
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
+                    <input type="radio" name="primary_contact" value="mother" checked={form.primary_contact === 'mother'} onChange={handleChange} className="text-primary-600 focus:ring-primary-500" />
+                    Mother
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
+                    <input type="radio" name="primary_contact" value="guardian" checked={form.primary_contact === 'guardian'} onChange={handleChange} className="text-primary-600 focus:ring-primary-500" />
+                    Guardian
+                  </label>
+                </div>
+              </div>
+              <Input form={form} onChange={handleChange} label="Father's Name" name="father_name" />
+              <Input form={form} onChange={handleChange} label="Father's Phone" name="father_phone" type="tel" />
               <Input form={form} onChange={handleChange} label="Father's Occupation" name="father_occupation" />
-              <Input form={form} onChange={handleChange} label="Mother's Name" name="mother_name" required />
-              <Input form={form} onChange={handleChange} label="Mother's Phone" name="mother_phone" type="tel" required />
+              <Input form={form} onChange={handleChange} label="Mother's Name" name="mother_name" />
+              <Input form={form} onChange={handleChange} label="Mother's Phone" name="mother_phone" type="tel" />
               <Input form={form} onChange={handleChange} label="Mother's Occupation" name="mother_occupation" />
+              <Input form={form} onChange={handleChange} label="Guardian's Name" name="guardian_name" />
+              <Input form={form} onChange={handleChange} label="Guardian's Phone" name="guardian_phone" type="tel" />
+              <Input form={form} onChange={handleChange} label="Guardian's Occupation" name="guardian_occupation" />
               <Input form={form} onChange={handleChange} label="Annual Income (₹)" name="annual_income" type="number" />
             </Section>
 

@@ -319,6 +319,22 @@ export const LeaveApply = () => {
     }
   };
 
+  // Returns today's date string 'YYYY-MM-DD', used for min-date constraints
+  const getTodayStr = () => new Date().toISOString().split('T')[0];
+
+  // Returns the minimum selectable date for the From Date field.
+  // Before 9:00 AM → today is allowed.
+  // At/after 9:00 AM → today is blocked; minimum is tomorrow.
+  const getMinFromDate = () => {
+    const now = new Date();
+    if (now.getHours() >= 9) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return tomorrow.toISOString().split('T')[0];
+    }
+    return getTodayStr();
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
 
@@ -330,6 +346,19 @@ export const LeaveApply = () => {
         setShowRestrictedLimitModal(true);
         // Don't actually change the leave type — user must dismiss
         return;
+      }
+    }
+
+    // 9 AM same-day cutoff — block selecting today after 9:00 AM
+    if (name === 'from_date' && value) {
+      const now = new Date();
+      const todayStr = getTodayStr();
+      if (value === todayStr && now.getHours() >= 9) {
+        setError(
+          'Leave for today can only be applied before 9:00 AM. ' +
+          'Attendance has already been evaluated. Please select a future date.'
+        );
+        return; // Do not update formData with today's date
       }
     }
 
@@ -449,6 +478,20 @@ const addArrangementRow = () => {
     if (formData.from_date && formData.to_date) {
       if (new Date(formData.from_date) > new Date(formData.to_date)) {
         setError('To Date cannot be earlier than From Date.');
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
+    // 9 AM same-day cutoff — final guard before submission
+    if (formData.from_date) {
+      const now = new Date();
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (formData.from_date === todayStr && now.getHours() >= 9) {
+        setError(
+          'Leave for today can only be applied before 9:00 AM. ' +
+          'Attendance has already been evaluated. Please select a future date.'
+        );
         setIsSubmitting(false);
         return;
       }
@@ -682,6 +725,7 @@ const addArrangementRow = () => {
                       type="date" 
                       name="from_date"
                       value={formData.from_date}
+                      min={getMinFromDate()}
                       onChange={(e) => {
                         const val = e.target.value;
                         setFormData(prev => {
@@ -701,6 +745,7 @@ const addArrangementRow = () => {
                         type="date" 
                         name="from_date"
                         value={formData.from_date}
+                        min={getMinFromDate()}
                         max={formData.to_date}
                         onChange={handleInputChange}
                         className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
@@ -713,7 +758,7 @@ const addArrangementRow = () => {
                         type="date" 
                         name="to_date"
                         value={formData.to_date}
-                        min={formData.from_date}
+                        min={formData.from_date || getMinFromDate()}
                         onChange={handleInputChange}
                         className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                         required

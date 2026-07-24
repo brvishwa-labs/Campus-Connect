@@ -10,6 +10,7 @@ class CourseTypeEnum(str, Enum):
     open_elective = "open_elective"
     project = "project"
     seminar = "seminar"
+    global_type = "global"
 
 class CourseBase(BaseModel):
     department_id: int

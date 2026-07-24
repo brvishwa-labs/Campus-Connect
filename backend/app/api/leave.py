@@ -579,7 +579,24 @@ def create_leave_request(
         raise HTTPException(status_code=403, detail="Only faculty can request leave")
         
     faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
-    
+
+    # ── 9 AM same-day cutoff ──────────────────────────────────────────────────
+    # Faculty may apply leave for today ONLY before 9:00 AM.
+    # After 9:00 AM the attendance evaluation has already run, so same-day
+    # leave applications are no longer accepted.
+    _now = datetime.datetime.now()
+    _today = datetime.date.today()
+    if request.from_date == _today and _now.hour >= 9:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Leave for today can only be applied before 9:00 AM. "
+                "Attendance has already been evaluated for today. "
+                "Please apply for a future date."
+            )
+        )
+    # ─────────────────────────────────────────────────────────────────────────
+
     duration = (request.to_date - request.from_date).days + 1
     if duration <= 0:
         raise HTTPException(status_code=400, detail="Invalid date range")
@@ -818,6 +835,23 @@ def update_leave_request(
     if leave_req.status != LeaveStatus.PENDING_SUBSTITUTE:
         raise HTTPException(status_code=400, detail="Cannot modify request after substitute approval has started")
         
+    # ── 9 AM same-day cutoff (edit path) ─────────────────────────────────────
+    # If the edited request includes today as the from_date, enforce the same
+    # cutoff that applies to new requests.
+    import datetime as _dt
+    _now_upd = _dt.datetime.now()
+    _today_upd = _dt.date.today()
+    if request.from_date == _today_upd and _now_upd.hour >= 9:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Leave for today can only be applied before 9:00 AM. "
+                "Attendance has already been evaluated for today. "
+                "Please apply for a future date."
+            )
+        )
+    # ─────────────────────────────────────────────────────────────────────────
+
     duration = (request.to_date - request.from_date).days + 1
     if duration <= 0:
         raise HTTPException(status_code=400, detail="Invalid date range")

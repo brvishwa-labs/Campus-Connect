@@ -328,7 +328,11 @@ export const Mentorship = () => {
                         <span className="text-xs text-gray-500 font-semibold">Dept: {selected.department ?? '—'}</span>
                         <span className="text-xs text-gray-500 font-semibold">Sem: {selected.current_semester ?? '—'}</span>
                         <span className="text-xs text-gray-500 font-semibold">Roll: {selected.register_number}</span>
-                        <span className="text-xs text-gray-400 break-all">{selected.college_email}</span>
+                        {selected.college_email ? (
+                          <span className="text-xs text-gray-400 break-all">{selected.college_email}</span>
+                        ) : (
+                          <span className="text-xs text-red-500 font-bold bg-red-50 px-1.5 py-0.5 rounded border border-red-100">⚠️ Missing College Email</span>
+                        )}
                       </div>
                     </div>
                     {selected.personal_details?.accommodation && (
@@ -551,127 +555,193 @@ export const Mentorship = () => {
                 )}
 
                 {/* ── SUB TAB: STUDENT PROFILE ── */}
-                {menteeTab === 'profile' && (
-                  <div className="space-y-4 animate-fade-in">
-                    {/* Personal Information */}
-                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-5">
-                      <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2 border-b border-gray-50 pb-2.5 mb-3">
-                        <User className="w-4 h-4 text-primary-500" />
-                        Personal Information
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-xs text-gray-700">
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Gender</span>
-                          <span className="font-semibold">{selected.personal_details?.gender ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Date of Birth</span>
-                          <span className="font-semibold">{selected.personal_details?.date_of_birth ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Blood Group</span>
-                          <span className="font-semibold text-red-600">{selected.personal_details?.blood_group ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Nationality</span>
-                          <span className="font-semibold">{selected.personal_details?.nationality ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Community</span>
-                          <span className="font-semibold">{selected.personal_details?.community ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Personal Phone</span>
-                          <span className="font-semibold">{selected.personal_details?.phone ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50 md:col-span-2">
-                          <span className="text-gray-400 font-medium">Personal Email</span>
-                          <span className="font-semibold">{selected.personal_details?.personal_email ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50 md:col-span-2">
-                          <span className="text-gray-400 font-medium">Residential Address</span>
-                          <span className="font-semibold text-right max-w-xs">{selected.personal_details?.address ?? '—'}</span>
-                        </div>
-                      </div>
-                    </div>
+                {menteeTab === 'profile' && (() => {
+                  const renderVal = (val, isEmail = false) => {
+                    if (val === null || val === undefined || String(val).trim() === '' || String(val).trim() === '-' || String(val).trim().toLowerCase() === 'none') {
+                      return (
+                        <span className="text-red-500 bg-red-50 border border-red-100 rounded px-2 py-0.5 text-[10.5px] font-bold inline-flex items-center gap-1 animate-pulse">
+                          ⚠️ Missing - Ask Student to Update
+                        </span>
+                      );
+                    }
+                    if (isEmail) {
+                      return <a href={`mailto:${val}`} className="hover:underline text-primary-600 font-semibold">{val}</a>;
+                    }
+                    return val;
+                  };
 
-                    {/* Parents & Guardian Details */}
-                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-5">
-                      <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2 border-b border-gray-50 pb-2.5 mb-3">
-                        <Phone className="w-4 h-4 text-emerald-500" />
-                        Guardian Information
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-xs text-gray-700">
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Father's Name</span>
-                          <span className="font-semibold">{selected.personal_details?.father_name ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Father's Phone</span>
-                          <span className="font-semibold text-primary-600">{selected.personal_details?.father_phone ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Father's Occupation</span>
-                          <span className="font-semibold">{selected.personal_details?.father_occupation ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Mother's Name</span>
-                          <span className="font-semibold">{selected.personal_details?.mother_name ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Mother's Phone</span>
-                          <span className="font-semibold text-primary-600">{selected.personal_details?.mother_phone ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Mother's Occupation</span>
-                          <span className="font-semibold">{selected.personal_details?.mother_occupation ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50 md:col-span-2">
-                          <span className="text-gray-400 font-medium">Guardian Annual Income</span>
-                          <span className="font-semibold text-emerald-600">
-                            {selected.personal_details?.annual_income ? `₹${selected.personal_details.annual_income.toLocaleString('en-IN')}` : '—'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                  const renderPhone = (val) => {
+                    if (val === null || val === undefined || String(val).trim() === '' || String(val).trim() === '-' || String(val).trim().toLowerCase() === 'none') {
+                      return (
+                        <span className="text-red-500 bg-red-50 border border-red-100 rounded px-2 py-0.5 text-[10.5px] font-bold inline-flex items-center gap-1 animate-pulse">
+                          ⚠️ Missing - Ask Student to Update
+                        </span>
+                      );
+                    }
+                    return <a href={`tel:${val}`} className="hover:underline text-primary-600 font-semibold">{val}</a>;
+                  };
 
-                    {/* Schooling & Admission Details */}
-                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-5">
-                      <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2 border-b border-gray-50 pb-2.5 mb-3">
-                        <GraduationCap className="w-4 h-4 text-purple-500" />
-                        Academic & Schooling History
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-xs text-gray-700">
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">10th School / Board</span>
-                          <span className="font-semibold text-right max-w-xs">{selected.personal_details?.tenth_school ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">10th Score Percentage</span>
-                          <span className="font-bold text-indigo-600">{selected.personal_details?.tenth_percentage ? `${selected.personal_details.tenth_percentage}%` : '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">12th School / Board</span>
-                          <span className="font-semibold text-right max-w-xs">{selected.personal_details?.twelfth_school ?? '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">12th Score Percentage</span>
-                          <span className="font-bold text-indigo-600">{selected.personal_details?.twelfth_percentage ? `${selected.personal_details.twelfth_percentage}%` : '—'}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-gray-50/50">
-                          <span className="text-gray-400 font-medium">Transportation</span>
-                          <span className="font-semibold">{selected.personal_details?.transportation ?? '—'}</span>
-                        </div>
-                        {selected.personal_details?.transportation === 'BUS' && (
-                          <div className="flex justify-between py-1 border-b border-gray-50/50">
-                            <span className="text-gray-400 font-medium">Route Bus Number</span>
-                            <span className="font-semibold text-amber-600">{selected.personal_details?.bus_number ?? '—'}</span>
+                  const missingFields = [];
+                  if (!selected.college_email) missingFields.push("College Email");
+                  if (!selected.personal_details?.phone) missingFields.push("Personal Phone");
+                  if (!selected.personal_details?.personal_email) missingFields.push("Personal Email");
+                  if (!selected.personal_details?.father_name) missingFields.push("Father's Name");
+                  if (!selected.personal_details?.father_phone) missingFields.push("Father's Phone");
+                  if (!selected.personal_details?.mother_name) missingFields.push("Mother's Name");
+                  if (!selected.personal_details?.mother_phone) missingFields.push("Mother's Phone");
+                  if (!selected.personal_details?.address || selected.personal_details.address.trim() === '') missingFields.push("Residential Address");
+
+                  return (
+                    <div className="space-y-4 animate-fade-in">
+                      {/* Profile Completeness Alert */}
+                      {missingFields.length > 0 && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+                          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5 animate-bounce" />
+                          <div>
+                            <p className="text-xs font-bold text-amber-800 uppercase tracking-wide">
+                              Incomplete Student Profile
+                            </p>
+                            <p className="text-[11px] text-amber-700 mt-1 leading-relaxed">
+                              This student has missing critical database records:
+                              <strong className="block mt-1 text-amber-900 font-bold">{missingFields.join(", ")}</strong>
+                              Please ask the student to complete their profile from their onboarding form.
+                            </p>
                           </div>
-                        )}
+                        </div>
+                      )}
+
+                      {/* Personal Information */}
+                      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-5">
+                        <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2 border-b border-gray-50 pb-2.5 mb-3">
+                          <User className="w-4 h-4 text-primary-500" />
+                          Personal Information
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-xs text-gray-700">
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Gender</span>
+                            <span className="font-semibold">{renderVal(selected.personal_details?.gender)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Date of Birth</span>
+                            <span className="font-semibold">{renderVal(selected.personal_details?.date_of_birth)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Blood Group</span>
+                            <span className="font-semibold text-red-600">{renderVal(selected.personal_details?.blood_group)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Nationality</span>
+                            <span className="font-semibold">{renderVal(selected.personal_details?.nationality)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Community</span>
+                            <span className="font-semibold">{renderVal(selected.personal_details?.community)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Personal Phone</span>
+                            <span className="font-semibold">{renderPhone(selected.personal_details?.phone)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50 md:col-span-2">
+                            <span className="text-gray-400 font-medium">Personal Email</span>
+                            <span className="font-semibold">{renderVal(selected.personal_details?.personal_email, true)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50 md:col-span-2">
+                            <span className="text-gray-400 font-medium">Residential Address</span>
+                            <span className="font-semibold text-right max-w-xs">{renderVal(selected.personal_details?.address)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Parents & Guardian Details */}
+                      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-5">
+                        <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2 border-b border-gray-50 pb-2.5 mb-3">
+                          <Phone className="w-4 h-4 text-emerald-500" />
+                          Guardian Information
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-xs text-gray-700">
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Father's Name</span>
+                            <span className="font-semibold">{renderVal(selected.personal_details?.father_name)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Father's Phone</span>
+                            <span className="font-semibold text-primary-600">{renderPhone(selected.personal_details?.father_phone)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Father's Occupation</span>
+                            <span className="font-semibold">{renderVal(selected.personal_details?.father_occupation)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Mother's Name</span>
+                            <span className="font-semibold">{renderVal(selected.personal_details?.mother_name)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Mother's Phone</span>
+                            <span className="font-semibold text-primary-600">{renderPhone(selected.personal_details?.mother_phone)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Mother's Occupation</span>
+                            <span className="font-semibold">{renderVal(selected.personal_details?.mother_occupation)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Guardian's Name</span>
+                            <span className="font-semibold">{renderVal(selected.personal_details?.guardian_name)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Guardian's Phone</span>
+                            <span className="font-semibold text-primary-600">{renderPhone(selected.personal_details?.guardian_phone)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50 md:col-span-2">
+                            <span className="text-gray-400 font-medium">Primary Contact</span>
+                            <span className="font-semibold capitalize text-amber-600">{renderVal(selected.personal_details?.primary_contact)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50 md:col-span-2">
+                            <span className="text-gray-400 font-medium">Guardian Annual Income</span>
+                            <span className="font-semibold text-emerald-600">
+                              {selected.personal_details?.annual_income ? `₹${selected.personal_details.annual_income.toLocaleString('en-IN')}` : '—'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Schooling & Admission Details */}
+                      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-5">
+                        <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2 border-b border-gray-50 pb-2.5 mb-3">
+                          <GraduationCap className="w-4 h-4 text-purple-500" />
+                          Academic & Schooling History
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-xs text-gray-700">
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">10th School / Board</span>
+                            <span className="font-semibold text-right max-w-xs">{renderVal(selected.personal_details?.tenth_school)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">10th Score Percentage</span>
+                            <span className="font-bold text-indigo-600">{selected.personal_details?.tenth_percentage ? `${selected.personal_details.tenth_percentage}%` : '—'}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">12th School / Board</span>
+                            <span className="font-semibold text-right max-w-xs">{renderVal(selected.personal_details?.twelfth_school)}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">12th Score Percentage</span>
+                            <span className="font-bold text-indigo-600">{selected.personal_details?.twelfth_percentage ? `${selected.personal_details.twelfth_percentage}%` : '—'}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-gray-50/50">
+                            <span className="text-gray-400 font-medium">Transportation</span>
+                            <span className="font-semibold">{renderVal(selected.personal_details?.transportation)}</span>
+                          </div>
+                          {selected.personal_details?.transportation === 'BUS' && (
+                            <div className="flex justify-between py-1 border-b border-gray-50/50">
+                              <span className="text-gray-400 font-medium">Route Bus Number</span>
+                              <span className="font-semibold text-amber-600">{renderVal(selected.personal_details?.bus_number)}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* ── SUB TAB: ATTENDANCE LOG ── */}
                 {menteeTab === 'attendance' && (

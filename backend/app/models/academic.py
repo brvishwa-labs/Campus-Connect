@@ -45,6 +45,7 @@ class CourseType(str, enum.Enum):
     OPEN_ELECTIVE = "open_elective"
     PROJECT = "project"
     SEMINAR = "seminar"
+    GLOBAL = "global"
 
 class Course(Base):
     __tablename__ = "courses"

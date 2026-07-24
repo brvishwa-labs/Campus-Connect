@@ -112,6 +112,8 @@ class StudentLeaveRequest(Base):
 
     id            = Column(Integer, primary_key=True, index=True)
     student_id    = Column(Integer, ForeignKey("students.id"), nullable=False)
+    leave_type    = Column(String(20), default="Regular", nullable=False)  # "Regular" or "OD"
+    document_link = Column(String(1000), nullable=True)  # Google Drive link for OD proof
     from_date     = Column(Date, nullable=False)
     to_date       = Column(Date, nullable=False)
     duration_days = Column(Integer, nullable=False)

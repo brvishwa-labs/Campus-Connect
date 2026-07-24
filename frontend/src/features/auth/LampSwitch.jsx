@@ -51,7 +51,15 @@ const LampSwitch = ({ isOn, onToggle, isDarkMode }) => {
           SVCET
         </h1>
 
-        {/* Text removed as per user request */}
+        <p
+          className="mt-4 text-sm font-bold tracking-widest uppercase animate-in fade-in slide-in-from-bottom-4 duration-1000 fill-mode-both delay-500"
+          style={{
+            color: isDarkMode ? 'rgba(147,197,253,0.85)' : '#283891',
+            letterSpacing: '0.25em',
+          }}
+        >
+          Click to login
+        </p>
       </div>
     </div>
   );

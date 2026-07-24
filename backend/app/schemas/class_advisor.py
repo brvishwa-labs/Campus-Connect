@@ -80,8 +80,9 @@ class AttendanceStudentRow(BaseModel):
     register_number: str
     first_name: str
     last_name: str
-    status: Optional[str] = None      # "present" | "absent" | None (not marked yet)
+    status: Optional[str] = None      # "present" | "absent" | "on_duty" | None (not marked yet)
     on_leave: Optional[bool] = False
+    on_od: Optional[bool] = False     # True if student has an approved OD leave today
 
     model_config = ConfigDict(from_attributes=True)
 

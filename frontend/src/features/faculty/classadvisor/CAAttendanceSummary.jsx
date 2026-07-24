@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { BarChart2, AlertTriangle, Users, ChevronLeft, ChevronRight, Calendar as CalendarIcon, CheckCircle, XCircle, Clock, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { BarChart2, AlertTriangle, Users, ChevronLeft, ChevronRight, Calendar as CalendarIcon, CheckCircle, XCircle, Clock, Download, FileText, FileSpreadsheet, Search, Percent, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -9,10 +9,8 @@ export const CAAttendanceSummary = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // Calendar State
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all'); // 'all' | 'critical' | 'healthy'
 
   // Report State
   const [showReportModal, setShowReportModal] = useState(false);
@@ -22,40 +20,30 @@ export const CAAttendanceSummary = () => {
   const [generatingReport, setGeneratingReport] = useState(false);
 
   const openReportModal = () => {
-    const tzDate = new Date(selectedDate.getTime() - (selectedDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    const today = new Date();
+    const tzDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
     setReportStartDate(tzDate);
     setReportEndDate(tzDate);
     setShowReportModal(true);
   };
 
-  useEffect(() => {
+  const fetchSummary = () => {
     setLoading(true);
-    // Format date properly accounting for timezone offset
-    const tzOffsetDate = new Date(selectedDate.getTime() - (selectedDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-    
-    axios.get(`/api/class-advisor/attendance?date=${tzOffsetDate}`)
-      .then(r => setData(r.data))
-      .catch(() => setError('Failed to load attendance records'))
+    axios.get('/api/class-advisor/attendance-summary')
+      .then(r => {
+        setData(r.data);
+        setError(null);
+      })
+      .catch(err => {
+        setError(err.response?.data?.detail || 'Failed to load attendance summary');
+      })
       .finally(() => setLoading(false));
-  }, [selectedDate]);
-
-  // Calendar Logic
-  const year = currentMonth.getFullYear();
-  const month = currentMonth.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = new Date(year, month, 1).getDay();
-
-  const handlePrevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
-  const handleNextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
-
-  const isToday = (day) => {
-    const today = new Date();
-    return today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
   };
 
-  const isSelected = (day) => {
-    return selectedDate.getDate() === day && selectedDate.getMonth() === month && selectedDate.getFullYear() === year;
-  };
+  useEffect(() => {
+    fetchSummary();
+  }, []);
+
 
   // Report Generation
   const handleGenerateReport = async () => {
@@ -229,10 +217,23 @@ export const CAAttendanceSummary = () => {
   };
 
   // Stats
-  const presentCount = data.filter(s => s.status === 'present').length;
-  const absentCount = data.filter(s => s.status === 'absent').length;
-  const unmarkedCount = data.filter(s => !s.status).length;
-  const formattedSelectedDate = selectedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const totalStudents = data.length;
+  const avgAttendance = totalStudents > 0 
+    ? (data.reduce((sum, s) => sum + s.percentage, 0) / totalStudents).toFixed(1) 
+    : '0.0';
+  const criticalCount = data.filter(s => s.percentage < 75).length;
+  const healthyCount = data.filter(s => s.percentage >= 75).length;
+
+  const filteredData = data.filter(s => {
+    const name = `${s.first_name} ${s.last_name}`.toLowerCase();
+    const reg = s.register_number.toLowerCase();
+    const matchesSearch = name.includes(searchTerm.toLowerCase()) || reg.includes(searchTerm.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    if (filterType === 'critical') return s.percentage < 75;
+    if (filterType === 'healthy') return s.percentage >= 75;
+    return true;
+  });
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -316,208 +317,178 @@ export const CAAttendanceSummary = () => {
       <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-2 mb-1">
-            <CalendarIcon className="w-6 h-6 text-indigo-600" /> Daily Attendance Records
+            <BarChart2 className="w-6 h-6 text-indigo-600" /> Attendance Summary Dashboard
           </h1>
-          <p className="text-sm text-gray-500">Select a date to view attendance records for your class.</p>
+          <p className="text-sm text-gray-500">Overview of student attendance percentages and class statistics.</p>
         </div>
         
         <button 
           onClick={openReportModal}
           className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm shadow-indigo-600/20 w-fit"
         >
-          <Download className="w-4 h-4" /> Generate Report
+          <Download className="w-4 h-4" /> Generate Date Range Report
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-start">
-        
-        {/* Left Column: Summary & Calendar */}
-        <div className="lg:col-span-1 space-y-6 lg:sticky lg:top-6 lg:z-10">
-          
-          {/* Calendar UI */}
-          <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 relative">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                {currentMonth.toLocaleString('default', { month: 'long' })} {year}
-              </h2>
-              <div className="flex gap-2">
-                <button onClick={handlePrevMonth} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors">
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <button onClick={handleNextMonth} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors">
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-7 gap-1 text-center mb-2">
-              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                <div key={day} className="text-xs font-bold text-gray-400 py-2">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 gap-1 text-center">
-              {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-                <div key={`empty-${i}`} className="p-2"></div>
-              ))}
-              
-              {Array.from({ length: daysInMonth }).map((_, i) => {
-                const day = i + 1;
-                const today = isToday(day);
-                const selected = isSelected(day);
-
-                return (
-                  <button
-                    key={day}
-                    onClick={() => setSelectedDate(new Date(year, month, day))}
-                    className={`
-                      w-10 h-10 mx-auto rounded-full flex items-center justify-center text-sm font-semibold transition-all relative
-                      ${selected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:shadow-none' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}
-                      ${today && !selected ? 'ring-2 ring-indigo-200 dark:ring-indigo-700 text-indigo-700 dark:text-indigo-400 font-bold' : ''}
-                    `}
-                  >
-                    {day}
-                    {selected && (
-                      <span className="absolute bottom-1.5 w-1 h-1 bg-white rounded-full"></span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl">
+            <Users className="w-6 h-6" />
           </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Day Overview</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Stats for {selectedDate.toLocaleDateString()}</p>
-            
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700">
-                <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">Total Enrolled</span>
-                <span className="text-sm font-bold text-gray-900 dark:text-white">{data.length}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/30">
-                <span className="text-sm font-semibold text-green-700 dark:text-green-400">Present</span>
-                <span className="text-sm font-bold text-green-700 dark:text-green-400">{presentCount}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/30">
-                <span className="text-sm font-semibold text-red-700 dark:text-red-400">Absent</span>
-                <span className="text-sm font-bold text-red-700 dark:text-red-400">{absentCount}</span>
-              </div>
-              {unmarkedCount > 0 && (
-                <div className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                  <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">Not Marked</span>
-                  <span className="text-sm font-bold text-gray-500 dark:text-gray-400">{unmarkedCount}</span>
-                </div>
-              )}
-            </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Enrolled</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{totalStudents}</p>
+          </div>
+        </div>
+        
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl">
+            <Percent className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Avg Attendance</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{avgAttendance}%</p>
           </div>
         </div>
 
-        {/* Right Column: Student Records (Scrollable) */}
-        <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col lg:max-h-[calc(100vh-140px)]">
-            
-            {/* Records Header */}
-            <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row justify-between sm:items-center gap-4 flex-shrink-0">
-              <div>
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
-                  Student Records
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{formattedSelectedDate}</p>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                 <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-900 rounded-lg text-sm font-bold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
-                   {data.length} Students
-                 </div>
-              </div>
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl animate-pulse">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Critical (<span className="text-red-500 font-bold">75%</span>)</p>
+            <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-0.5">{criticalCount}</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-xl">
+            <CheckCircle2 className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Healthy (≥ 75%)</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-0.5">{healthyCount}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Student Table Area */}
+      <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
+        {/* Toolbar */}
+        <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex flex-col md:flex-row justify-between items-center gap-4">
+          {/* Quick Filter Tabs */}
+          <div className="flex gap-1.5 bg-gray-100 dark:bg-gray-900/50 p-1 rounded-xl w-full md:w-auto">
+            {[
+              { id: 'all', label: 'All Students', count: totalStudents },
+              { id: 'critical', label: 'Critical (<75%)', count: criticalCount, color: 'text-red-600 dark:text-red-400' },
+              { id: 'healthy', label: 'Healthy (≥75%)', count: healthyCount, color: 'text-green-600 dark:text-green-400' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setFilterType(tab.id)}
+                className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  filterType === tab.id
+                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                <span className={tab.color}>{tab.label}</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                  filterType === tab.id
+                    ? 'bg-gray-100 dark:bg-gray-900 text-gray-750 dark:text-gray-250'
+                    : 'bg-gray-200/60 dark:bg-gray-800 text-gray-500'
+                }`}>{tab.count}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Search bar */}
+          <div className="relative w-full md:w-80">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Search student name or register..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Table/List content */}
+        <div className="p-4 sm:p-6 overflow-x-auto">
+          {loading ? (
+            <div className="py-24 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+              <p className="mt-4 text-sm text-gray-500 font-medium">Loading summary...</p>
             </div>
+          ) : error ? (
+            <div className="py-24 text-center text-red-500 font-medium">{error}</div>
+          ) : filteredData.length === 0 ? (
+            <div className="py-24 text-center text-gray-500 font-medium">No students match this filter.</div>
+          ) : (
+            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+              {filteredData.map((s, idx) => {
+                const isCritical = s.percentage < 75;
+                return (
+                  <div key={s.student_id} className={`flex flex-col sm:flex-row sm:items-center justify-between py-4 gap-4 ${
+                    isCritical ? 'bg-red-50/20 dark:bg-red-900/5 px-2 rounded-xl' : ''
+                  }`}>
+                    {/* Student Identity */}
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className="text-xs font-bold text-gray-400 w-6 shrink-0 text-center">{idx + 1}</div>
+                      <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center font-extrabold text-sm ${
+                        isCritical 
+                          ? 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900' 
+                          : 'bg-indigo-50 text-indigo-700 border border-indigo-100 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-900'
+                      }`}>
+                        {s.first_name.charAt(0)}{s.last_name.charAt(0)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate flex items-center gap-2">
+                          {s.first_name} {s.last_name}
+                          {isCritical && (
+                            <span className="px-2 py-0.5 bg-red-100 text-red-800 text-[9px] rounded font-bold uppercase tracking-wider border border-red-250 animate-pulse shrink-0">
+                              Critical Alert
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-[11px] font-mono text-gray-400 mt-0.5">{s.register_number}</p>
+                      </div>
+                    </div>
 
-            {/* Scrollable Records List */}
-            <div className="p-4 sm:p-6 flex-1 overflow-y-auto custom-scrollbar">
-              {loading ? (
-                <div className="py-24 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-                  <p className="mt-4 text-sm text-gray-500 font-medium">Loading records...</p>
-                </div>
-              ) : error ? (
-                <div className="py-24 text-center">
-                  <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-100 dark:border-red-900/30">
-                    <AlertTriangle className="w-8 h-8 text-red-500" />
-                  </div>
-                  <p className="text-red-500 font-medium">{error}</p>
-                </div>
-              ) : data.length === 0 ? (
-                <div className="py-24 text-center">
-                  <div className="w-16 h-16 bg-gray-50 dark:bg-gray-700/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-100 dark:border-gray-700">
-                    <Users className="w-8 h-8 text-gray-300 dark:text-gray-500" />
-                  </div>
-                  <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-                    No Students Found
-                  </h4>
-                  <p className="text-sm font-medium text-gray-500">
-                    No students are assigned to this class.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {data.map(s => {
-                    const isPresent = s.status === 'present';
-                    const isAbsent = s.status === 'absent';
-                    const isUnmarked = !s.status;
-
-                    return (
-                      <div key={s.student_id} className={`bg-white dark:bg-gray-800 rounded-2xl border ${
-                        isPresent ? 'border-green-200 dark:border-green-900/50' : 
-                        isAbsent ? 'border-red-200 dark:border-red-900/50' : 
-                        'border-gray-200 dark:border-gray-700'
-                      } overflow-hidden shadow-sm hover:shadow-md transition-shadow`}>
-                        <div className="w-full p-3 sm:px-5 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-left">
-                          
-                          {/* Student Info */}
-                          <div className="flex items-center gap-4 w-full sm:w-auto shrink-0">
-                            <div className={`w-12 h-12 shrink-0 rounded-xl flex items-center justify-center font-bold text-lg ${
-                              isPresent ? 'bg-green-50 dark:bg-green-900/30 text-green-700 border border-green-100 dark:border-green-800' : 
-                              isAbsent ? 'bg-red-50 dark:bg-red-900/30 text-red-600 border border-red-100 dark:border-red-800' : 
-                              'bg-gray-50 dark:bg-gray-700/50 text-gray-500 border border-gray-200 dark:border-gray-600'
-                            }`}>
-                              {s.first_name.charAt(0)}{s.last_name.charAt(0)}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-[15px] font-bold text-gray-900 dark:text-white truncate">{s.first_name} {s.last_name}</span>
-                              <span className="text-xs font-mono text-gray-500">{s.register_number}</span>
-                            </div>
-                          </div>
-
-                          {/* Status Pill */}
-                          <div className="flex items-center shrink-0 mt-2 sm:mt-0">
-                            {isPresent && (
-                              <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm font-bold rounded-xl border border-green-100 dark:border-green-800">
-                                <CheckCircle className="w-4 h-4" /> Present
-                              </span>
-                            )}
-                            {isAbsent && (
-                              <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm font-bold rounded-xl border border-red-100 dark:border-red-800">
-                                <XCircle className="w-4 h-4" /> Absent
-                              </span>
-                            )}
-                            {isUnmarked && (
-                              <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-sm font-bold rounded-xl border border-gray-200 dark:border-gray-700">
-                                <Clock className="w-4 h-4" /> Not Marked
-                              </span>
-                            )}
-                          </div>
-
+                    {/* Progress Bar & Class counts */}
+                    <div className="flex items-center gap-6 flex-1 max-w-md w-full">
+                      <div className="flex-1">
+                        <div className="flex justify-between text-[10px] font-medium text-gray-400 mb-1">
+                          <span>Classes Attended</span>
+                          <span className="font-bold text-gray-700 dark:text-gray-300">{s.present_days} / {s.total_days} hours</span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              isCritical ? 'bg-red-500' : s.percentage >= 85 ? 'bg-green-500' : 'bg-indigo-500'
+                            }`}
+                            style={{ width: `${s.percentage}%` }}
+                          />
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+
+                      {/* Percentage display */}
+                      <div className="w-20 text-right shrink-0">
+                        <span className={`text-base font-extrabold ${
+                          isCritical ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
+                        }`}>
+                          {s.percentage}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
