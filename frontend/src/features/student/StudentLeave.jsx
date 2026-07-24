@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   CalendarDays, Plus, Loader2, AlertCircle, CheckCircle2,
-  XCircle, Clock, ChevronRight, Trash2, X, FileText, ClipboardCheck,
+  XCircle, Clock, ChevronRight, Trash2, X, FileText, ClipboardCheck, Link,
 } from 'lucide-react';
 import StudentLeaveService from './StudentLeaveService';
 
@@ -86,6 +86,11 @@ const LeaveCard = ({ leave, onWithdraw }) => {
       <div className="p-4">
         {/* Status badge + reason */}
         <div className="flex items-start gap-2 mb-2">
+          {leave.leave_type === 'OD' && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200 shrink-0">
+              OD
+            </span>
+          )}
           <p className="flex-1 text-[13px] text-gray-700 font-medium leading-snug line-clamp-2 min-w-0">
             {leave.reason}
           </p>
@@ -138,8 +143,8 @@ const LeaveCard = ({ leave, onWithdraw }) => {
 // APPLY MODAL  — full-screen sheet on mobile
 // ─────────────────────────────────────────────────────────
 
-const ApplyModal = ({ onClose, onSuccess }) => {
-  const [form, setForm] = useState({ from_date: '', to_date: '', reason: '' });
+const ApplyModal = ({ onClose, onSuccess, defaultLeaveType = 'Regular' }) => {
+  const [form, setForm] = useState({ leave_type: defaultLeaveType, from_date: '', to_date: '', reason: '', document_link: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -151,6 +156,7 @@ const ApplyModal = ({ onClose, onSuccess }) => {
     e.preventDefault();
     setError('');
     if (form.to_date < form.from_date) { setError('End date must be on or after start date.'); return; }
+    if (form.leave_type === 'OD' && !form.document_link.trim()) { setError('Please provide a Google Drive link for your proof/documents.'); return; }
     setSubmitting(true);
     try {
       await StudentLeaveService.applyLeave(form);
@@ -174,14 +180,16 @@ const ApplyModal = ({ onClose, onSuccess }) => {
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 flex-shrink-0">
+        <div className={`flex items-center justify-between px-5 py-3 border-b flex-shrink-0 ${form.leave_type === 'OD' ? 'border-purple-100' : 'border-gray-100'}`}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-primary-50 flex items-center justify-center">
-              <FileText className="w-4 h-4 text-primary-600" />
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${form.leave_type === 'OD' ? 'bg-purple-50' : 'bg-primary-50'}`}>
+              <FileText className={`w-4 h-4 ${form.leave_type === 'OD' ? 'text-purple-600' : 'text-primary-600'}`} />
             </div>
             <div>
-              <h2 className="text-[15px] font-bold text-gray-900 leading-tight">Apply for Leave</h2>
-              <p className="text-[11px] text-gray-400">Fill in your leave details</p>
+              <h2 className="text-[15px] font-bold text-gray-900 leading-tight">
+                {form.leave_type === 'OD' ? 'Apply for On Duty (OD)' : 'Apply for Leave'}
+              </h2>
+              <p className="text-[11px] text-gray-400">Fill in your details below</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400">
@@ -191,6 +199,19 @@ const ApplyModal = ({ onClose, onSuccess }) => {
 
         {/* Scrollable body */}
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+
+          {/* Leave Type */}
+          <div className="mb-2">
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Leave Type</label>
+            <select 
+              value={form.leave_type}
+              onChange={e => setForm({ ...form, leave_type: e.target.value })}
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500/20 outline-none"
+            >
+              <option value="Regular">Regular Leave</option>
+              <option value="OD">On Duty (OD)</option>
+            </select>
+          </div>
 
           {/* Date row */}
           <div className="grid grid-cols-2 gap-3">
@@ -219,10 +240,31 @@ const ApplyModal = ({ onClose, onSuccess }) => {
           {/* Reason */}
           <div>
             <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Reason</label>
-            <textarea required rows={4} placeholder="Briefly explain the reason for your leave…"
+            <textarea required rows={3} placeholder="Briefly explain the reason for your leave…"
               value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-[13px] resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500" />
           </div>
+
+          {/* Drive Link — only for OD */}
+          {form.leave_type === 'OD' && (
+            <div>
+              <label className="block text-[10px] font-bold text-purple-600 uppercase tracking-wider mb-1">Proof / Document Link</label>
+              <div className="relative">
+                <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
+                <input
+                  type="url"
+                  required
+                  placeholder="Paste your Google Drive link here…"
+                  value={form.document_link}
+                  onChange={e => setForm({ ...form, document_link: e.target.value })}
+                  className="w-full pl-9 pr-3 py-2.5 border border-purple-200 bg-purple-50/40 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-purple-400/20 focus:border-purple-400 placeholder-purple-300"
+                />
+              </div>
+              <p className="text-[10px] text-purple-500 mt-1 leading-relaxed">
+                📎 Upload your proof (certificate / invitation letter / event brochure) to Google Drive and paste the shareable link above.
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
@@ -247,7 +289,9 @@ const ApplyModal = ({ onClose, onSuccess }) => {
               Cancel
             </button>
             <button type="submit" disabled={submitting}
-              className="flex-1 py-3 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl text-[13px] transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+              className={`flex-1 py-3 text-white font-bold rounded-xl text-[13px] transition-colors disabled:opacity-60 flex items-center justify-center gap-2 ${
+                form.leave_type === 'OD' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-primary-600 hover:bg-primary-700'
+              }`}>
               {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Submitting…</>
                           : <><ClipboardCheck className="w-4 h-4" />Submit</>}
             </button>
@@ -304,7 +348,14 @@ const LiveTracker = ({ leave }) => {
           </span>
         </div>
 
-        <p className="text-[14px] font-bold text-gray-900 mb-1 leading-snug">{leave.reason}</p>
+        <p className="text-[14px] font-bold text-gray-900 mb-1 leading-snug flex items-start gap-2">
+          {leave.leave_type === 'OD' && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200 shrink-0">
+              OD
+            </span>
+          )}
+          <span>{leave.reason}</span>
+        </p>
         <div className="flex items-center gap-1.5 text-[11px] text-gray-400 font-medium">
           <CalendarDays className="w-3.5 h-3.5" />
           <span>{fmtDate(leave.from_date)}</span>
@@ -348,6 +399,7 @@ export const StudentLeave = () => {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
   const [showApply, setShowApply]   = useState(false);
+  const [showApplyOD, setShowApplyOD] = useState(false);
   const [withdrawId, setWithdrawId] = useState(null);
 
   const fetchLeaves = async () => {
@@ -383,12 +435,18 @@ export const StudentLeave = () => {
           <h1 className="text-[22px] sm:text-[28px] font-bold text-gray-900 tracking-tight">Leave Requests</h1>
           <p className="text-[13px] text-gray-500 mt-0.5">Apply for leave and track approval status.</p>
         </div>
-        <button onClick={() => setShowApply(true)}
-          className="flex-shrink-0 inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold px-4 py-2.5 rounded-xl text-[13px] transition-colors shadow-sm">
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Apply for Leave</span>
-          <span className="sm:hidden">Apply</span>
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button onClick={() => setShowApply(true)}
+            className="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold px-4 py-2.5 rounded-xl text-[13px] transition-colors shadow-sm">
+            <Plus className="w-4 h-4" />
+            Apply for Leave
+          </button>
+          <button onClick={() => setShowApplyOD(true)}
+            className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2.5 rounded-xl text-[13px] transition-colors shadow-sm">
+            <Plus className="w-4 h-4" />
+            Apply for OD
+          </button>
+        </div>
       </div>
 
       {/* Loading */}
@@ -419,7 +477,8 @@ export const StudentLeave = () => {
         )
       )}
 
-      {showApply && <ApplyModal onClose={() => setShowApply(false)} onSuccess={fetchLeaves} />}
+      {showApply && <ApplyModal onClose={() => setShowApply(false)} onSuccess={fetchLeaves} defaultLeaveType="Regular" />}
+      {showApplyOD && <ApplyModal onClose={() => setShowApplyOD(false)} onSuccess={fetchLeaves} defaultLeaveType="OD" />}
       {withdrawId && <WithdrawModal onConfirm={handleWithdrawConfirm} onCancel={() => setWithdrawId(null)} />}
     </div>
   );

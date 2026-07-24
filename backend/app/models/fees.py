@@ -7,6 +7,7 @@ New tables (additive — existing tables unchanged):
   3. payments                 — individual payment records (manual or tally_upload)
   4. tally_ledger_mappings    — confirmed ledger_name → student_id mappings
   5. unmapped_ledger_entries  — Tally rows that could not be auto-matched
+  6. upload_batches           — persistent upload history (survives restarts)
 """
 
 from sqlalchemy import (
@@ -73,6 +74,8 @@ class StudentFeeAssignment(Base):
     """
     Assigns a FeeStructure to a specific student for a semester.
     Created manually via the admin portal or triggered after promotion.
+    fee_structure_id is nullable so opening balances can be set without
+    a FeeStructure row existing.
     """
     __tablename__ = "student_fee_assignments"
 
@@ -131,6 +134,7 @@ class TallyLedgerMapping(Base):
     Confirmed mapping from a Tally ledger name string to a student.
     Once confirmed, future uploads with the same ledger_name_raw will
     auto-match to this student without manual intervention.
+    confirmed_by=None means it was auto-matched by the system.
     """
     __tablename__ = "tally_ledger_mappings"
 
@@ -166,3 +170,26 @@ class UnmappedLedgerEntry(Base):
 
     # Relationships
     suggested_student = relationship("Student", foreign_keys=[suggested_student_id])
+
+
+class UploadBatch(Base):
+    """
+    Persists a summary of every Tally file upload so history survives server
+    restarts. One row per upload (daily payment or opening balance).
+    """
+    __tablename__ = "upload_batches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    upload_batch = Column(String(100), nullable=False, unique=True, index=True)
+    filename = Column(String(500), nullable=True)
+    upload_type = Column(String(50), nullable=False, default="daily_payment")  # daily_payment | opening_balance
+    rows_processed = Column(Integer, nullable=False, default=0)
+    auto_matched = Column(Integer, nullable=False, default=0)
+    newly_auto_matched_count = Column(Integer, nullable=False, default=0)
+    unmapped_count = Column(Integer, nullable=False, default=0)
+    skipped_duplicate = Column(Integer, nullable=False, default=0)
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    uploader = relationship("User", foreign_keys=[uploaded_by])

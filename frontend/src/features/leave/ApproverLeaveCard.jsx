@@ -2,7 +2,7 @@
  * Shared leave card used by Mentor, Class Advisor, and HOD approval pages.
  */
 import React, { useState } from 'react';
-import { CalendarDays, CheckCircle2, XCircle, AlertCircle, Loader2, ChevronRight } from 'lucide-react';
+import { CalendarDays, CheckCircle2, XCircle, AlertCircle, Loader2, ChevronRight, Link, ExternalLink } from 'lucide-react';
 
 export const STATUS_CFG = {
   pending_mentor:        { label: 'Pending Mentor',   color: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200',   bar: 'bg-amber-400'   },
@@ -30,7 +30,14 @@ export const ApproverLeaveCard = ({ req, actionStatus, onAction, acting }) => {
         {/* Student info + status badge */}
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-[14px] font-bold text-gray-900 leading-snug truncate">{req.student_name}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-[14px] font-bold text-gray-900 leading-snug truncate">{req.student_name}</p>
+              {req.leave_type === 'OD' && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200 shrink-0">
+                  OD
+                </span>
+              )}
+            </div>
             <p className="text-[11px] text-gray-400 font-medium">{req.register_number}</p>
           </div>
           <span className={`flex-shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
@@ -53,6 +60,25 @@ export const ApproverLeaveCard = ({ req, actionStatus, onAction, acting }) => {
         <p className="text-[12px] text-gray-600 bg-gray-50 rounded-xl px-3 py-2 leading-relaxed">
           {req.reason}
         </p>
+
+        {/* OD Document Link — shown to all approvers */}
+        {req.leave_type === 'OD' && req.document_link && (
+          <a
+            href={req.document_link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 bg-purple-50 border border-purple-200 hover:bg-purple-100 rounded-xl px-3 py-2.5 transition-colors group"
+          >
+            <div className="w-6 h-6 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+              <Link className="w-3.5 h-3.5 text-purple-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Proof / Document</p>
+              <p className="text-[11px] text-purple-700 font-semibold truncate group-hover:underline">{req.document_link}</p>
+            </div>
+            <ExternalLink className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+          </a>
+        )}
 
         {/* Prior approval trail */}
         {(req.mentor_actioned_at || req.class_advisor_actioned_at) && (

@@ -160,7 +160,7 @@ export const CADailyAttendance = () => {
   };
 
   const markAll = (status) => {
-    setStudents(prev => prev.map(s => ({ ...s, status })));
+    setStudents(prev => prev.map(s => s.on_od ? s : { ...s, status }));
     setSaved(false);
   };
 
@@ -184,13 +184,15 @@ export const CADailyAttendance = () => {
   const isToday = selectedDate === today;
   const canEdit = isToday && !attendanceLocked && !isHoliday;
 
-  const presentCount = students.filter(s => s.status === 'present').length;
-  const absentCount  = students.filter(s => s.status === 'absent').length;
-  const unmarked     = students.filter(s => !s.status).length;
+  const odCount       = students.filter(s => s.on_od).length;
+  const presentCount  = students.filter(s => s.status === 'present' || s.on_od).length;
+  const absentCount   = students.filter(s => s.status === 'absent').length;
+  const unmarked      = students.filter(s => !s.status && !s.on_od).length;
   const totalStudents = students.length;
 
   const handleWhatsAppShare = () => {
     const absentees = students.filter(s => s.status === 'absent');
+    const odStudents = students.filter(s => s.on_od);
     const parts = [
       '*Daily Attendance Report*',
       `Date: ${selectedDate.split('-').reverse().join('-')}`,
@@ -198,8 +200,17 @@ export const CADailyAttendance = () => {
       `Total Students: ${totalStudents}`,
       `Present: ${presentCount}`,
       `Absent: ${absentCount}`,
+      odStudents.length > 0 ? `On Duty (OD): ${odStudents.length}` : '',
       ''
-    ];
+    ].filter(line => line !== undefined);
+
+    if (odStudents.length > 0) {
+      parts.push('*On Duty (OD):*');
+      odStudents.forEach((s, idx) => {
+        parts.push(`${idx + 1}. ${s.first_name} ${s.last_name} (${s.register_number})`);
+      });
+      parts.push('');
+    }
 
     if (absentees.length > 0) {
       parts.push('*Absentees:*');
@@ -321,16 +332,24 @@ export const CADailyAttendance = () => {
         ) : (
           <div className="divide-y divide-gray-100">
             {students.map((s, idx) => {
-              const isPresent = s.status === 'present';
-              const isAbsent = s.status === 'absent';
+              const isPresent  = s.status === 'present';
+              const isAbsent   = s.status === 'absent';
+              const isOD       = s.on_od;
 
               return (
-                <div key={s.student_id} className="flex items-center px-3 sm:px-6 py-3 sm:py-4 hover:bg-gray-50 transition-colors">
+                <div key={s.student_id} className={`flex items-center px-3 sm:px-6 py-3 sm:py-4 transition-colors ${
+                  isOD ? 'bg-purple-50/60 hover:bg-purple-50' : 'hover:bg-gray-50'
+                }`}>
                   <div className="w-8 sm:w-12 text-xs sm:text-sm text-gray-400 font-medium">{idx + 1}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate flex items-center gap-2">
                       {s.first_name} {s.last_name}
-                      {s.on_leave && (
+                      {isOD && (
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] rounded font-bold border border-purple-200">
+                          OD
+                        </span>
+                      )}
+                      {s.on_leave && !isOD && (
                         <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] rounded-full font-bold uppercase tracking-wider">
                           Informed
                         </span>
@@ -338,15 +357,19 @@ export const CADailyAttendance = () => {
                     </p>
                     <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{s.register_number}</p>
                   </div>
-                  
-                  {canEdit ? (
+
+                  {isOD ? (
+                    <span className="px-4 py-1.5 bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-bold">
+                      On Duty ✓
+                    </span>
+                  ) : canEdit ? (
                     <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-1">
                       <button
                         onClick={() => setStatus(s.student_id, 'present')}
                         className={`px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
-                          isPresent 
-                            ? 'bg-green-600 text-white dark:text-gray-900 shadow-sm border border-transparent' 
-                            : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                          isPresent
+                            ? 'bg-green-600 text-white shadow-sm border border-transparent'
+                            : 'text-gray-500 hover:text-gray-700'
                         }`}
                       >
                         Present
@@ -354,9 +377,9 @@ export const CADailyAttendance = () => {
                       <button
                         onClick={() => setStatus(s.student_id, 'absent')}
                         className={`px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
-                          isAbsent 
-                            ? 'bg-red-600 text-white dark:text-gray-900 shadow-sm border border-transparent' 
-                            : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                          isAbsent
+                            ? 'bg-red-600 text-white shadow-sm border border-transparent'
+                            : 'text-gray-500 hover:text-gray-700'
                         }`}
                       >
                         Absent
@@ -364,8 +387,8 @@ export const CADailyAttendance = () => {
                     </div>
                   ) : (
                     <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                      isPresent ? 'bg-green-50 dark:bg-gray-100 text-green-700 dark:text-green-400 border-green-200 dark:border-gray-200' :
-                      isAbsent  ? 'bg-red-50 dark:bg-gray-100 text-red-700 dark:text-red-400 border-red-200 dark:border-gray-200' :
+                      isPresent ? 'bg-green-50 text-green-700 border-green-200' :
+                      isAbsent  ? 'bg-red-50 text-red-700 border-red-200' :
                       'bg-gray-50 text-gray-500 border-gray-200'
                     }`}>
                       {s.status ? (isPresent ? 'Present' : 'Absent') : 'Not Marked'}

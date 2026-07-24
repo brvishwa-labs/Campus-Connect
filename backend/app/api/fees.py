@@ -62,7 +62,7 @@ from app.models.student import Student
 from app.models.department import Department
 from app.models.fees import (
     FeeStructure, StudentFeeAssignment, Payment,
-    TallyLedgerMapping, UnmappedLedgerEntry,
+    TallyLedgerMapping, UnmappedLedgerEntry, UploadBatch,
     PaymentMode, PaymentSource, UnmappedStatus,
 )
 
@@ -397,9 +397,8 @@ def _smart_match_student(ledger_name: str, db: Session) -> tuple[Optional[int], 
 # UPLOAD & PARSING
 # ─────────────────────────────────────────────────────────────────────────────
 
-# In-memory upload history (per process lifetime).
-# For production use, persist to a DB table; for now this gives live results.
-_upload_history: List[dict] = []
+# Upload history is now persisted to the upload_batches DB table (see UploadBatch model).
+# This ensures history survives server restarts.
 
 
 @router.post("/upload")
@@ -524,16 +523,48 @@ async def upload_tally_file(
         "uploaded_at": upload_batch,
         "type": "daily_payment"
     }
-    _upload_history.insert(0, summary)
+    batch_record = UploadBatch(
+        upload_batch=upload_batch,
+        filename=file.filename,
+        upload_type="daily_payment",
+        rows_processed=rows_processed,
+        auto_matched=auto_matched,
+        newly_auto_matched_count=newly_auto_matched,
+        unmapped_count=unmapped_count,
+        skipped_duplicate=skipped_duplicate,
+        uploaded_by=current_user.id,
+    )
+    db.add(batch_record)
+    db.commit()
     return summary
 
 
 @router.get("/uploads/history")
 def get_upload_history(
     current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
 ):
-    """Return list of past uploads (in-process memory, resets on server restart)."""
-    return _upload_history
+    """Return list of past uploads from the database (persists across restarts)."""
+    batches = (
+        db.query(UploadBatch)
+        .order_by(UploadBatch.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return [
+        {
+            "rows_processed": b.rows_processed,
+            "auto_matched": b.auto_matched,
+            "newly_auto_matched_count": b.newly_auto_matched_count,
+            "unmapped_count": b.unmapped_count,
+            "skipped_duplicate": b.skipped_duplicate,
+            "upload_batch": b.upload_batch,
+            "filename": b.filename,
+            "uploaded_at": b.created_at.isoformat() if b.created_at else b.upload_batch,
+            "type": b.upload_type,
+        }
+        for b in batches
+    ]
 
 
 @router.post("/opening-balance-upload")
@@ -689,7 +720,19 @@ async def upload_opening_balance_file(
         "uploaded_at": upload_batch,
         "type": "opening_balance"
     }
-    _upload_history.insert(0, summary)
+    batch_record = UploadBatch(
+        upload_batch=upload_batch,
+        filename=file.filename,
+        upload_type="opening_balance",
+        rows_processed=rows_processed,
+        auto_matched=auto_matched,
+        newly_auto_matched_count=newly_auto_matched,
+        unmapped_count=unmapped_count,
+        skipped_duplicate=skipped_duplicate,
+        uploaded_by=current_user.id,
+    )
+    db.add(batch_record)
+    db.commit()
     return summary
 
 

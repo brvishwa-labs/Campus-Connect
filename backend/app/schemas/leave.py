@@ -175,6 +175,8 @@ class CompensationRegistryResponse(BaseModel):
 # ── Student Leave Schemas ──────────────────────────────────────────────────
 
 class StudentLeaveRequestCreate(BaseModel):
+    leave_type: str = "Regular"
+    document_link: Optional[str] = None
     from_date: date
     to_date: date
     reason: str
@@ -182,6 +184,8 @@ class StudentLeaveRequestCreate(BaseModel):
 class StudentLeaveRequestResponse(BaseModel):
     id: int
     student_id: int
+    leave_type: str
+    document_link: Optional[str] = None
     from_date: date
     to_date: date
     duration_days: int

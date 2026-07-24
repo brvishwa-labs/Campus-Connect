@@ -564,6 +564,8 @@ def _format_leave(req: StudentLeaveRequest) -> dict:
     return {
         "id":                        req.id,
         "student_id":                req.student_id,
+        "leave_type":                req.leave_type,
+        "document_link":             req.document_link,
         "from_date":                 req.from_date.isoformat(),
         "to_date":                   req.to_date.isoformat(),
         "duration_days":             req.duration_days,
@@ -646,6 +648,8 @@ def apply_leave(
 
     leave = StudentLeaveRequest(
         student_id=student.id,
+        leave_type=payload.leave_type,
+        document_link=payload.document_link,
         from_date=payload.from_date,
         to_date=payload.to_date,
         duration_days=duration,
@@ -963,6 +967,84 @@ def get_hod_leave_queue(
     return [_leave_with_student(r) for r in requests]
 
 
+def mark_od_attendance(leave, db: Session):
+    from datetime import timedelta
+    from app.core.holidays import is_holiday
+    from app.models.academic import CourseAssignment, CourseType, Enrollment
+    from app.models.lms import TimetableSlot
+    from app.models.attendance import Attendance, AttendanceStatus
+    from app.models.student import Student
+
+    PERIOD_MAP = {
+        "08:45": 1, "09:30": 2, "10:35": 3, "11:25": 4,
+        "13:00": 5, "13:50": 6, "14:50": 7, "15:40": 8
+    }
+    DAY_MAP = {0: "mon", 1: "tue", 2: "wed", 3: "thu", 4: "fri", 5: "sat", 6: "sun"}
+
+    student = db.query(Student).filter(Student.id == leave.student_id).first()
+    if not student:
+        return
+
+    # 1. Find all active course assignments for the student
+    active_assignments = db.query(CourseAssignment).filter(CourseAssignment.is_active == True).all()
+    enrollments = db.query(Enrollment).filter(Enrollment.student_id == student.id).all()
+    enrolled_section_ids = {e.section_id for e in enrollments if e.section_id}
+
+    my_assignments = []
+    for a in active_assignments:
+        is_in = False
+        if a.course and a.course.course_type in [CourseType.OPEN_ELECTIVE, CourseType.ELECTIVE]:
+            if a.section_id in enrolled_section_ids:
+                is_in = True
+        else:
+            if a.section_id == student.section_id or a.section_id in enrolled_section_ids:
+                is_in = True
+        if is_in:
+            my_assignments.append(a)
+
+    if not my_assignments:
+        return
+
+    assignment_course_map = {a.id: a.course_id for a in my_assignments}
+    slots = db.query(TimetableSlot).filter(TimetableSlot.course_assignment_id.in_(assignment_course_map.keys())).all()
+
+    slots_by_day = {day: [] for day in DAY_MAP.values()}
+    for s in slots:
+        day_str = s.day.value if hasattr(s.day, 'value') else s.day
+        slots_by_day[day_str].append(s)
+
+    current_date = leave.from_date
+    while current_date <= leave.to_date:
+        if not is_holiday(current_date, db):
+            day_str = DAY_MAP[current_date.weekday()]
+            for slot in slots_by_day[day_str]:
+                start_str = slot.start_time.strftime("%H:%M")
+                period_number = PERIOD_MAP.get(start_str)
+                if not period_number:
+                    continue
+                
+                course_id = assignment_course_map[slot.course_assignment_id]
+                
+                existing = db.query(Attendance).filter(
+                    Attendance.student_id == student.id,
+                    Attendance.course_id == course_id,
+                    Attendance.date == current_date,
+                    Attendance.hour == period_number
+                ).first()
+                
+                if existing:
+                    existing.status = AttendanceStatus.ON_DUTY
+                else:
+                    db.add(Attendance(
+                        student_id=student.id,
+                        course_id=course_id,
+                        date=current_date,
+                        hour=period_number,
+                        status=AttendanceStatus.ON_DUTY
+                    ))
+        current_date += timedelta(days=1)
+
+
 # ─────────────────────────────────────────────────────────
 # 16. HOD — Approve / Reject  →  APPROVED / REJECTED
 # ─────────────────────────────────────────────────────────
@@ -1003,6 +1085,8 @@ def hod_action(
 
     if action.lower() == "approve":
         leave.status = StudentLeaveStatus.APPROVED
+        if leave.leave_type == "OD":
+            mark_od_attendance(leave, db)
     elif action.lower() == "reject":
         leave.status = StudentLeaveStatus.REJECTED
         leave.rejection_reason = remarks or "Rejected by HOD"

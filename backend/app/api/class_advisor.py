@@ -492,7 +492,8 @@ def get_attendance_for_date(
             StudentLeaveRequest.from_date <= date,
             StudentLeaveRequest.to_date >= date
         ).all()
-        on_leave_set = {leave.student_id for leave in leaves}
+        on_leave_set = {leave.student_id for leave in leaves if leave.leave_type != 'OD'}
+        on_od_set    = {leave.student_id for leave in leaves if leave.leave_type == 'OD'}
 
     return [
         AttendanceStudentRow(
@@ -500,8 +501,9 @@ def get_attendance_for_date(
             register_number=s.register_number,
             first_name=s.first_name,
             last_name=s.last_name,
-            status=existing.get(s.id),
-            on_leave=(s.id in on_leave_set)
+            status=existing.get(s.id) or ('on_duty' if s.id in on_od_set else None),
+            on_leave=(s.id in on_leave_set),
+            on_od=(s.id in on_od_set)
         )
         for s in students
     ]
