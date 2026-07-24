@@ -626,6 +626,18 @@ export const Mentorship = () => {
                           <span className="text-gray-400 font-medium">Mother's Occupation</span>
                           <span className="font-semibold">{selected.personal_details?.mother_occupation ?? '—'}</span>
                         </div>
+                        <div className="flex justify-between py-1 border-b border-gray-50/50">
+                          <span className="text-gray-400 font-medium">Guardian's Name</span>
+                          <span className="font-semibold">{selected.personal_details?.guardian_name ?? '—'}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-gray-50/50">
+                          <span className="text-gray-400 font-medium">Guardian's Phone</span>
+                          <span className="font-semibold text-primary-600">{selected.personal_details?.guardian_phone ?? '—'}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-gray-50/50 md:col-span-2">
+                          <span className="text-gray-400 font-medium">Primary Contact</span>
+                          <span className="font-semibold capitalize text-amber-600">{selected.personal_details?.primary_contact ?? 'Father'}</span>
+                        </div>
                         <div className="flex justify-between py-1 border-b border-gray-50/50 md:col-span-2">
                           <span className="text-gray-400 font-medium">Guardian Annual Income</span>
                           <span className="font-semibold text-emerald-600">

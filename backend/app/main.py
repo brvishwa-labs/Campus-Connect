@@ -124,6 +124,9 @@ app.include_router(retest.router, prefix="/api/retest", tags=["Retest Marks"])
 from app.api import messaging
 app.include_router(messaging.router, prefix="/api/messaging", tags=["Messaging"])
 
+from app.api import fees
+app.include_router(fees.router, prefix="/api/fees", tags=["Fees & Accounts"])
+
 
 import asyncio
 from app.core.tasks import faculty_attendance_job
