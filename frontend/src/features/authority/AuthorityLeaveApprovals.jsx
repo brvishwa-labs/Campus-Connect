@@ -6,20 +6,21 @@ import {
 } from 'lucide-react';
 
 const STATUS_CFG = {
-  pending_substitute: { label: 'Awaiting Substitutes', color: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200'   },
-  pending_hod:        { label: 'Pending HOD',          color: 'text-violet-700',  bg: 'bg-violet-50',  border: 'border-violet-200'  },
-  pending_dean:       { label: 'Pending Dean',         color: 'text-blue-700',    bg: 'bg-blue-50',    border: 'border-blue-200'    },
-  pending_om:         { label: 'Pending OM',           color: 'text-orange-700',  bg: 'bg-orange-50',  border: 'border-orange-200'  },
-  pending_principal:  { label: 'Pending Principal',    color: 'text-pink-700',    bg: 'bg-pink-50',    border: 'border-pink-200'    },
-  approved:           { label: 'Approved',             color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-  rejected:           { label: 'Rejected',             color: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-200'     },
+  pending_substitute: { label: 'Awaiting Substitutes', color: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200', step: 0 },
+  pending_hod:        { label: 'Pending HOD',          color: 'text-violet-700',  bg: 'bg-violet-50',  border: 'border-violet-200', step: 1 },
+  pending_dean:       { label: 'Pending Dean',         color: 'text-blue-700',    bg: 'bg-blue-50',    border: 'border-blue-200', step: 2 },
+  pending_om:         { label: 'Pending OM',           color: 'text-orange-700',  bg: 'bg-orange-50',  border: 'border-orange-200', step: 3 },
+  pending_principal:  { label: 'Pending Principal',    color: 'text-pink-700',    bg: 'bg-pink-50',    border: 'border-pink-200', step: 4 },
+  approved:           { label: 'Approved',             color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', step: 5 },
+  rejected:           { label: 'Rejected',             color: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-200', step: -1 },
 };
 
 const fmt = (iso) =>
   iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 const StatusBadge = ({ status }) => {
-  const cfg = STATUS_CFG[status] || STATUS_CFG.pending_om;
+  const statusStr = (status || 'pending_om').toLowerCase();
+  const cfg = STATUS_CFG[statusStr] || STATUS_CFG.pending_om;
   return (
     <span className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
       {cfg.label}
@@ -30,8 +31,9 @@ const StatusBadge = ({ status }) => {
 const LeaveCard = ({ req, pendingStatus, onAction, acting }) => {
   const [expanded, setExpanded] = useState(false);
   const [reason, setReason] = useState('');
-  const canAct = req.status === pendingStatus;
-  const cfg = STATUS_CFG[req.status] || STATUS_CFG.pending_om;
+  const statusStr = (req.status || 'pending_om').toLowerCase();
+  const canAct = statusStr === pendingStatus.toLowerCase();
+  const cfg = STATUS_CFG[statusStr] || STATUS_CFG.pending_om;
 
   return (
     <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${cfg.border}`}>
@@ -115,14 +117,14 @@ const LeaveCard = ({ req, pendingStatus, onAction, acting }) => {
         )}
 
         {/* Action area */}
-        {canAct && (
-          <div className="space-y-2 pt-2 border-t border-gray-100">
+        {canAct ? (
+          <div className="space-y-2 pt-1 border-t border-gray-100">
             <input
               type="text"
-              placeholder="Remarks / reason for rejection (optional)"
+              placeholder="Remarks (optional)"
               value={reason}
               onChange={e => setReason(e.target.value)}
-              className="w-full px-3 py-2 text-[12px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400/30 focus:border-orange-400"
+              className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
             />
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -140,10 +142,16 @@ const LeaveCard = ({ req, pendingStatus, onAction, acting }) => {
                 disabled={acting === req.id}
                 className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-[13px] font-bold py-2.5 rounded-xl transition-all disabled:opacity-60"
               >
-                <XCircle className="w-4 h-4" />
+                {acting === req.id
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <XCircle className="w-4 h-4" />}
                 Reject
               </button>
             </div>
+          </div>
+        ) : (
+          <div className="pt-2 mt-2 border-t border-gray-100">
+            <p className="text-[12px] font-semibold text-gray-400 text-center uppercase tracking-wider">Request Processed</p>
           </div>
         )}
       </div>
@@ -164,16 +172,25 @@ export const AuthorityLeaveApprovals = () => {
 
   useEffect(() => {
     fetchRequests();
+    fetchRole();
   }, []);
+
+  const fetchRole = async () => {
+    try {
+      const res = await axios.get('/api/leave/authority-role');
+      if (res.data?.role) {
+        setPendingStatus(res.data.role);
+      }
+    } catch (err) {
+      console.error('Failed to fetch role:', err);
+    }
+  };
 
   const fetchRequests = async () => {
     try {
       setLoading(true);
       const res = await axios.get('/api/leave/requests');
       setRequests(res.data);
-      // Detect the pending stage relevant to this authority
-      const pending = res.data.find(r => r.status === 'pending_om' || r.status === 'pending_dean' || r.status === 'pending_principal');
-      if (pending) setPendingStatus(pending.status);
     } catch (err) {
       setError('Failed to load leave requests.');
     } finally {
@@ -188,6 +205,7 @@ export const AuthorityLeaveApprovals = () => {
         params: { action, reason },
       });
       await fetchRequests();
+      window.dispatchEvent(new Event('refetch-badges'));
     } catch (err) {
       setError(err.response?.data?.detail || 'Action failed.');
     } finally {
@@ -199,8 +217,14 @@ export const AuthorityLeaveApprovals = () => {
 
   const filtered = (() => {
     if (filter === 'active') return requests.filter(r => r.status === pendingStatus);
-    if (filter === 'approved') return requests.filter(r => r.status === 'approved');
-    if (filter === 'rejected') return requests.filter(r => r.status === 'rejected');
+    if (filter === 'approved') {
+      const myStep = STATUS_CFG[pendingStatus]?.step || 3;
+      return requests.filter(r => {
+        const rStep = STATUS_CFG[r.status]?.step || 0;
+        return rStep > myStep || r.status === 'approved';
+      });
+    }
+    if (filter === 'rejected') return requests.filter(r => r.status === 'rejected' || r.status === 'withdrawn');
     return requests;
   })();
 

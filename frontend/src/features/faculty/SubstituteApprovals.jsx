@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, CheckCircle, XCircle, Clock, Calendar } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export const SubstituteApprovals = () => {
+  const { user } = useAuth();
+  const backPath = user?.role === 'hod' ? '/hod/my-leave' : '/faculty/leave';
   const [requests, setRequests] = useState([]);
   const [compRequests, setCompRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +44,7 @@ export const SubstituteApprovals = () => {
       
       // Refresh list
       fetchRequests();
+      window.dispatchEvent(new Event('refetch-badges'));
     } catch (err) {
       console.error(err);
       alert(err.response?.data?.detail || 'Failed to update status');
@@ -56,6 +60,7 @@ export const SubstituteApprovals = () => {
       const res = await axios.put(`/api/leave/compensation-registry/${req_id}/status?status=${status}`, {}, { headers: { Authorization: `Bearer ${token}` } });
       alert(res.data?.message || 'Status updated successfully');
       fetchRequests();
+      window.dispatchEvent(new Event('refetch-badges'));
     } catch (err) {
       console.error(err);
       alert(err.response?.data?.detail || 'Failed to update status');
@@ -75,7 +80,7 @@ export const SubstituteApprovals = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="mb-6">
-        <Link to="/faculty/leave" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors mb-4">
+        <Link to={backPath} className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors mb-4">
           <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Requests
         </Link>
         <h1 className="text-3xl font-bold text-[#0f172a] tracking-tight">Peer Approvals</h1>

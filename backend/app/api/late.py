@@ -123,11 +123,23 @@ def get_late_records(
     """
     query = db.query(LateRecord).join(Student)
     
-    if current_user.role.value == "hod":
-        if not current_user.faculty_profile:
-            raise HTTPException(status_code=400, detail="HOD profile not found")
-        query = query.filter(Student.department_id == current_user.faculty_profile.department_id)
-    elif department_id and current_user.role.value in ["admin", "authority"]:
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    acting = is_acting_hod(current_user, db)
+    
+    if current_user.role.value not in ["admin", "authority", "late_tracker", "hod"] and not acting:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    if current_user.role.value == "hod" or acting:
+        if current_user.role.value == "hod":
+            dept_id = current_user.faculty_profile.department_id if current_user.faculty_profile else None
+        else:
+            dept = get_managed_department(current_user.faculty_profile.id, db)
+            dept_id = dept.id if dept else None
+            
+        if not dept_id:
+            raise HTTPException(status_code=400, detail="HOD profile/department not found")
+        query = query.filter(Student.department_id == dept_id)
+    elif department_id and current_user.role.value in ["admin", "authority", "late_tracker"]:
         query = query.filter(Student.department_id == department_id)
         
     if start_date:
@@ -147,15 +159,24 @@ def get_late_analytics(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    if current_user.role.value not in ["admin", "hod", "authority"]:
+    from app.api.hod_helper import is_acting_hod, get_managed_department
+    acting = is_acting_hod(current_user, db)
+    
+    if current_user.role.value not in ["admin", "hod", "authority", "late_tracker"] and not acting:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view analytics")
 
     query = db.query(LateRecord).join(Student)
     
-    if current_user.role.value == "hod":
-        if not current_user.faculty_profile:
-            raise HTTPException(status_code=400, detail="HOD profile not found")
-        query = query.filter(Student.department_id == current_user.faculty_profile.department_id)
+    if current_user.role.value == "hod" or acting:
+        if current_user.role.value == "hod":
+            dept_id = current_user.faculty_profile.department_id if current_user.faculty_profile else None
+        else:
+            dept = get_managed_department(current_user.faculty_profile.id, db)
+            dept_id = dept.id if dept else None
+            
+        if not dept_id:
+            raise HTTPException(status_code=400, detail="HOD profile/department not found")
+        query = query.filter(Student.department_id == dept_id)
     elif department_id:
         query = query.filter(Student.department_id == department_id)
 

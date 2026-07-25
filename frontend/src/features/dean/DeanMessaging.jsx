@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import {
   Search, Send, Image as ImageIcon, Shield, User, X, Check, RefreshCw,
-  MessageCircle, Info, Mail, Phone, Calendar, Users, ArrowLeft, Camera, Smile
+  MessageCircle, Info, Mail, Phone, Calendar, Users, ArrowLeft, Camera, Smile, Flag, Pin
 } from 'lucide-react';
 
 export default function DeanMessaging() {
@@ -11,6 +11,7 @@ export default function DeanMessaging() {
   const [selectedConv,  setSelectedConv]      = useState(null);
   const [messages,      setMessages]          = useState([]);
   const [searchQuery,   setSearchQuery]       = useState('');
+  const [activeTab,     setActiveTab]         = useState('all'); // 'all', 'unread', 'pinned', 'review'
   const [inputText,     setInputText]         = useState('');
   const [selectedFile,  setSelectedFile]      = useState(null);
   const [previewUrl,    setPreviewUrl]        = useState(null);
@@ -32,7 +33,7 @@ export default function DeanMessaging() {
   const fileInputRef   = useRef(null);
 
   /* ─────────────────────── Preserved effects ───────────────────── */
-  useEffect(() => { fetchConversations(); }, [searchQuery]);
+  useEffect(() => { fetchConversations(); }, [searchQuery, activeTab]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -40,7 +41,7 @@ export default function DeanMessaging() {
       if (selectedConv) fetchMessages(selectedConv.id, false);
     }, 5000);
     return () => clearInterval(interval);
-  }, [selectedConv]);
+  }, [selectedConv, activeTab, searchQuery]);
 
   useEffect(() => { scrollToBottom(); }, [messages]);
 
@@ -48,15 +49,44 @@ export default function DeanMessaging() {
   const fetchConversations = async (showLoading = true) => {
     try {
       if (showLoading) setLoadingList(true);
-      const url = searchQuery
-        ? `/api/messaging/conversations?search=${encodeURIComponent(searchQuery)}`
-        : '/api/messaging/conversations';
+      const params = new URLSearchParams();
+      if (searchQuery) params.append('search', searchQuery);
+      if (activeTab && activeTab !== 'all') params.append('filter_tab', activeTab);
+      
+      const queryString = params.toString();
+      const url = queryString ? `/api/messaging/conversations?${queryString}` : '/api/messaging/conversations';
       const res = await axios.get(url);
       setConversations(res.data);
     } catch (err) {
       console.error('Failed to load conversations', err);
     } finally {
       if (showLoading) setLoadingList(false);
+    }
+  };
+
+  const handleTogglePin = async (e, convId) => {
+    if (e) e.stopPropagation();
+    try {
+      const res = await axios.put(`/api/messaging/conversations/${convId}/pin`);
+      fetchConversations(false);
+      if (selectedConv?.id === convId) {
+        setSelectedConv(prev => prev ? { ...prev, is_pinned: res.data.is_pinned } : null);
+      }
+    } catch (err) {
+      console.error('Failed to toggle pin status', err);
+    }
+  };
+
+  const handleToggleReview = async (e, convId) => {
+    if (e) e.stopPropagation();
+    try {
+      const res = await axios.put(`/api/messaging/conversations/${convId}/review`);
+      fetchConversations(false);
+      if (selectedConv?.id === convId) {
+        setSelectedConv(prev => prev ? { ...prev, is_for_review: res.data.is_for_review } : null);
+      }
+    } catch (err) {
+      console.error('Failed to toggle review status', err);
     }
   };
 
@@ -214,9 +244,9 @@ export default function DeanMessaging() {
       <section
         className={`w-full md:w-[320px] lg:w-[360px] border-r border-[#DBDBDB] flex flex-col shrink-0 bg-white ${selectedConv ? 'hidden md:flex' : 'flex'}`}
       >
-        {/* Header */}
-        <div className="px-5 pt-5 pb-4 border-b border-[#DBDBDB]">
-          <div className="flex items-center justify-between mb-4">
+        {/* Header & Filters */}
+        <div className="px-5 pt-5 pb-3 border-b border-[#DBDBDB] space-y-3">
+          <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-[#262626]">Messages</h2>
             <button className="p-1.5 hover:bg-[#F7F7F7] rounded-full transition-colors duration-150">
               <MessageCircle className="w-[22px] h-[22px] text-[#262626]" strokeWidth={2} />
@@ -232,6 +262,28 @@ export default function DeanMessaging() {
               className="w-full bg-[#EFEFEF] rounded-lg pl-9 pr-4 py-[9px] text-[13px] text-[#262626] placeholder-[#8E8E8E] focus:outline-none focus:bg-[#E8E8E8] transition-colors"
             />
           </div>
+          
+          {/* Filter Tabs */}
+          <div className="flex items-center gap-1 bg-[#F3F4F6] p-1 rounded-xl text-xs font-semibold">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'unread', label: 'Unread' },
+              { id: 'pinned', label: 'Pinned' },
+              { id: 'review', label: 'Review' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 py-1.5 rounded-lg transition-all text-[12px] text-center capitalize ${
+                  activeTab === tab.id
+                    ? 'bg-white text-[#262626] shadow-sm font-bold'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* List */}
@@ -246,47 +298,80 @@ export default function DeanMessaging() {
               const isSelected = selectedConv?.id === conv.id;
               const hasUnread  = conv.dean_unread_count > 0;
               return (
-                <button
+                <div
                   key={conv.id}
                   onClick={() => selectConversation(conv)}
-                  className={`w-full flex items-center gap-3.5 px-5 py-3.5 text-left transition-colors duration-150 ${isSelected ? 'bg-[#F7F7F7]' : 'hover:bg-[#FAFAFA]'}`}
+                  className={`group relative w-full flex items-center gap-3.5 px-5 py-3.5 text-left cursor-pointer transition-colors duration-150 border-b border-gray-50 last:border-b-0 ${isSelected ? 'bg-[#F7F7F7]' : 'hover:bg-[#FAFAFA]'}`}
                 >
                   {/* Avatar */}
                   <div className="relative shrink-0">
-                    <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-br from-[#F0F0F0] to-[#DBDBDB] flex items-center justify-center">
+                    <div className="w-[52px] h-[52px] rounded-full bg-gradient-to-br from-[#F0F0F0] to-[#DBDBDB] flex items-center justify-center">
                       <Shield className="w-6 h-6 text-[#ABABAB]" />
                     </div>
                     <span className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 bg-[#44BF7F] border-2 border-white rounded-full" />
                   </div>
+                  
                   {/* Text */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className={`text-[14px] truncate leading-tight ${hasUnread ? 'font-bold text-[#262626]' : 'font-normal text-[#262626]'}`}>
-                        {conv.student_name || 'Anonymous Student'}
-                      </span>
-                      <span className={`text-[11px] ml-2 shrink-0 ${hasUnread ? 'text-[#0095F6] font-semibold' : 'text-[#8E8E8E]'}`}>
+                    <div className="flex items-center justify-between mb-0.5 gap-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {conv.is_pinned && (
+                          <span className="text-xs shrink-0" title="Pinned Chat">📌</span>
+                        )}
+                        <span className={`text-[14px] truncate leading-tight ${hasUnread ? 'font-bold text-[#262626]' : 'font-semibold text-[#262626]'}`}>
+                          {conv.student_name || 'Anonymous Student'}
+                        </span>
+                      </div>
+                      <span className={`text-[11px] shrink-0 ${hasUnread ? 'text-[#0095F6] font-semibold' : 'text-[#8E8E8E]'}`}>
                         {formatConvTime(conv.last_message_time)}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
+
+                    <div className="flex items-center justify-between gap-2 mt-1">
                       <p className={`text-[13px] truncate ${hasUnread ? 'font-semibold text-[#262626]' : 'text-[#8E8E8E] font-normal'}`}>
                         {conv.last_message || 'No messages yet'}
                       </p>
-                      {hasUnread && (
-                        <span className="shrink-0 min-w-[20px] h-5 px-1.5 bg-[#0095F6] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                          {conv.dean_unread_count > 9 ? '9+' : conv.dean_unread_count}
-                        </span>
-                      )}
+                      
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {conv.is_for_review && (
+                          <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                            Review
+                          </span>
+                        )}
+                        {hasUnread && (
+                          <span className="shrink-0 min-w-[18px] h-4 px-1 bg-[#0095F6] text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                            {conv.dean_unread_count > 9 ? '9+' : conv.dean_unread_count}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </button>
+
+                  {/* Action overlay buttons on hover */}
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 bg-white/90 backdrop-blur-sm p-1 rounded-lg border border-gray-200 shadow-sm z-10">
+                    <button
+                      onClick={(e) => handleTogglePin(e, conv.id)}
+                      className={`p-1.5 rounded hover:bg-gray-100 text-xs transition-colors ${conv.is_pinned ? 'text-blue-600 font-bold' : 'text-gray-400'}`}
+                      title={conv.is_pinned ? "Unpin Chat" : "Pin Chat"}
+                    >
+                      📌
+                    </button>
+                    <button
+                      onClick={(e) => handleToggleReview(e, conv.id)}
+                      className={`p-1.5 rounded hover:bg-gray-100 transition-colors ${conv.is_for_review ? 'text-amber-600' : 'text-gray-400'}`}
+                      title={conv.is_for_review ? "Remove Review" : "Mark for Review"}
+                    >
+                      <Flag className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
               );
             })
           ) : (
             <div className="flex flex-col items-center justify-center h-52 gap-3 px-8 text-center">
               <MessageCircle className="w-12 h-12 text-[#DBDBDB]" strokeWidth={1.5} />
-              <p className="text-[13px] font-semibold text-[#262626]">No messages yet</p>
-              <p className="text-xs text-[#8E8E8E] leading-relaxed">Students will appear here once they send a message.</p>
+              <p className="text-[13px] font-semibold text-[#262626]">No messages found</p>
+              <p className="text-xs text-[#8E8E8E] leading-relaxed">No conversations match the current filter.</p>
             </div>
           )}
         </div>
@@ -314,21 +399,48 @@ export default function DeanMessaging() {
                   <span className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-[#44BF7F] border-2 border-white rounded-full" />
                 </div>
                 <div>
-                  <p className="text-[14px] font-semibold text-[#262626] leading-tight">{selectedConv.student_name || 'Anonymous Student'}</p>
+                  <div className="flex items-center gap-1.5">
+                    {selectedConv.is_pinned && <span className="text-xs" title="Pinned Chat">📌</span>}
+                    <p className="text-[14px] font-semibold text-[#262626] leading-tight">{selectedConv.student_name || 'Anonymous Student'}</p>
+                    {selectedConv.is_for_review && (
+                      <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                        Review
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-[#8E8E8E]">Active now</p>
                 </div>
               </div>
-              {/* Info icon — toggles right panel */}
-              <button
-                onClick={() => {
-                  if (showDrawer) { setShowDrawer(false); setRevealProfile(null); }
-                  else handleRevealProfile();
-                }}
-                className={`p-2 rounded-full transition-colors duration-150 ${showDrawer ? 'bg-[#EFEFEF]' : 'hover:bg-[#F7F7F7]'}`}
-                title="Student details"
-              >
-                <Info className="w-[22px] h-[22px] text-[#262626]" strokeWidth={2} />
-              </button>
+              
+              <div className="flex items-center gap-1">
+                {/* Pin toggle button */}
+                <button
+                  onClick={(e) => handleTogglePin(e, selectedConv.id)}
+                  className={`p-2 rounded-full transition-colors duration-150 ${selectedConv.is_pinned ? 'bg-blue-50 text-blue-600' : 'hover:bg-[#F7F7F7] text-gray-400'}`}
+                  title={selectedConv.is_pinned ? "Unpin Chat" : "Pin Chat"}
+                >
+                  <span className="text-sm">📌</span>
+                </button>
+                {/* Mark for Review toggle button */}
+                <button
+                  onClick={(e) => handleToggleReview(e, selectedConv.id)}
+                  className={`p-2 rounded-full transition-colors duration-150 ${selectedConv.is_for_review ? 'bg-amber-100 text-amber-700' : 'hover:bg-[#F7F7F7] text-gray-400'}`}
+                  title={selectedConv.is_for_review ? "Remove Mark for Review" : "Mark for Review"}
+                >
+                  <Flag className="w-4 h-4" />
+                </button>
+                {/* Info icon — toggles right panel */}
+                <button
+                  onClick={() => {
+                    if (showDrawer) { setShowDrawer(false); setRevealProfile(null); }
+                    else handleRevealProfile();
+                  }}
+                  className={`p-2 rounded-full transition-colors duration-150 ${showDrawer ? 'bg-[#EFEFEF]' : 'hover:bg-[#F7F7F7]'}`}
+                  title="Student details"
+                >
+                  <Info className="w-[22px] h-[22px] text-[#262626]" strokeWidth={2} />
+                </button>
+              </div>
             </header>
 
             {/* Messages */}

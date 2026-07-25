@@ -8,6 +8,7 @@ export const LeaveRequests = () => {
   const [requests, setRequests] = useState([]);
   const [filter, setFilter] = useState('All');
   const [loading, setLoading] = useState(true);
+  const [newlyApproved, setNewlyApproved] = useState([]);
 
   useEffect(() => {
     fetchRequests();
@@ -16,12 +17,29 @@ export const LeaveRequests = () => {
   const fetchRequests = async () => {
     try {
       const res = await axios.get('/api/leave/my-requests');
-      setRequests(res.data);
+      const data = res.data;
+      setRequests(data);
+      
+      // Check for newly approved requests
+      const dismissed = JSON.parse(localStorage.getItem('dismissedApprovedLeaves') || '[]');
+      const recentlyApproved = data.filter(req => 
+        req.status === 'approved' && 
+        !dismissed.includes(req.id) &&
+        (new Date() - new Date(req.updated_at)) < 7 * 24 * 60 * 60 * 1000 // approved in last 7 days
+      );
+      setNewlyApproved(recentlyApproved);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const dismissNotification = (id) => {
+    const dismissed = JSON.parse(localStorage.getItem('dismissedApprovedLeaves') || '[]');
+    dismissed.push(id);
+    localStorage.setItem('dismissedApprovedLeaves', JSON.stringify(dismissed));
+    setNewlyApproved(prev => prev.filter(req => req.id !== id));
   };
 
   const getStatusBadge = (status) => {
@@ -90,6 +108,31 @@ export const LeaveRequests = () => {
           </Link>
         </div>
       </div>
+
+      {newlyApproved.length > 0 && (
+        <div className="flex flex-col gap-3 mb-6">
+          {newlyApproved.map(req => (
+            <div key={`notif-${req.id}`} className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start sm:items-center justify-between shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="bg-emerald-100 p-2 rounded-full text-emerald-600">
+                  <CheckCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-emerald-800 font-semibold text-sm">Leave Approved</h4>
+                  <p className="text-emerald-600 text-xs mt-0.5">Your request for <strong>{req.leave_type}</strong> (Applied: {new Date(req.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric'})}) has been approved by all authorities.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => dismissNotification(req.id)}
+                className="text-emerald-500 hover:text-emerald-700 transition-colors p-1"
+                title="Dismiss Notification"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex flex-wrap items-center gap-2">

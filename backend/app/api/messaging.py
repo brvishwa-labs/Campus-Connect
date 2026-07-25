@@ -59,6 +59,8 @@ class ConversationResponse(BaseModel):
     last_message_time: Optional[datetime] = None
     dean_unread_count: int
     student_unread_count: int
+    is_pinned: bool = False
+    is_for_review: bool = False
     created_at: datetime
     updated_at: Optional[datetime] = None
     dean_name: Optional[str] = None  # Populated only for student-side API
@@ -158,11 +160,12 @@ def get_student_conversation(
 @router.get("/conversations", response_model=List[ConversationResponse])
 def get_dean_conversations(
     search: Optional[str] = None,
+    filter_tab: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Get all conversations belonging to the Dean, with search support.
+    Get all conversations belonging to the Dean, with search & tab filtering support.
     """
     dean_profile = get_dean_profile(current_user, db)
     
@@ -180,8 +183,18 @@ def get_dean_conversations(
             (Section.name.ilike(search_pat)) |
             (cast(Student.current_year, String).ilike(search_pat))
         )
+
+    if filter_tab == "unread":
+        query = query.filter(Conversation.dean_unread_count > 0)
+    elif filter_tab == "pinned":
+        query = query.filter(Conversation.is_pinned == True)
+    elif filter_tab == "review":
+        query = query.filter(Conversation.is_for_review == True)
         
-    conversations = query.order_by(Conversation.last_message_time.desc().nullslast()).all()
+    conversations = query.order_by(
+        Conversation.is_pinned.desc(),
+        Conversation.last_message_time.desc().nullslast()
+    ).all()
     
     results = []
     for c in conversations:
@@ -195,6 +208,68 @@ def get_dean_conversations(
         results.append(res)
         
     return results
+
+
+@router.put("/conversations/{conversation_id}/pin", response_model=ConversationResponse)
+def toggle_pin_conversation(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Toggle pin status for a conversation (Dean only).
+    """
+    dean_profile = get_dean_profile(current_user, db)
+    conv = db.query(Conversation).filter(
+        Conversation.id == conversation_id,
+        Conversation.dean_id == dean_profile.id
+    ).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+        
+    conv.is_pinned = not conv.is_pinned
+    db.commit()
+    db.refresh(conv)
+    
+    res = ConversationResponse.model_validate(conv)
+    if conv.student:
+        res.student_name = f"{conv.student.first_name} {conv.student.last_name}"
+        res.student_register_number = conv.student.register_number
+        if conv.student.department:
+            res.student_department = conv.student.department.name
+        res.student_year = conv.student.current_year
+    return res
+
+
+@router.put("/conversations/{conversation_id}/review", response_model=ConversationResponse)
+def toggle_review_conversation(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Toggle mark for review status for a conversation (Dean only).
+    """
+    dean_profile = get_dean_profile(current_user, db)
+    conv = db.query(Conversation).filter(
+        Conversation.id == conversation_id,
+        Conversation.dean_id == dean_profile.id
+    ).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+        
+    conv.is_for_review = not conv.is_for_review
+    db.commit()
+    db.refresh(conv)
+    
+    res = ConversationResponse.model_validate(conv)
+    if conv.student:
+        res.student_name = f"{conv.student.first_name} {conv.student.last_name}"
+        res.student_register_number = conv.student.register_number
+        if conv.student.department:
+            res.student_department = conv.student.department.name
+        res.student_year = conv.student.current_year
+    return res
 
 
 @router.get("/conversations/{conversation_id}/student-profile", response_model=StudentProfileReveal)

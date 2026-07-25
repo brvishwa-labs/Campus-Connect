@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, Clock, CheckCircle, XCircle, Calendar, ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 export const CompensationRegistry = () => {
+  const { user } = useAuth();
+  const backPath = user?.role === 'hod' ? '/hod/my-leave' : '/faculty/leave';
   const [requests, setRequests] = useState([]);
   const [facultyList, setFacultyList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +84,7 @@ export const CompensationRegistry = () => {
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <Link to="/faculty/leave" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors mb-4">
+          <Link to={backPath} className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors mb-4">
             <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Requests
           </Link>
           <h1 className="text-3xl font-bold text-[#0f172a] tracking-tight">Compensation Registry</h1>

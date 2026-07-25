@@ -39,7 +39,6 @@ const ROLE_NAV_LINKS = {
     { name: 'My Leave', path: '/hod/my-leave', icon: Calendar },
     { name: 'Leave Approvals', path: '/hod/leave', icon: Calendar },
     { name: 'Peer Approvals', path: '/faculty/leave/substitutes', icon: Users },
-    { name: 'HOD Duty Requests', path: '/faculty/hod-duty', icon: Users },
     { name: 'Discipline', path: '/hod/discipline', icon: ShieldAlert },
     { name: 'Late Tracker', path: '/hod/latetracker', icon: Clock },
     { name: 'Gate Pass Approvals', path: '/hod/gatepass', icon: Clock },
@@ -51,11 +50,8 @@ const ROLE_NAV_LINKS = {
     { name: 'My Courses', path: '/faculty/courses', icon: BookOpen },
     { name: 'Leave Requests', path: '/faculty/leave', icon: Calendar },
     { name: 'Peer Approvals', path: '/faculty/leave/substitutes', icon: Users },
-    { name: 'HOD Duty Requests', path: '/faculty/hod-duty', icon: Users },
     { name: 'Mentorship', path: '/faculty/mentorship', icon: GraduationCap },
     { name: 'Report Incident', path: '/faculty/discipline', icon: ShieldAlert },
-    { name: 'Gate Pass Approvals', path: '/faculty/gatepass', icon: Clock },
-    { name: 'Faculty Gate Pass', path: '/faculty/faculty-gatepass', icon: Clock },
     { name: 'Late Entry Notifications', path: '/faculty/late-entry', icon: Bell },
     { name: 'Altered Class Advisor', path: '/faculty/altered-class-advisor', icon: Users },
     { name: 'Announcements', path: '/faculty/announcements', icon: Bell },
@@ -129,6 +125,26 @@ export default function DashboardLayout() {
 
   const [badgeCounts, setBadgeCounts] = useState({});
 
+  const [delegationStatus, setDelegationStatus] = useState({
+    has_delegation: false,
+    has_pending: false,
+    is_active_today: false,
+    active_leave: null
+  });
+
+  const fetchDelegationStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await axios.get('/api/leave/delegation-status', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setDelegationStatus(res.data);
+    } catch (err) {
+      console.error('Failed to fetch delegation status', err);
+    }
+  };
+
   const fetchBadgeCounts = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -145,7 +161,17 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (user) {
       fetchBadgeCounts();
-      const interval = setInterval(fetchBadgeCounts, 10000); // poll every 10s for near real-time
+      fetchNotifications();
+      if (user.role === 'faculty' || user.role === 'hod') {
+        fetchDelegationStatus();
+      }
+      const interval = setInterval(() => {
+        fetchBadgeCounts();
+        fetchNotifications();
+        if (user.role === 'faculty' || user.role === 'hod') {
+          fetchDelegationStatus();
+        }
+      }, 10000); // poll every 10s for near real-time
       return () => clearInterval(interval);
     }
   }, [user]);
@@ -172,6 +198,8 @@ export default function DashboardLayout() {
       const pathToSector = {
         // Faculty
         '/faculty/leave':               'faculty-leave',
+        '/faculty/leave/substitutes':   'faculty-peer-substitutes',
+        '/faculty/hod-duty':            'faculty-hod-duty',
         '/faculty/mentorship':          'faculty-mentorship',
         '/faculty/gatepass':            'faculty-gatepass',
         '/faculty/faculty-gatepass':    'faculty-gatepass-own',
@@ -229,27 +257,18 @@ export default function DashboardLayout() {
 
   const fetchNotifications = async () => {
     try {
-      const res = await axios.get('/api/announcements?limit=10');
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await axios.get('/api/notifications/center', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setNotifications(res.data);
-      const lastRead = localStorage.getItem(`last_read_announcement_${user.id}`);
-      if (res.data.length > 0) {
-        const newestTime = new Date(res.data[0].created_at).getTime();
-        setHasUnread(!lastRead || newestTime > parseInt(lastRead, 10));
-      } else {
-        setHasUnread(false);
-      }
+      const hasUnreadItems = Array.isArray(res.data) && res.data.some(n => !n.is_read);
+      setHasUnread(hasUnreadItems);
     } catch (err) {
-      console.error('Failed to fetch notifications', err);
+      console.error('Failed to fetch notifications center', err);
     }
   };
-
-  useEffect(() => {
-    if (user) {
-      fetchNotifications();
-      const interval = setInterval(fetchNotifications, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [user]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -264,11 +283,6 @@ export default function DashboardLayout() {
   const handleBellClick = () => {
     setIsUserMenuOpen(false); // close profile menu first
     setIsNotificationsOpen(prev => !prev);
-    if (!isNotificationsOpen && notifications.length > 0) {
-      const newestTime = new Date(notifications[0].created_at).getTime();
-      localStorage.setItem(`last_read_announcement_${user.id}`, newestTime.toString());
-      setHasUnread(false);
-    }
   };
 
   if (!user) return <Navigate to="/login" replace />;
@@ -546,6 +560,108 @@ export default function DashboardLayout() {
 
             return renderLink;
           })}
+
+          {/* Dedicated Temporary HOD Responsibilities Section */}
+          {user.role === 'faculty' && (delegationStatus.has_delegation || delegationStatus.is_active_today) && (
+            <div className="mt-4 pt-3 border-t-2 border-amber-300 dark:border-amber-500/40 bg-gradient-to-b from-amber-50/80 to-orange-50/40 dark:from-amber-950/30 dark:to-amber-900/10 rounded-xl p-2.5 border border-amber-200/80 dark:border-amber-800/40 shadow-sm">
+              <div className="flex items-center space-x-2 px-2 py-1.5 mb-1.5">
+                <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                <span className="text-[11px] font-extrabold text-amber-900 dark:text-amber-300 uppercase tracking-wider">
+                  HOD Responsibilities (Temporary)
+                </span>
+              </div>
+
+              <div className="space-y-1">
+                {/* HOD Duty Requests - visible when faculty has pending/active delegation */}
+                {delegationStatus.has_delegation && (
+                  <Link
+                    to="/faculty/hod-duty"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg transition-all text-xs font-semibold ${
+                      location.pathname === '/faculty/hod-duty'
+                        ? 'bg-amber-600 text-white font-bold shadow-sm'
+                        : 'text-amber-950 dark:text-amber-200 hover:bg-amber-100/80 dark:hover:bg-amber-900/40 font-medium'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2.5">
+                      <Users className={`w-4 h-4 ${location.pathname === '/faculty/hod-duty' ? 'text-white' : 'text-amber-600 dark:text-amber-400'}`} />
+                      <span>HOD Duty Requests</span>
+                    </div>
+                    {badgeCounts['/faculty/hod-duty'] > 0 && (
+                      <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
+                        {badgeCounts['/faculty/hod-duty']}
+                      </span>
+                    )}
+                  </Link>
+                )}
+
+                {/* Temporary Approval Modules - visible ONLY when leave is approved and today is within leave dates */}
+                {delegationStatus.is_active_today && (
+                  <>
+                    <Link
+                      to="/hod/leave"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg transition-all text-xs font-semibold ${
+                        location.pathname === '/hod/leave'
+                          ? 'bg-amber-600 text-white font-bold shadow-sm'
+                          : 'text-amber-950 dark:text-amber-200 hover:bg-amber-100/80 dark:hover:bg-amber-900/40 font-medium'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2.5">
+                        <Calendar className={`w-4 h-4 ${location.pathname === '/hod/leave' ? 'text-white' : 'text-amber-600 dark:text-amber-400'}`} />
+                        <span>Faculty & Student Leave Approvals</span>
+                      </div>
+                      {badgeCounts['/hod/leave'] > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
+                          {badgeCounts['/hod/leave']}
+                        </span>
+                      )}
+                    </Link>
+
+                    <Link
+                      to="/hod/gatepass"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg transition-all text-xs font-semibold ${
+                        location.pathname === '/hod/gatepass'
+                          ? 'bg-amber-600 text-white font-bold shadow-sm'
+                          : 'text-amber-950 dark:text-amber-200 hover:bg-amber-100/80 dark:hover:bg-amber-900/40 font-medium'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2.5">
+                        <Clock className={`w-4 h-4 ${location.pathname === '/hod/gatepass' ? 'text-white' : 'text-amber-600 dark:text-amber-400'}`} />
+                        <span>Student Gate Pass Approvals</span>
+                      </div>
+                      {badgeCounts['/hod/gatepass'] > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
+                          {badgeCounts['/hod/gatepass']}
+                        </span>
+                      )}
+                    </Link>
+
+                    <Link
+                      to="/hod/faculty-gatepass"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg transition-all text-xs font-semibold ${
+                        location.pathname === '/hod/faculty-gatepass'
+                          ? 'bg-amber-600 text-white font-bold shadow-sm'
+                          : 'text-amber-950 dark:text-amber-200 hover:bg-amber-100/80 dark:hover:bg-amber-900/40 font-medium'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2.5">
+                        <Clock className={`w-4 h-4 ${location.pathname === '/hod/faculty-gatepass' ? 'text-white' : 'text-amber-600 dark:text-amber-400'}`} />
+                        <span>Faculty Gate Pass Approvals</span>
+                      </div>
+                      {badgeCounts['/hod/faculty-gatepass'] > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
+                          {badgeCounts['/hod/faculty-gatepass']}
+                        </span>
+                      )}
+                    </Link>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </nav>
         
         <div className="p-4 mt-auto border-t border-gray-100">
@@ -626,58 +742,53 @@ export default function DashboardLayout() {
                     {notifications.length === 0 ? (
                       <div className="p-4 sm:p-6 text-center text-gray-400">
                         <Bell className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-2 text-gray-300" />
-                        <p className="text-[10px] sm:text-xs font-semibold">No announcements</p>
+                        <p className="text-[10px] sm:text-xs font-semibold">No notifications</p>
                       </div>
                     ) : (
                       notifications.map((notif) => {
-                        const categoryColors = {
-                          Urgent: "bg-red-50 text-red-600 border-red-100",
-                          Event: "bg-purple-50 text-purple-600 border-purple-100",
-                          Academic: "bg-blue-50 text-blue-600 border-blue-100",
-                          General: "bg-gray-50 text-gray-600 border-gray-100"
+                        const statusColors = {
+                          approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                          accepted: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                          rejected: "bg-rose-50 text-rose-700 border-rose-200",
+                          declined: "bg-rose-50 text-rose-700 border-rose-200",
+                          pending: "bg-amber-50 text-amber-700 border-amber-200",
+                          published: "bg-blue-50 text-blue-700 border-blue-200"
                         };
-                        const badgeClass = categoryColors[notif.category] || categoryColors.General;
+                        const statusLower = (notif.status || '').toLowerCase();
+                        const badgeStyle = Object.keys(statusColors).find(k => statusLower.includes(k)) 
+                          ? statusColors[Object.keys(statusColors).find(k => statusLower.includes(k))]
+                          : "bg-gray-50 text-gray-700 border-gray-200";
                         
                         return (
                           <div 
                             key={notif.id}
                             onClick={() => {
                               setIsNotificationsOpen(false);
-                              navigate(`/${user.role}/announcements?id=${notif.id}`);
+                              if (notif.link) {
+                                navigate(notif.link);
+                              }
                             }}
-                            className="px-3 sm:px-4 py-2.5 sm:py-3 hover:bg-gray-50 cursor-pointer transition-colors text-left border-b border-gray-50 last:border-b-0"
+                            className={`px-3 sm:px-4 py-2.5 sm:py-3 hover:bg-gray-50 cursor-pointer transition-colors text-left border-b border-gray-50 last:border-b-0 ${!notif.is_read ? 'bg-blue-50/30' : ''}`}
                           >
                             <div className="flex justify-between items-start gap-1 mb-0.5">
                               <span className="font-semibold text-gray-900 text-[10px] sm:text-xs line-clamp-2 flex-1">
+                                {!notif.is_read && <span className="inline-block w-2 h-2 rounded-full bg-blue-600 mr-1.5 align-middle"></span>}
                                 {notif.title}
                               </span>
-                              <span className={`text-[7px] sm:text-[8px] font-bold uppercase px-1 sm:px-1.5 py-0.5 rounded border ${badgeClass} shrink-0 whitespace-nowrap`}>
-                                {notif.category}
-                              </span>
+                              {notif.status && (
+                                <span className={`text-[7px] sm:text-[8px] font-bold uppercase px-1 sm:px-1.5 py-0.5 rounded border ${badgeStyle} shrink-0 whitespace-nowrap`}>
+                                  {notif.status}
+                                </span>
+                              )}
                             </div>
-                            <p className="text-[9px] sm:text-xs text-gray-500 line-clamp-2 leading-tight mb-1">
-                              {notif.content}
-                            </p>
-                            <div className="flex justify-between items-center text-[8px] sm:text-[9px] text-gray-400 font-medium gap-1">
-                              <span className="truncate">{notif.author?.name || "System"}</span>
-                              <span className="whitespace-nowrap flex-shrink-0">{new Date(notif.created_at).toLocaleDateString()}</span>
+                            <div className="flex justify-between items-center text-[8px] sm:text-[9px] text-gray-400 font-medium gap-1 mt-1">
+                              <span className="truncate text-gray-500 font-medium">By: {notif.requester || "System"}</span>
+                              <span className="whitespace-nowrap flex-shrink-0 text-gray-400">{notif.date ? new Date(notif.date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                             </div>
                           </div>
                         );
                       })
                     )}
-                  </div>
-                  
-                  <div className="p-2 sm:p-2.5 bg-gray-50/50 border-t border-gray-50 text-center">
-                    <button 
-                      onClick={() => {
-                        setIsNotificationsOpen(false);
-                        navigate(`/${user.role}/announcements`);
-                      }}
-                      className="text-[9px] sm:text-[10px] text-primary-600 hover:text-primary-700 font-bold transition-colors"
-                    >
-                      View All
-                    </button>
                   </div>
                 </div>
                 </>

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { Calendar, Check, X, AlertCircle, Clock, Info } from 'lucide-react';
+import { Calendar, Check, X, AlertCircle, Clock, Info, Shield, CheckCircle2 } from 'lucide-react';
 
 export const HODDutySubstitute = () => {
   const [requests, setRequests] = useState([]);
+  const [delegationStatus, setDelegationStatus] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [processingId, setProcessingId] = useState(null);
@@ -14,8 +16,12 @@ export const HODDutySubstitute = () => {
 
   const fetchRequests = async () => {
     try {
-      const res = await axios.get('/api/leave/hod-substitute-pending');
-      setRequests(res.data);
+      const [pendingRes, statusRes] = await Promise.all([
+        axios.get('/api/leave/hod-substitute-pending'),
+        axios.get('/api/leave/delegation-status')
+      ]);
+      setRequests(pendingRes.data);
+      setDelegationStatus(statusRes.data);
     } catch (err) {
       console.error(err);
       setError('Failed to fetch pending HOD duty requests.');
@@ -45,6 +51,38 @@ export const HODDutySubstitute = () => {
         <h1 className="text-3xl font-bold text-[#0f172a] tracking-tight">HOD Duty Delegation Requests</h1>
         <p className="text-sm text-gray-500 mt-1">Accept or reject requests from your HOD to handle their duties during their leave.</p>
       </div>
+
+      {delegationStatus?.is_active_today && (
+        <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-2xl p-6 text-white shadow-lg mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" /> Active HOD Delegation
+            </span>
+          </div>
+          <h2 className="text-xl font-bold">Acting Head of Department</h2>
+          <p className="text-sm text-amber-100 mt-1">
+            You are currently serving as Acting HOD for {delegationStatus.active_leave?.hod_name || 'Department HOD'} ({delegationStatus.active_leave?.from_date} to {delegationStatus.active_leave?.to_date}). You have active approval authority for departmental requests.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+            <Link to="/hod/leave" className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-xl p-4 transition-all group">
+              <Calendar className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
+              <h4 className="font-bold text-sm">Leave Approvals</h4>
+              <p className="text-xs text-amber-100 mt-1">Review student & faculty leave requests</p>
+            </Link>
+            <Link to="/hod/gatepass" className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-xl p-4 transition-all group">
+              <Clock className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
+              <h4 className="font-bold text-sm">Student Gate Pass</h4>
+              <p className="text-xs text-amber-100 mt-1">Approve pending student gate passes</p>
+            </Link>
+            <Link to="/hod/faculty-gatepass" className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-xl p-4 transition-all group">
+              <Shield className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
+              <h4 className="font-bold text-sm">Faculty Gate Pass</h4>
+              <p className="text-xs text-amber-100 mt-1">Approve pending faculty gate passes</p>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 text-red-700 p-4 rounded-lg flex items-start gap-3">

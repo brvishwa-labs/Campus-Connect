@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   BookOpen, Users, Edit3, TrendingUp, Clock, Bell, Calendar, AlertCircle, 
   Award, BarChart3, FileText, CheckCircle, AlertTriangle, Brain, ChevronRight,
-  CalendarDays, GraduationCap, ClipboardCheck, Target, Sparkles, Zap, Plus, Trash2, CheckCircle2, Circle, ListTodo, MapPin
+  CalendarDays, GraduationCap, ClipboardCheck, Target, Sparkles, Zap, Plus, Trash2, CheckCircle2, Circle, ListTodo, MapPin, Shield
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -565,6 +565,23 @@ export const FacultyDashboard = () => {
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState(0);
   const [pendingGatePassRequests, setPendingGatePassRequests] = useState(0);
   const [pendingLateEntries, setPendingLateEntries] = useState(0);
+  const [delegationStatus, setDelegationStatus] = useState(null);
+
+  useEffect(() => {
+    const fetchDelegationStatus = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const res = await axios.get('/api/leave/delegation-status', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setDelegationStatus(res.data);
+      } catch (err) {
+        console.error('Failed to fetch delegation status on dashboard', err);
+      }
+    };
+    fetchDelegationStatus();
+  }, []);
 
   // Function to download student report as PDF
   const downloadStudentReport = async (studentId, studentName) => {
@@ -882,6 +899,51 @@ export const FacultyDashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* Prominent Acting HOD Information Banner */}
+        {delegationStatus?.is_active_today && (
+          <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-xl p-5 sm:p-6 text-white shadow-md border border-amber-400/40 mb-6">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-white/20 backdrop-blur-md rounded-xl shadow-inner flex-shrink-0 mt-0.5 border border-white/30">
+                <Shield className="w-7 h-7 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2.5 flex-wrap mb-1">
+                  <h3 className="text-lg sm:text-xl font-bold tracking-tight">Acting HOD Today</h3>
+                  <span className="bg-white/20 backdrop-blur-md px-3 py-0.5 rounded-full text-xs font-extrabold uppercase tracking-wider text-amber-100 border border-white/20">
+                    Temporary Delegation Active
+                  </span>
+                </div>
+                <p className="text-sm sm:text-base text-amber-100 leading-relaxed font-medium">
+                  You have been delegated temporary HOD responsibilities by <strong className="text-white font-bold">Dr. {delegationStatus.active_leave?.hod_name || 'HOD'}</strong> for <span className="bg-black/20 px-2 py-0.5 rounded font-semibold text-white">{delegationStatus.active_leave?.from_date} to {delegationStatus.active_leave?.to_date}</span>.
+                </p>
+                <p className="text-xs sm:text-sm text-amber-100/90 mt-2 font-medium">
+                  You can approve Faculty Leave Requests, Student Leave Requests, Student Gate Passes, and Faculty Gate Passes during this period only.
+                </p>
+                <div className="flex items-center gap-3 mt-4 flex-wrap">
+                  <button
+                    onClick={() => navigate('/hod/leave')}
+                    className="px-4 py-2 bg-white text-amber-900 hover:bg-amber-50 text-xs sm:text-sm font-bold rounded-lg shadow transition-all flex items-center gap-2"
+                  >
+                    <Calendar className="w-4 h-4 text-amber-700" /> Leave Approvals
+                  </button>
+                  <button
+                    onClick={() => navigate('/hod/gatepass')}
+                    className="px-4 py-2 bg-white text-amber-900 hover:bg-amber-50 text-xs sm:text-sm font-bold rounded-lg shadow transition-all flex items-center gap-2"
+                  >
+                    <Clock className="w-4 h-4 text-amber-700" /> Student Gate Pass
+                  </button>
+                  <button
+                    onClick={() => navigate('/hod/faculty-gatepass')}
+                    className="px-4 py-2 bg-white text-amber-900 hover:bg-amber-50 text-xs sm:text-sm font-bold rounded-lg shadow transition-all flex items-center gap-2"
+                  >
+                    <Shield className="w-4 h-4 text-amber-700" /> Faculty Gate Pass
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Course Selector */}
         {dashboardData?.all_courses && dashboardData.all_courses.length > 0 && (
